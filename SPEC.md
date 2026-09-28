@@ -12,7 +12,7 @@ decisions:
   - id: yaml-reader
     state: decided
     value: hyperspec reads YAML only through parseSkillFile from @supersuit/superskill/yaml; it never carries a second parser
-    source: Gary, 2026-09-28, "fix the yaml reader bro"
+    source: "superskill 0.2.0 CHANGELOG: the reader gained nesting so standards in this family import it instead of writing a second parser"
     author: gary-sheng
     chosen_by: human
   - id: exit-codes
