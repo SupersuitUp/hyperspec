@@ -148,3 +148,50 @@ test("I3/5: a rejects item that is not a plain string names the item", () => {
   assert.deepEqual(fails.map((x) => [x.test, x.id]), [[5, "rejects-item"]]);
   assert.equal(fails[0].message, "rejects item 1 is not a plain string");
 });
+
+// I4: one variant per finding id. Each breaks exactly one thing, and must raise exactly that finding
+// as its only failure, and fail exactly that finding's test.
+const cut = (re) => (t) => { const out = t.replace(re, ""); assert.notEqual(out, t, `edit ${re} did not apply`); return out; };
+const sub = (a, b) => (t) => { const out = t.replace(a, b); assert.notEqual(out, t, `edit ${a} did not apply`); return out; };
+const ledger = (text) => (s) => { writeFileSync(join(s.dir, "runs.jsonl"), text); return loadSpec(s.path); };
+const BY_ID = [
+  ["decisions", 1, cut(/decisions:\n(  .*\n)+/)],
+  ["decision-id", 1, sub("  - id: audience\n    state", "  - state")],
+  ["decision-state", 1, sub("state: decided", "state: maybe")],
+  ["decided-value", 1, cut(/    value: .*\n/)],
+  ["delegated-rule", 1, cut(/    rule: .*\n/)],
+  ["open-question", 1, sub(/    state: delegated\n    rule: .*\n/, "    state: open\n")],
+  ["requirements", 2, cut(/requirements:\n(  .*\n)+/)],
+  ["requirement-text", 2, cut(/    text: .*\n/)],
+  ["fails-when", 2, cut(/    fails_when: .*\n/)],
+  ["check", 3, sub(/      rubric: .*\n/, "      note: none\n")],
+  ["decision-source", 4, cut("    source: interview A2\n")],
+  ["decision-author", 4, sub("    author: gary-sheng\n    chosen_by: human\n", "    chosen_by: human\n")],
+  ["decision-chosen-by", 4, sub("chosen_by: human", "chosen_by: nobody")],
+  ["requirement-source", 4, cut("    source: design doc, audience block\n")],
+  ["requirement-author", 4, sub("    author: gary-sheng\nrejects:", "rejects:")],
+  ["rejects", 5, cut(/rejects:\n(  .*\n)+/)],
+  ["rejects-item", 5, sub("  - hype words about AI", "  - text: hype words about AI")],
+  ["examples", 6, cut(/examples:\n(  .*\n)+/)],
+  ["example-path", 6, sub("  - path: goldens/opening.md\n    why", "  - why")],
+  ["example-missing", 6, sub("goldens/opening.md", "goldens/missing.md")],
+  ["example-why", 6, cut(/    why: .*\n/)],
+  ["next-action", 7, cut(/resume:\n(  .*\n)+/)],
+  ["next-action-vague", 7, sub(/next_action: .*/, "next_action: tbd")],
+  ["feedback-issues", 8, cut(/  issues: .*\n/)],
+  ["feedback-fork", 8, cut(/  fork: .*\n/)],
+  ["ledger", 9, cut(/improvement:\n(  .*\n)+/)],
+  ["ledger-line", 9, null, ledger("not json\n")],
+  ["verdict", 9, null, ledger('{"verdict":"maybe"}\n')],
+  ["verdict-change", 9, null, ledger('{"verdict":"improved"}\n')],
+  ["verdict-reason", 9, null, ledger('{"verdict":"not-improved"}\n')],
+];
+for (const [id, n, edit, after] of BY_ID) {
+  test(`I4: finding "${id}" fires alone and fails test ${n} only`, () => {
+    let s = variant(edit || ((t) => t));
+    if (after) s = after(s);
+    const fails = lintSpec(s).filter((x) => x.severity === "fail");
+    assert.deepEqual(fails.map((x) => x.id), [id]);
+    assert.deepEqual(failsOn(s), [n]);
+  });
+}

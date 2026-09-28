@@ -51,3 +51,27 @@ test("I1: a stray init flag before the files never swallows a file", () => {
   assert.match(r.stdout, /a\.md: fail/);
   assert.match(r.stdout, /b\.md: pass/);
 });
+
+// I4: blocked end to end, and the worst-result ranking across files.
+const blocked = () => fixture("blocked", (t) => t.replace(/    state: delegated\n    rule: .*\n/, "    state: open\n    question: how long?\n"));
+const failing = () => fixture("failing", (t) => t.replace(/rejects:\n  - .*\n/, ""));
+test("I4: a spec whose only problem is one open decision exits 3 and names it", () => {
+  const r = run("lint", blocked());
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stdout, /blocked \(9\/9\), open: length/);
+});
+test("I4: lint exits with the worst result across files: 2 over 1 over 3 over 0", () => {
+  assert.equal(run("lint", VALID, blocked()).status, 3);
+  assert.equal(run("lint", blocked(), failing()).status, 1);
+  assert.equal(run("lint", failing(), blocked()).status, 1);
+  assert.equal(run("lint", VALID, "/nope/missing.md").status, 2);
+  assert.equal(run("lint", "/nope/missing.md", failing()).status, 2);
+  assert.equal(run("lint", blocked(), "/nope/missing.md", VALID).status, 2);
+});
+test("I4: broken frontmatter, and a file with no hyperspec key, exit 2", () => {
+  const d = mkdtempSync(join(tmpdir(), "hs-cli-"));
+  const broken = join(d, "broken.md"); _write(broken, '---\nhyperspec: "0.1"\ntitle: [unclosed\n');
+  const plain = join(d, "plain.md"); _write(plain, "---\ntitle: T\n---\n# Not a hyperspec\n");
+  assert.equal(run("lint", broken).status, 2);
+  assert.equal(run("lint", plain).status, 2);
+});
