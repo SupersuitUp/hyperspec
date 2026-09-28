@@ -323,6 +323,20 @@ test("checkRecipe (R2) fails a stage with a null output as pending", () => {
   assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0]" && /is pending/.test(f.message)));
 });
 
+test("checkRecipe fails on an empty stages array (R7: a recipe needs at least one stage)", () => {
+  const recipe = validRecipe();
+  recipe.stages = [];
+  const findings = checkRecipe(recipe);
+  assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages" && f.message === "a recipe needs at least one stage"));
+});
+
+test("checkRecipe fails on a missing stages field the same as an empty array", () => {
+  const recipe = validRecipe();
+  delete recipe.stages;
+  const findings = checkRecipe(recipe);
+  assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages" && f.message === "a recipe needs at least one stage"));
+});
+
 test("checkRecipe warns (never fails) on a stage that declares no reads", () => {
   const recipe = validRecipe();
   recipe.stages[0].reads = [];

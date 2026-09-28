@@ -102,6 +102,14 @@ test("stage() throws on a duplicate stage id", () => {
   );
 });
 
+test("stage() throws a domain error, not a raw TypeError, when called with no id", () => {
+  const dir = project();
+  const specPath = writeSpec(dir);
+  const r = startRecipe({ output: join(dir, "essay.md"), factory: { name: "f", version: "1" }, spec: specPath, clicker: "gary-sheng" });
+  assert.throws(() => r.stage(), /stage needs an id/);
+  assert.throws(() => r.stage({ reads: ["spec"], output: "text", verdict: { station: "s", pass: true, note: "" } }), /stage needs an id/);
+});
+
 test("startRecipe throws with the loader's message when the spec is unreadable or not a hyperspec", () => {
   const dir = project();
   assert.throws(
@@ -115,7 +123,84 @@ test("startRecipe throws with the loader's message when the spec is unreadable o
   );
 });
 
+test("startRecipe throws when a decision and a requirement share an id, even with different authors", () => {
+  const dir = project();
+  const specPath = join(dir, "essay.hyperspec.md");
+  writeFileSync(
+    specPath,
+    `---
+hyperspec: "0.1"
+title: An essay
+decisions:
+  - id: shared
+    state: decided
+    value: gary-sheng
+    source: interview
+    author: gary-sheng
+    chosen_by: human
+requirements:
+  - id: shared
+    text: short
+    fails_when: too long
+    check:
+      rubric: word count under 1200
+    source: design doc
+    author: agent:claude
+---
+# Body
+`,
+  );
+  assert.throws(
+    () => startRecipe({ output: join(dir, "essay.md"), factory: { name: "f", version: "1" }, spec: specPath, clicker: "gary-sheng" }),
+    /spec id shared is used twice; ids must be unique across decisions and requirements/,
+  );
+});
+
+test("startRecipe throws on a shared id even when both entries name the same author", () => {
+  const dir = project();
+  const specPath = join(dir, "essay.hyperspec.md");
+  writeFileSync(
+    specPath,
+    `---
+hyperspec: "0.1"
+title: An essay
+decisions:
+  - id: shared
+    state: decided
+    value: gary-sheng
+    source: interview
+    author: gary-sheng
+    chosen_by: human
+requirements:
+  - id: shared
+    text: short
+    fails_when: too long
+    check:
+      rubric: word count under 1200
+    source: design doc
+    author: gary-sheng
+---
+# Body
+`,
+  );
+  assert.throws(
+    () => startRecipe({ output: join(dir, "essay.md"), factory: { name: "f", version: "1" }, spec: specPath, clicker: "gary-sheng" }),
+    /spec id shared is used twice/,
+  );
+});
+
 // ---- finish() ----
+
+test("finish() throws on a stage-less recipe, before writing the output file or the recipe file", () => {
+  const dir = project();
+  const specPath = writeSpec(dir);
+  const outputPath = join(dir, "essay.md");
+  const recipePath = `${outputPath}.recipe.json`;
+  const r = startRecipe({ output: outputPath, factory: { name: "f", version: "1" }, spec: specPath, clicker: "gary-sheng" });
+  assert.throws(() => r.finish({ approver: "gary-sheng" }), /a recipe needs at least one stage/);
+  assert.ok(!existsSync(outputPath), "no output file should have been written");
+  assert.ok(!existsSync(recipePath), "no recipe file should have been written");
+});
 
 test("finish() writes the output file from the last stage's blob when it does not exist yet", () => {
   const dir = project();
@@ -265,6 +350,31 @@ test("output, spec and input paths resolve against process.cwd() when given as r
     assert.equal(data.spec.path, "essay.hyperspec.md");
     assert.equal(data.inputs[0].path, join("materials", "call.md"));
     assert.equal(input.path, join("materials", "call.md"));
+  } finally {
+    process.chdir(cwd);
+  }
+});
+
+test("stored paths are relative to the recipe's own directory even when cwd differs from it", () => {
+  const dir = project();
+  writeSpec(dir); // essay.hyperspec.md, relative to dir (== cwd)
+  mkdirSync(join(dir, "out"));
+  mkdirSync(join(dir, "materials"));
+  writeFileSync(join(dir, "materials", "call.md"), "the call transcript");
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    // output lives in out/, one level below cwd, so recipeDir (out/) diverges from cwd (dir).
+    const r = startRecipe({ output: join("out", "essay.md"), factory: { name: "f", version: "1" }, spec: "essay.hyperspec.md", clicker: "gary-sheng" });
+    const input = r.input("transcript-1", join("materials", "call.md"));
+    r.stage({ id: "outline", reads: ["input:transcript-1", "spec"], output: "the final text", verdict: { station: "s", pass: true, note: "" } });
+    const { path } = r.finish({ approver: "gary-sheng" });
+    const { data } = readRecipe(path);
+    // Every stored path is relative to out/ (the recipe's directory), not to cwd (dir).
+    assert.equal(data.output.path, "essay.md");
+    assert.equal(data.spec.path, join("..", "essay.hyperspec.md"));
+    assert.equal(data.inputs[0].path, join("..", "materials", "call.md"));
+    assert.equal(input.path, join("..", "materials", "call.md"));
   } finally {
     process.chdir(cwd);
   }

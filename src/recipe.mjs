@@ -105,6 +105,7 @@ export function checkRecipe(recipe, { root } = {}) {
   });
 
   const stages = Array.isArray(recipe.stages) ? recipe.stages : [];
+  if (stages.length === 0) fail("stages", "a recipe needs at least one stage");
   stages.forEach((stage, i) => {
     const id = stage?.id ?? `#${i}`;
 

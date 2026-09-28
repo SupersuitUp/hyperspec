@@ -19,9 +19,16 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
   if (specLoaded.error) throw new Error(specLoaded.error);
   const specBytes = readFileSync(specLoaded.path);
   const specHash = putBlob(root, specBytes);
+  // spec.authors is id -> author across decisions and requirements together; the two arrays
+  // share one id namespace here (every field is traced back to its source), so an id reused
+  // across them is a collision, not a silent overwrite, whether or not the authors agree.
   const authors = {};
   for (const d of [...(specLoaded.data.decisions ?? []), ...(specLoaded.data.requirements ?? [])]) {
-    if (d && typeof d.id === "string") authors[d.id] = d.author;
+    if (!d || typeof d.id !== "string") continue;
+    if (Object.prototype.hasOwnProperty.call(authors, d.id)) {
+      throw new Error(`spec id ${d.id} is used twice; ids must be unique across decisions and requirements`);
+    }
+    authors[d.id] = d.author;
   }
 
   const recipe = {
@@ -54,7 +61,8 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
     // Stores output (string or Buffer) as a blob, computes key with stageKey, and validates reads
     // by delegating to stageKey/resolveReads (an unknown ref throws). A duplicate id throws too,
     // since resolveReads resolves a stage: ref by id and a duplicate would make that ambiguous.
-    stage({ id, reads, model, output: stageOutput, verdict }) {
+    stage({ id, reads, model, output: stageOutput, verdict } = {}) {
+      if (!id) throw new Error("stage needs an id");
       if (recipe.stages.some((s) => s.id === id)) throw new Error(`duplicate stage id: ${id}`);
       const hex = putBlob(root, stageOutput);
       const index = recipe.stages.length;
@@ -72,21 +80,22 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
     // Writes the output file from the last stage's blob if it is absent, or checks the file on
     // disk against it if present (throwing on a mismatch: the output on disk must be what the
     // recipe says). Writes the recipe file and returns checkRecipe's findings; an unapproved
-    // recipe returning only the approver fail is expected, not an error.
+    // recipe returning only the approver fail is expected, not an error. Refuses a stage-less
+    // recipe before writing anything (neither the output file nor the recipe file): a recipe
+    // with no stages has nothing to have made, so finishing one would write an "approved" recipe
+    // for content that does not exist.
     finish({ approver = null } = {}) {
+      if (!recipe.stages.length) throw new Error("a recipe needs at least one stage");
       recipe.approver = approver;
-      if (recipe.stages.length) {
-        const last = recipe.stages[recipe.stages.length - 1];
-        recipe.output.sha256 = last.output.sha256;
-        const expected = getBlob(root, last.output.sha256);
-        if (existsSync(outputAbs)) {
-          const onDisk = readFileSync(outputAbs);
-          if (sha256(onDisk) !== last.output.sha256) {
-            throw new Error(`${output} does not match the recipe's last stage output`);
-          }
-        } else {
-          writeFileSync(outputAbs, expected);
+      const last = recipe.stages[recipe.stages.length - 1];
+      recipe.output.sha256 = last.output.sha256;
+      if (existsSync(outputAbs)) {
+        const onDisk = readFileSync(outputAbs);
+        if (sha256(onDisk) !== last.output.sha256) {
+          throw new Error(`${output} does not match the recipe's last stage output`);
         }
+      } else {
+        writeFileSync(outputAbs, getBlob(root, last.output.sha256));
       }
       writeRecipe(recipePath, recipe);
       return { path: recipePath, findings: checkRecipe(recipe, { root }) };
