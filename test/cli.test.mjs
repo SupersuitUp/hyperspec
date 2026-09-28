@@ -75,3 +75,12 @@ test("I4: broken frontmatter, and a file with no hyperspec key, exit 2", () => {
   assert.equal(run("lint", broken).status, 2);
   assert.equal(run("lint", plain).status, 2);
 });
+
+// I5: one broken ledger never aborts the other files or empties --json.
+test("I5: a directory ledger is reported as a failure and the next file is still linted", () => {
+  const bad = fixture("bad", (t) => t.replace("ledger: runs.jsonl", "ledger: goldens"));
+  const r = run("lint", bad, VALID, "--json");
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(out.files.map((x) => x.status), ["fail", "pass"]);
+});

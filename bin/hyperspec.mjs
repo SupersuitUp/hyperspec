@@ -39,8 +39,10 @@ if (cmd === "lint") {
   const reports = files.map((file) => {
     const spec = loadSpec(file);
     if (spec.error) { worst = 2; return { file, status: "error", error: spec.error }; }
-    const findings = lintSpec(spec);
-    const s = score(findings, spec.data);
+    // A crash on one file is reported as that file's error; it never aborts the others or empties --json.
+    let findings, s;
+    try { findings = lintSpec(spec); s = score(findings, spec.data); }
+    catch (e) { worst = 2; return { file, status: "error", error: `lint crashed: ${e.message}` }; }
     const code = exitCode(s.status);
     if (rank[code] > rank[worst]) worst = code;
     return { file, ...s, findings };

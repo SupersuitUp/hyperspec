@@ -164,7 +164,7 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 | 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a `path` that is not an http(s) URL and does not exist, read relative to the spec or as an absolute path |
 | 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning |
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
-| 9 it improves itself | `improvement.ledger` missing; if the ledger file exists, a line that is not JSON, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason` |
+| 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason` |
 
 ## Exit codes
 

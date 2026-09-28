@@ -25,3 +25,7 @@
 - SPEC.md describes exactly what `lint` enforces: decision completeness is the author's job,
   a vague `fails_when` is a warning, where `chosen_by` is checked, how example paths
   resolve, and that exit 2 covers a file that is not a hyperspec.
+- A ledger can never crash the linter: a ledger path that is a directory or a device, or a
+  file that cannot be read, fails test 9, and a ledger line that is valid JSON but not an
+  object (such as `null`) is a bad line. A crash on one file is reported as that file's
+  error and never stops the others or empties `--json`.

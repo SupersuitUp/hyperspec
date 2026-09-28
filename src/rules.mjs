@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const TESTS = Object.freeze([
@@ -96,9 +96,18 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   // 9
   const led = str(d.improvement?.ledger);
   if (!led) out.push(f(9, "ledger", "fail", "no improvement.ledger", "Name the file each run writes its verdict to."));
-  else if (exists(here(led))) {
-    readFileSync(here(led), "utf8").split("\n").filter((l) => l.trim()).forEach((line, i) => {
-      let v; try { v = JSON.parse(line); } catch { out.push(f(9, "ledger-line", "fail", `${led} line ${i + 1} is not JSON`, "One JSON object per line.")); return; }
+  else {
+    // A declared ledger not yet written is fine. One that exists must be a readable file.
+    let st = null;
+    try { st = statSync(here(led)); } catch { /* not written yet */ }
+    let text = null;
+    if (st && !st.isFile()) out.push(f(9, "ledger-not-file", "fail", `ledger path ${led} is not a file`, "Point improvement.ledger at a file, one JSON object per line."));
+    else if (st) {
+      try { text = readFileSync(here(led), "utf8"); } catch (e) { out.push(f(9, "ledger-unreadable", "fail", `ledger ${led} cannot be read (${e.code || e.message})`, "Make the ledger file readable.")); }
+    }
+    (text ?? "").split("\n").filter((l) => l.trim()).forEach((line, i) => {
+      let v; try { v = JSON.parse(line); } catch { v = undefined; }
+      if (!v || typeof v !== "object" || Array.isArray(v)) { out.push(f(9, "ledger-line", "fail", `${led} line ${i + 1} is not a JSON object`, "One JSON object per line.")); return; }
       if (!["one-shot", "improved", "not-improved"].includes(v.verdict)) out.push(f(9, "verdict", "fail", `${led} line ${i + 1}: verdict "${v.verdict}"`, "Use one-shot, improved or not-improved."));
       if (v.verdict === "improved" && !str(v.change)) out.push(f(9, "verdict-change", "fail", `${led} line ${i + 1}: improved, but no change named`, "Say what changed."));
       if (v.verdict === "not-improved" && !str(v.reason)) out.push(f(9, "verdict-reason", "fail", `${led} line ${i + 1}: not improved, and no reason`, "Say why nothing changed."));

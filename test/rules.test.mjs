@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, cpSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, cpSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -195,3 +195,30 @@ for (const [id, n, edit, after] of BY_ID) {
     assert.deepEqual(failsOn(s), [n]);
   });
 }
+
+// I5: no ledger may crash the linter.
+test("I5: a ledger path that is a directory fails test 9 with 'not a file', never throws", () => {
+  const s = variant((t) => t.replace("ledger: runs.jsonl", "ledger: goldens"));
+  const fails = lintSpec(s).filter((x) => x.severity === "fail");
+  assert.deepEqual(fails.map((x) => [x.test, x.id, x.message]), [[9, "ledger-not-file", "ledger path goldens is not a file"]]);
+});
+test("I5: a ledger path that is a device, such as /dev/null, is not a file", () => {
+  const s = variant((t) => t.replace("ledger: runs.jsonl", "ledger: /dev/null"));
+  assert.deepEqual(lintSpec(s).filter((x) => x.severity === "fail").map((x) => x.id), ["ledger-not-file"]);
+});
+test("I5: a ledger line that parses to anything but an object is a ledger-line failure", () => {
+  for (const line of ["null", "42", '"one-shot"', "[]", "true"]) {
+    const s = variant((t) => t);
+    writeFileSync(join(s.dir, "runs.jsonl"), `${line}\n`);
+    const fails = lintSpec(loadSpec(s.path)).filter((x) => x.severity === "fail");
+    assert.deepEqual(fails.map((x) => [x.test, x.id]), [[9, "ledger-line"]], line);
+  }
+});
+test("I5: a ledger file that cannot be read fails test 9, never throws", { skip: process.getuid?.() === 0 && "root reads anything" }, () => {
+  const s = variant((t) => t);
+  chmodSync(join(s.dir, "runs.jsonl"), 0o000);
+  try {
+    const fails = lintSpec(s).filter((x) => x.severity === "fail");
+    assert.deepEqual(fails.map((x) => [x.test, x.id]), [[9, "ledger-unreadable"]]);
+  } finally { chmodSync(join(s.dir, "runs.jsonl"), 0o644); }
+});
