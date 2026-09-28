@@ -8,7 +8,8 @@
 # It is also the direction npm is forcing. Their own banner: "npm tokens that bypass 2FA
 # are being restricted, account changes (Aug 2026) and direct publishing (Jan 2027)."
 #
-# Copied from docusaurus-preset-wiki on 2026-09-28, where every comment below was earned.
+# Copied from superskill's publish.yml on 2026-09-28, which carried it from
+# docusaurus-preset-wiki, where every comment below was earned.
 # The build and fixture steps are gone because this package has no build and no fixture site.
 # A long-lived automation token in a secret would work today and stop working on a date
 # somebody else picked.
@@ -47,17 +48,16 @@ jobs:
     runs-on: ubuntu-latest
     # npm checks the environment claim inside the OIDC token, so a record that NAMES an
     # environment the job does not declare fails as ENEEDAUTH, with nothing said about
-    # environments. This package's record names none: it was created on 2026-09-28 with
+    # environments. No trusted-publisher record exists yet for this package, and none can
+    # yet: npm only attaches a trusted publisher to a package that already exists on the
+    # registry, so the first publish of 0.1.0 happens by hand, with web 2FA. Right after
+    # that publish, run
     #     npm trust github @supersuit/hyperspec --file publish.yml \
     #       --repo SupersuitUp/hyperspec --allow-publish --allow-stage-publish
-    # and `npm trust list @supersuit/hyperspec` shows no environment, so any value here
-    # passes. `blank` is kept to match docusaurus-preset-wiki, whose record also names none
-    # and which has published every release through this exact shape. If a record is ever
-    # given an environment, this line must change to match it in the same sitting.
-    #
-    # The FIRST publish of a new package cannot go through this workflow: npm attaches a
-    # trusted publisher to an existing package, so 0.1.0 was published by hand (web 2FA)
-    # and the record created right after. Every release since is a tag push.
+    # which creates a record naming no environment, so `environment: blank` below passes.
+    # Whoever runs that command updates this comment with the date, in the same commit.
+    # If the record is ever given an environment, this line must change to match it in the
+    # same sitting. Every release after 0.1.0 is a tag push through this workflow.
     environment: blank
     steps:
       - uses: actions/checkout@v5
