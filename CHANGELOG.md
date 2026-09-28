@@ -14,3 +14,4 @@
 - SPEC.md is itself a hyperspec and passes its own lint.
 - A placeholder value never counts as present: a value that is only a YAML comment
   (`source: # TODO`), or `null`, or `~`, fails the test its field belongs to.
+- `hyperspec lint` never skips a file that follows a stray flag such as `--kind`.

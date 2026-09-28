@@ -30,7 +30,9 @@ if (cmd === "init") {
 
 if (cmd === "lint") {
   const json = argv.includes("--json");
-  const files = argv.slice(1).filter((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--title" && all[i - 1] !== "--kind");
+  // Lint takes one flag, --json, and no flag takes a value, so a flag is dropped on its own and
+  // never takes the argument after it (a stray --kind before the files must not swallow one).
+  const files = argv.slice(1).filter((a) => !a.startsWith("--"));
   if (!files.length) { console.error("lint needs at least one file"); process.exit(2); }
   const rank = { 2: 4, 1: 3, 3: 2, 0: 1 };
   let worst = 0;

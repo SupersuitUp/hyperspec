@@ -32,3 +32,22 @@ test("a file that is not a hyperspec, and no arguments, are usage errors (exit 2
   assert.equal(run("lint", join(ROOT, "package.json")).status, 2);
   assert.equal(run().status, 2);
 });
+
+// A copy of the valid fixture folder with one edit to spec.md, written as <name>.md beside it.
+import { cpSync, writeFileSync as _write } from "node:fs";
+function fixture(name, edit = (t) => t) {
+  const d = mkdtempSync(join(tmpdir(), "hs-cli-"));
+  cpSync(dirname(VALID), d, { recursive: true });
+  const p = join(d, `${name}.md`);
+  _write(p, edit(readFileSync(VALID, "utf8")));
+  return p;
+}
+
+test("I1: a stray init flag before the files never swallows a file", () => {
+  const a = fixture("a", (t) => t.replace(/rejects:\n  - .*\n/, ""));
+  const b = fixture("b");
+  const r = run("lint", "--kind", a, b);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /a\.md: fail/);
+  assert.match(r.stdout, /b\.md: pass/);
+});
