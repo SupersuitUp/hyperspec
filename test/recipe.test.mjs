@@ -56,7 +56,6 @@ function twoStageRecipe() {
   return recipe;
 }
 
-const clone = (recipe) => JSON.parse(JSON.stringify(recipe));
 const tmpFile = (name) => join(mkdtempSync(join(tmpdir(), "hs-recipe-")), name);
 
 // ---- readRecipe / writeRecipe ----
@@ -342,20 +341,29 @@ test("checkRecipe accepts a { root } option without throwing", () => {
   assert.deepEqual(checkRecipe(validRecipe(), { root: "/some/store/root" }), []);
 });
 
-test("checkRecipe surfaces a bad read ref as a fail rather than throwing", () => {
+test("checkRecipe surfaces a bad read ref as a stages[i].key fail rather than throwing", () => {
   const recipe = validRecipe();
   recipe.stages[0].reads = ["input:does-not-exist"];
   const findings = checkRecipe(recipe);
-  assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0].reads"));
+  assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0].key" && /could not be recomputed/.test(f.message)));
+});
+
+test("checkRecipe never puts the reads-warn and a key-recompute fail on the same field", () => {
+  // Reproduces the exact collision from the review: an empty-reads stage (warn) in a recipe
+  // whose spec.sha256 is missing, so expanding "everything" throws while resolving "spec" (fail).
+  // Before the fix both landed on stages[0].reads; now the warn stays there and the fail moves
+  // to stages[0].key, so a caller grouping findings by field can tell them apart.
+  const recipe = validRecipe();
+  recipe.stages[0].reads = [];
+  delete recipe.spec.sha256;
+  const findings = checkRecipe(recipe);
+  const warn = findings.find((f) => f.severity === "warn" && f.field === "stages[0].reads");
+  const fail = findings.find((f) => f.severity === "fail" && f.field === "stages[0].key");
+  assert.ok(warn, "expected the empty-reads warn on stages[0].reads");
+  assert.ok(fail, "expected the key-recompute fail on stages[0].key");
+  assert.ok(!findings.some((f) => f.severity === "fail" && f.field === "stages[0].reads"), "no fail should land on stages[0].reads");
 });
 
 test("checkRecipe on a two-stage recipe with everything correct reports no findings", () => {
   assert.deepEqual(checkRecipe(twoStageRecipe()), []);
-});
-
-test("clone() sanity: mutating a clone never mutates the original fixture", () => {
-  const original = validRecipe();
-  const copy = clone(original);
-  copy.clicker = "someone-else";
-  assert.notEqual(original.clicker, copy.clicker);
 });

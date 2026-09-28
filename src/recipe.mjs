@@ -127,7 +127,10 @@ export function checkRecipe(recipe, { root } = {}) {
       const recomputed = stageKey(recipe, i);
       if (stage?.key !== recomputed) fail(`stages[${i}].key`, `stage "${id}" key does not match its recomputed key`);
     } catch (e) {
-      fail(`stages[${i}].reads`, `stage "${id}" key could not be recomputed: ${e.message}`);
+      // A bad ref is why the key can't be recomputed, but this is still a key-completeness
+      // failure, not the reads-declaration warn: keep it on its own field so a caller grouping
+      // or deduping findings by field can't collapse a blocking fail into an informational warn.
+      fail(`stages[${i}].key`, `stage "${id}" key could not be recomputed: ${e.message}`);
     }
   });
 

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { blobPath, getBlob, hasBlob, putBlob, storeRoot, verifyBlob } from "../src/blobs.mjs";
 
@@ -102,11 +102,41 @@ test("putBlob writes once: a second put of the same content does not rewrite the
   const root = tmp();
   const hex = putBlob(root, Buffer.from("same content"));
   const before = statSync(blobPath(root, hex)).mtimeMs;
-  // Force a distinguishable mtime if the filesystem clock is coarse, then put again.
+  // The second put must not write at all (existsSync short-circuits it), so mtime is
+  // byte-identical rather than merely close; this holds regardless of clock resolution.
   const again = putBlob(root, Buffer.from("same content"));
   const after = statSync(blobPath(root, hex)).mtimeMs;
   assert.equal(again, hex);
   assert.equal(after, before);
+});
+
+test("putBlob writes atomically: no .tmp-* file is left behind after a normal write", () => {
+  const root = tmp();
+  const hex = putBlob(root, Buffer.from("atomic write"));
+  const dir = dirname(blobPath(root, hex));
+  const leftover = readdirSync(dir).filter((name) => name.includes(".tmp-"));
+  assert.deepEqual(leftover, []);
+});
+
+test("putBlob writes atomically: no .tmp-* file is left behind when the blob already exists", () => {
+  const root = tmp();
+  const hex = putBlob(root, Buffer.from("already there"));
+  putBlob(root, Buffer.from("already there")); // second put, short-circuits on existsSync
+  const dir = dirname(blobPath(root, hex));
+  const leftover = readdirSync(dir).filter((name) => name.includes(".tmp-"));
+  assert.deepEqual(leftover, []);
+});
+
+test("verifyBlob does not trust a pre-existing partial/corrupt blob just because a file sits at the hash path", () => {
+  // Simulates the failure putBlob's atomic rename now prevents: a crash mid-write leaving
+  // truncated or garbage bytes at the content-addressed path before hasBlob/putBlob ever ran.
+  const root = tmp();
+  const hex = sha256("the real content that should have been written");
+  const path = blobPath(root, hex);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, "truncated garbage left by a crash mid-write");
+  assert.equal(hasBlob(root, hex), true); // the file exists...
+  assert.equal(verifyBlob(root, hex), false); // ...but verifyBlob re-hashes and catches it
 });
 
 test("hasBlob and getBlob report absence honestly for content never stored", () => {

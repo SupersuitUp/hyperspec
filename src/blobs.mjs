@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
 
@@ -25,12 +26,24 @@ export function blobPath(root, hex) {
 }
 
 // Writes only if the blob is absent; an existing blob is left untouched (never rewritten).
+// Atomic: bytes land in a temp file in the same directory first, then a single renameSync
+// (atomic on one filesystem) puts them at the final path. A process killed mid-write leaves
+// only the orphaned temp file, never a partially-written file sitting at the content-addressed
+// path — the failure mode a plain writeFileSync(path, bytes) would otherwise leave behind, and
+// which nothing short of an explicit verifyBlob would ever catch afterward.
 export function putBlob(root, bytes) {
   const hex = sha256(bytes);
   const path = blobPath(root, hex);
-  if (!existsSync(path)) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, bytes);
+  if (existsSync(path)) return hex;
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  try {
+    writeFileSync(tmp, bytes);
+    if (existsSync(path)) { unlinkSync(tmp); return hex; } // another writer won the race; keep theirs
+    renameSync(tmp, path);
+  } catch (e) {
+    try { unlinkSync(tmp); } catch { /* nothing to clean up */ }
+    throw e;
   }
   return hex;
 }
