@@ -40,7 +40,7 @@ rejects:
   - prose advice where a field could be checked
   - a second YAML parser
 examples:
-  - path: test/fixtures/valid/spec.md
+  - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
   next_action: write the recipe standard as the first hyperspec made with this one (hyperspec init recipe.md)

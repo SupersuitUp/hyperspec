@@ -22,3 +22,15 @@ test("SPEC.md states all nine tests by the names the linter uses", async () => {
   const spec = readFileSync(join(ROOT, "SPEC.md"), "utf8").toLowerCase();
   for (const t of TESTS) assert.ok(spec.includes(t.name), t.name);
 });
+
+test("I2: every relative example path in SPEC.md ships in the npm tarball", async () => {
+  const { loadSpec } = await import("../src/load.mjs");
+  const files = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).files;
+  const spec = loadSpec(join(ROOT, "SPEC.md"));
+  const paths = (spec.data.examples || []).map((e) => e.path).filter((p) => !/^https?:\/\//.test(p));
+  assert.ok(paths.length, "SPEC.md lists at least one local example");
+  for (const p of paths) {
+    const shipped = files.some((f) => (f.endsWith("/") ? p.startsWith(f) : p === f));
+    assert.ok(shipped, `${p} is not inside anything package.json "files" ships`);
+  }
+});

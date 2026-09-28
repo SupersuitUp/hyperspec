@@ -15,3 +15,5 @@
 - A placeholder value never counts as present: a value that is only a YAML comment
   (`source: # TODO`), or `null`, or `~`, fails the test its field belongs to.
 - `hyperspec lint` never skips a file that follows a stray flag such as `--kind`.
+- The package ships `examples/minimal.hyperspec.md`, the smallest spec that passes all nine
+  tests, and SPEC.md points at it, so the SPEC.md inside the package passes its own lint.
