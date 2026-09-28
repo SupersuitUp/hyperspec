@@ -1,0 +1,92 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, cpSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadSpec } from "../src/load.mjs";
+import { lintSpec, TESTS } from "../src/rules.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const VALID = join(HERE, "fixtures", "valid");
+const valid = () => loadSpec(join(VALID, "spec.md"));
+// A copy of the valid fixture with one frontmatter edit, so each test breaks exactly one thing.
+function variant(edit) {
+  const d = mkdtempSync(join(tmpdir(), "hs-"));
+  cpSync(VALID, d, { recursive: true });
+  const p = join(d, "spec.md");
+  writeFileSync(p, edit(readFileSync(p, "utf8")));
+  return loadSpec(p);
+}
+const failsOn = (spec) => [...new Set(lintSpec(spec).filter((f) => f.severity === "fail").map((f) => f.test))].sort();
+
+test("TESTS is the nine tests, numbered 1 to 9, frozen", () => {
+  assert.deepEqual(TESTS.map((t) => t.n), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.ok(Object.isFrozen(TESTS) && TESTS.every(Object.isFrozen));
+});
+
+test("the valid fixture fails nothing", () => {
+  assert.deepEqual(failsOn(valid()), []);
+});
+
+test("1: a delegated decision with no rule fails test 1 only", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/    rule: .*\n/, ""))), [1]);
+});
+
+test("1: an unknown state, and a duplicate id, fail test 1", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace("state: decided", "state: maybe"))), [1]);
+  assert.deepEqual(failsOn(variant((t) => t.replace("id: length", "id: audience"))), [1]);
+});
+
+test("2: a requirement with no fails_when fails test 2", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/    fails_when: .*\n/, ""))), [2]);
+});
+
+test("2: a vague fails_when is a warning, never a failure", () => {
+  const s = variant((t) => t.replace(/fails_when: .*/, "fails_when: the section is not engaging"));
+  assert.deepEqual(failsOn(s), []);
+  assert.ok(lintSpec(s).some((f) => f.test === 2 && f.severity === "warn"));
+});
+
+test("3: a check with neither station nor rubric fails test 3", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/      rubric: .*\n/, "      note: none\n"))), [3]);
+});
+
+test("4: a decision with no author, or no chosen_by, fails test 4", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace("    author: gary-sheng\n    chosen_by: human\n", "    chosen_by: human\n"))), [4]);
+  assert.deepEqual(failsOn(variant((t) => t.replace("chosen_by: human", "chosen_by: nobody"))), [4]);
+});
+
+test("5: no rejects fails test 5", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/rejects:\n  - .*\n/, ""))), [5]);
+});
+
+test("6: an example whose file does not exist fails test 6", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace("goldens/opening.md", "goldens/missing.md"))), [6]);
+});
+
+test("7: a next action that names no action fails test 7", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/next_action: .*/, "next_action: continue"))), [7]);
+});
+
+test("8: no fork line fails test 8", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/  fork: .*\n/, ""))), [8]);
+});
+
+test("9: an improved verdict with no change fails test 9", () => {
+  const s = variant((t) => t);
+  writeFileSync(join(s.dir, "runs.jsonl"), '{"verdict":"improved"}\n');
+  assert.deepEqual(failsOn(loadSpec(s.path)), [9]);
+});
+
+test("9: no ledger declared fails test 9; a declared ledger not yet written is fine", () => {
+  assert.deepEqual(failsOn(variant((t) => t.replace(/improvement:\n  ledger: .*\n/, ""))), [9]);
+  assert.deepEqual(failsOn(variant((t) => t.replace("ledger: runs.jsonl", "ledger: later.jsonl"))), []);
+});
+
+test("every finding names its test, a severity, a message and a fix", () => {
+  const s = variant((t) => t.replace(/rejects:\n  - .*\n/, "").replace(/    fails_when: .*\n/, ""));
+  for (const f of lintSpec(s)) {
+    assert.ok(f.test >= 1 && f.test <= 9 && ["fail", "warn"].includes(f.severity) && f.message && f.fix, JSON.stringify(f));
+  }
+});
