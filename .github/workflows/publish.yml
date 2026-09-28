@@ -1,9 +1,8 @@
 # Publish @supersuit/hyperspec to npm through OIDC trusted publishing.
 #
-# WHY THIS EXISTS. Publishing by hand needed a one-time password in a browser on every
-# release, which put a human round trip in front of every fix reaching the wikis that
-# consume this package. On 2026-09-15 that blocked a CSS fix from reaching pcs.wiki and
-# victory-book-wiki for the whole day while every other wiki already had it.
+# WHY THIS EXISTS. Publishing @supersuit/hyperspec by hand needs a one-time password in a
+# browser on every release, and this workflow lets a version tag publish it with no human
+# round trip and no stored token.
 #
 # It is also the direction npm is forcing. Their own banner: "npm tokens that bypass 2FA
 # are being restricted, account changes (Aug 2026) and direct publishing (Jan 2027)."
@@ -104,7 +103,7 @@ jobs:
         run: |
           if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
             echo "No OIDC identity available to this job."
-            echo "The workflow needs `permissions: id-token: write`, and a fork PR never gets one."
+            echo 'The workflow needs `permissions: id-token: write`, and a fork PR never gets one.'
             exit 1
           fi
           echo "OIDC identity present"

@@ -10,6 +10,7 @@
   decision, 2 usage or IO error.
 - `hyperspec init <file> [--title T] [--kind K]`, writing a new hyperspec skeleton and
   refusing to overwrite an existing file.
+- Every finding names its test, a severity, a message and a fix.
 - YAML read only through `parseSkillFile` from `@supersuit/superskill/yaml`.
 - SPEC.md is itself a hyperspec and passes its own lint.
 - A placeholder value never counts as present: a value that is only a YAML comment
@@ -31,3 +32,6 @@
   error and never stops the others or empties `--json`.
 - The body scan for "as discussed" skips fenced code blocks and inline code, so a spec can
   quote the phrases it bans. SPEC.md lints with zero findings, warnings included.
+- SPEC.md cites only sources a public reader can open, and its next action is to collect
+  adopter issues on 0.1 and cut 0.2 from them.
+- The README's sample output is exactly what `hyperspec lint` prints.

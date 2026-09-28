@@ -6,7 +6,7 @@ decisions:
   - id: format
     state: decided
     value: a hyperspec is a markdown file with a YAML frontmatter block, versioned in git, living beside the work it specifies
-    source: design doc, Part 1, "The shape on disk"
+    source: SPEC.md, section "The format (what `lint` reads)"
     author: gary-sheng
     chosen_by: human
   - id: yaml-reader
@@ -18,7 +18,7 @@ decisions:
   - id: exit-codes
     state: decided
     value: "0 every test passes and nothing is open; 1 at least one test fails; 3 every test passes but a decision is open; 2 usage or IO error"
-    source: this plan
+    source: SPEC.md, section "Exit codes", and README.md, section "Exit codes"
     author: agent:claude
     chosen_by: agent
 requirements:
@@ -27,14 +27,14 @@ requirements:
     fails_when: a spec missing fails_when on any requirement exits 0
     check:
       station: test/rules.test.mjs and test/score.test.mjs
-    source: design doc, Part 1, "What makes a spec a hyperspec"
+    source: SPEC.md, section "What makes a spec a hyperspec"
     author: gary-sheng
   - id: r2
     text: every finding names a fix
     fails_when: a finding with an empty fix
     check:
       station: "test/rules.test.mjs, \"every finding names its test\""
-    source: this plan
+    source: CHANGELOG.md, 0.1.0, "every finding names its test, a severity, a message and a fix"
     author: agent:claude
 rejects:
   - prose advice where a field could be checked
@@ -43,7 +43,7 @@ examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
-  next_action: write the recipe standard as the first hyperspec made with this one (hyperspec init recipe.md)
+  next_action: collect adopter issues on 0.1 and cut 0.2 from them
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes and say so in your SPEC

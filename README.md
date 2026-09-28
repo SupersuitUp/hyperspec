@@ -11,7 +11,7 @@ npx @supersuit/hyperspec lint spec.md
 ```
 
 ```
-spec.md  9 of 9 pass
+spec.md: pass (9/9)
 ```
 
 Nine tests run against the frontmatter: decisions, failable requirements, checked

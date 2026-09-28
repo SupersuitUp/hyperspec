@@ -20,3 +20,24 @@ test("README shows both commands and the exit codes", () => {
 test("no em dash in the docs", () => {
   for (const f of ["README.md", "SPEC.md", "CHANGELOG.md"]) assert.ok(!read(f).includes("—"), f);
 });
+
+test("M3: the README's sample output is exactly what lint prints for a passing spec.md", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { mkdtempSync, cpSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const d = mkdtempSync(join(tmpdir(), "hs-readme-"));
+  cpSync(join(ROOT, "examples"), d, { recursive: true });
+  cpSync(join(d, "minimal.hyperspec.md"), join(d, "spec.md"));
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "lint", "spec.md"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const readme = read("README.md");
+  assert.ok(readme.includes("lint spec.md"), "README runs lint on spec.md");
+  assert.ok(readme.includes("```\n" + r.stdout + "```"), `README sample must be exactly:\n${r.stdout}`);
+});
+
+test("M7: no workflow echoes backticks inside double quotes, where the shell would run them", () => {
+  for (const f of [".github/workflows/ci.yml", ".github/workflows/publish.yml"]) {
+    const bad = read(f).split("\n").filter((l) => /\becho\s+"[^"]*`[^"]*"/.test(l));
+    assert.deepEqual(bad, [], f);
+  }
+});
