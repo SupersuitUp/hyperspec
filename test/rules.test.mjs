@@ -90,3 +90,38 @@ test("every finding names its test, a severity, a message and a fix", () => {
     assert.ok(f.test >= 1 && f.test <= 9 && ["fail", "warn"].includes(f.severity) && f.message && f.fix, JSON.stringify(f));
   }
 });
+
+// C1: a value that is only a YAML comment, or null / ~, is a placeholder and never counts as present.
+const PLACEHOLDERS = ["# TODO fill in", "null", "~", "# none yet"];
+const PLACEHOLDER_FIELDS = [
+  // [field, the fixture text to replace, the replacement (with $ for the placeholder), the test that must fail]
+  ["decision id", "  - id: audience\n", "  - id: $\n", 1],
+  ["decision state", "    state: decided\n", "    state: $\n", 1],
+  ["decided value", /    value: .*\n/, "    value: $\n", 1],
+  ["delegated rule", /    rule: .*\n/, "    rule: $\n", 1],
+  ["open question", /    state: delegated\n    rule: .*\n/, "    state: open\n    question: $\n", 1],
+  ["decision source", "    source: interview A2\n", "    source: $\n", 4],
+  ["decision author", "    author: gary-sheng\n    chosen_by: human\n", "    author: $\n    chosen_by: human\n", 4],
+  ["decision chosen_by", "    chosen_by: human\n", "    chosen_by: $\n", 4],
+  ["requirement text", /    text: .*\n/, "    text: $\n", 2],
+  ["requirement fails_when", /    fails_when: .*\n/, "    fails_when: $\n", 2],
+  ["check rubric", /      rubric: .*\n/, "      rubric: $\n", 3],
+  ["check station", /      rubric: .*\n/, "      station: $\n", 3],
+  ["requirement source", "    source: design doc, audience block\n", "    source: $\n", 4],
+  ["requirement author", "    author: gary-sheng\nrejects:", "    author: $\nrejects:", 4],
+  ["rejects item", "  - hype words about AI\n", "  - $\n", 5],
+  ["example path", "  - path: goldens/opening.md\n", "  - path: $\n", 6],
+  ["example why", /    why: .*\n/, "    why: $\n", 6],
+  ["resume.next_action", /  next_action: .*\n/, "  next_action: $\n", 7],
+  ["feedback.issues", /  issues: .*\n/, "  issues: $\n", 8],
+  ["feedback.fork", /  fork: .*\n/, "  fork: $\n", 8],
+  ["improvement.ledger", "  ledger: runs.jsonl\n", "  ledger: $\n", 9],
+];
+for (const [field, find, repl, n] of PLACEHOLDER_FIELDS) {
+  test(`C1: a placeholder in ${field} fails test ${n}`, () => {
+    for (const ph of PLACEHOLDERS) {
+      const s = variant((t) => { const out = t.replace(find, repl.replace("$", ph)); assert.notEqual(out, t, `${field}: fixture edit did not apply`); return out; });
+      assert.deepEqual(failsOn(s), [n], `${field} = ${ph}`);
+    }
+  });
+}

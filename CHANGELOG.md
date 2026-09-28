@@ -12,3 +12,5 @@
   refusing to overwrite an existing file.
 - YAML read only through `parseSkillFile` from `@supersuit/superskill/yaml`.
 - SPEC.md is itself a hyperspec and passes its own lint.
+- A placeholder value never counts as present: a value that is only a YAML comment
+  (`source: # TODO`), or `null`, or `~`, fails the test its field belongs to.

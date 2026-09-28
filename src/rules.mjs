@@ -16,7 +16,10 @@ export const TESTS = Object.freeze([
 const VAGUE = /\b(engaging|compelling|high[- ]quality|good|great|clear|clean|professional|polished|nice|strong|effective|appropriate|better|amazing|excellent|best|world[- ]class|seamless|intuitive|robust)\b/i;
 const NO_ACTION = /^(continue|follow[- ]up|tbd|todo|keep going|pick (this|it) (back )?up)\b|\bas (we )?discussed\b/i;
 const list = (v) => (Array.isArray(v) ? v : []);
-const str = (v) => (typeof v === "string" ? v.trim() : "");
+// A value that is only a YAML comment, or null / ~, is a placeholder: the reader hands it back as a
+// string, and it must never count as present. Every presence check goes through str().
+const PLACEHOLDER = /^(null|~|#.*)$/is;
+const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 
 export function lintSpec(spec, { exists = existsSync } = {}) {
