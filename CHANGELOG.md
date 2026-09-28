@@ -29,3 +29,5 @@
   file that cannot be read, fails test 9, and a ledger line that is valid JSON but not an
   object (such as `null`) is a bad line. A crash on one file is reported as that file's
   error and never stops the others or empties `--json`.
+- The body scan for "as discussed" skips fenced code blocks and inline code, so a spec can
+  quote the phrases it bans. SPEC.md lints with zero findings, warnings included.

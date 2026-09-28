@@ -18,6 +18,12 @@ const VAGUE = /\b(engaging|compelling|high[- ]quality|good|great|clear|clean|pro
 const NO_ACTION = /^(continue|follow[- ]?up|tbd|todo|keep going|pick (this|it) (back )?up|n\/?a|none)\W*$/i;
 // A pointer into a conversation the next reader cannot see, anywhere in the text.
 const CONVERSATION = /\bas (we )?discussed\b|\bas mentioned (earlier|above)\b/i;
+// The body scan reads prose only: fenced code blocks (``` or ~~~, closed by the same fence or the end
+// of the file) and inline code spans (a run of N backticks closed by a run of N) are removed first, so a
+// spec can quote the phrases it bans. Tables are prose and are still scanned.
+const FENCE = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[`~]*[ \t]*$|(?![\s\S]))/gm;
+const INLINE_CODE = /(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
+const prose = (body) => String(body || "").replace(FENCE, "").replace(INLINE_CODE, "");
 const list = (v) => (Array.isArray(v) ? v : []);
 // A value that is only a YAML comment, or null / ~, is a placeholder: the reader hands it back as a
 // string, and it must never count as present. Every presence check goes through str().
@@ -87,7 +93,7 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   if (!next) out.push(f(7, "next-action", "fail", "no resume.next_action", "Write the single concrete step that starts the next session."));
   else if (NO_ACTION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" names no action`, "Name the concrete step."));
   else if (CONVERSATION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" points into a conversation the next reader cannot see`, "State the step itself."));
-  if (CONVERSATION.test(spec.body || "")) out.push(f(7, "conversation-pointer", "warn", "the body points into a conversation the next reader cannot see", "State the thing itself."));
+  if (CONVERSATION.test(prose(spec.body))) out.push(f(7, "conversation-pointer", "warn", "the body points into a conversation the next reader cannot see", "State the thing itself."));
 
   // 8
   if (!str(d.feedback?.issues)) out.push(f(8, "feedback-issues", "fail", "no feedback.issues", "Say where adopters file issues and pull requests."));

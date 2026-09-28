@@ -222,3 +222,16 @@ test("I5: a ledger file that cannot be read fails test 9, never throws", { skip:
     assert.deepEqual(fails.map((x) => [x.test, x.id]), [[9, "ledger-unreadable"]]);
   } finally { chmodSync(join(s.dir, "runs.jsonl"), 0o644); }
 });
+
+// I6: the body scan ignores code, so a spec can quote the phrases it bans.
+const withBody = (body) => { const s = valid(); return { ...s, body }; };
+const pointerWarns = (body) => lintSpec(withBody(body)).filter((x) => x.id === "conversation-pointer").length;
+test("I6: 'as discussed' in plain prose warns; inside an inline code span or a fenced block it does not", () => {
+  assert.equal(pointerWarns("We will ship it as discussed."), 1);
+  assert.equal(pointerWarns("| 7 | a next action that says `as discussed` |"), 0);
+  assert.equal(pointerWarns("Avoid ``as mentioned above`` in a spec."), 0);
+  assert.equal(pointerWarns("Before.\n\n```md\nas discussed\n```\n\nAfter."), 0);
+  assert.equal(pointerWarns("~~~\nas we discussed\n~~~\n"), 0);
+  assert.equal(pointerWarns("`code` then as discussed in prose"), 1);
+  assert.equal(pointerWarns("| a table row | as mentioned earlier |"), 1);
+});

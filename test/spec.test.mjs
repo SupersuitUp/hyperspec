@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-test("SPEC.md is a hyperspec and passes its own lint", () => {
-  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "lint", join(ROOT, "SPEC.md")], { encoding: "utf8" });
+test("SPEC.md is a hyperspec and passes its own lint with zero findings, warnings included", () => {
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "lint", join(ROOT, "SPEC.md"), "--json"], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).files[0].findings, []);
 });
 
 test("SPEC.md and package.json agree on the version", () => {
