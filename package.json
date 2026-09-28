@@ -3,12 +3,37 @@
   "version": "0.1.0",
   "description": "A hyperspec is a spec written for an agent: every decision accounted for, every requirement failable and checked, every field traced. The standard and its linter.",
   "type": "module",
-  "bin": { "hyperspec": "bin/hyperspec.mjs" },
-  "files": ["bin/", "src/", "examples/", "SPEC.md", "README.md", "CHANGELOG.md", "LICENSE"],
-  "scripts": { "test": "node --test test/*.test.mjs" },
-  "engines": { "node": ">=20" },
+  "bin": {
+    "hyperspec": "bin/hyperspec.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "examples/",
+    "SPEC.md",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/SupersuitUp/hyperspec.git" },
-  "keywords": ["hyperspec", "specification", "agents", "spec-driven", "outcome-factory"],
-  "dependencies": { "@supersuit/superskill": "^0.2.0" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SupersuitUp/hyperspec.git"
+  },
+  "keywords": [
+    "hyperspec",
+    "specification",
+    "agents",
+    "spec-driven",
+    "outcome-factory"
+  ],
+  "dependencies": {
+    "@supersuit/superskill": "^0.2.1"
+  }
 }

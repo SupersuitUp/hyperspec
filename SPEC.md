@@ -152,7 +152,7 @@ improvement:
 
 ## The test-to-field map
 
-Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), or `null`, or `~`, counts as missing.
+Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), or `null`, or `~`, counts as missing. A quoted value that happens to start with `#` (`source: "# literal"`) is real text and counts as present.
 
 | Test | Fails when |
 |---|---|

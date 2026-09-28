@@ -35,3 +35,8 @@
 - SPEC.md cites only sources a public reader can open, and its next action is to collect
   adopter issues on 0.1 and cut 0.2 from them.
 - The README's sample output is exactly what `hyperspec lint` prints.
+- Reads YAML through `@supersuit/superskill/yaml` 0.2.1, which now returns a comment-only value
+  (`source: # TODO`) as an empty string itself. The placeholder rule no longer treats a leading
+  `#` as empty; it only handles `null` and `~`, which the reader still keeps as those literal
+  strings. A quoted value that starts with `#` (`source: "# literal"`) is real text and counts
+  as present.

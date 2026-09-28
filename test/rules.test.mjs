@@ -126,6 +126,13 @@ for (const [field, find, repl, n] of PLACEHOLDER_FIELDS) {
   });
 }
 
+// C2: a QUOTED value that merely starts with '#' is real text (superskill 0.2.1 reads it back as
+// the string "# literal", quotes stripped), not a placeholder, and must count as present.
+test('C2: a quoted value starting with "#" counts as present, not a placeholder', () => {
+  const s = variant((t) => t.replace("source: interview A2\n", 'source: "# literal"\n'));
+  assert.deepEqual(failsOn(s), []);
+});
+
 // I3: the no-action words match only the WHOLE next_action; a conversation pointer fails anywhere in it.
 const nextAction = (v) => variant((t) => t.replace(/next_action: .*/, `next_action: ${v}`));
 test("I3/7: a real next action that starts with 'continue' passes", () => {

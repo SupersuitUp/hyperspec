@@ -25,9 +25,14 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[`~]*[ \t]*$|(?![
 const INLINE_CODE = /(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
 const prose = (body) => String(body || "").replace(FENCE, "").replace(INLINE_CODE, "");
 const list = (v) => (Array.isArray(v) ? v : []);
-// A value that is only a YAML comment, or null / ~, is a placeholder: the reader hands it back as a
-// string, and it must never count as present. Every presence check goes through str().
-const PLACEHOLDER = /^(null|~|#.*)$/is;
+// A value that is only null or ~ is a placeholder: the reader (@supersuit/superskill/yaml) keeps
+// these as the literal strings "null" and "~" rather than resolving them to YAML's own null, so
+// they must never count as present. A value that is only a YAML comment (source: # TODO) is
+// handled upstream since superskill 0.2.1: the reader returns "" for it, same as any other blank
+// scalar, so it already fails str()'s own emptiness check and needs no rule here. A QUOTED value
+// that happens to start with "#" (source: "# literal") is real text and must count as present.
+// Every presence check goes through str().
+const PLACEHOLDER = /^(null|~)$/is;
 const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 
