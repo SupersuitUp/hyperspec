@@ -125,3 +125,26 @@ for (const [field, find, repl, n] of PLACEHOLDER_FIELDS) {
     }
   });
 }
+
+// I3: the no-action words match only the WHOLE next_action; a conversation pointer fails anywhere in it.
+const nextAction = (v) => variant((t) => t.replace(/next_action: .*/, `next_action: ${v}`));
+test("I3/7: a real next action that starts with 'continue' passes", () => {
+  assert.deepEqual(failsOn(nextAction("continue drafting section two from the outline")), []);
+});
+test("I3/7: a bare no-action word fails test 7, whatever its case or trailing punctuation", () => {
+  for (const v of ["continue", "Continue.", "follow up", "follow-up", "TBD", "todo", "keep going", "pick it back up", "n/a", "none"]) {
+    const ids = lintSpec(nextAction(v)).filter((x) => x.severity === "fail").map((x) => x.id);
+    assert.deepEqual(ids, ["next-action-vague"], v);
+  }
+});
+test("I3/7: a next action that points into a conversation fails test 7", () => {
+  for (const v of ["do it as discussed", "as we discussed, write the outline", "write the outline as mentioned above", "fix it as mentioned earlier"]) {
+    assert.deepEqual(failsOn(nextAction(v)), [7], v);
+  }
+});
+test("I3/5: a rejects item that is not a plain string names the item", () => {
+  const s = variant((t) => t.replace("  - hype words about AI", "  - text: hype words about AI"));
+  const fails = lintSpec(s).filter((x) => x.severity === "fail");
+  assert.deepEqual(fails.map((x) => [x.test, x.id]), [[5, "rejects-item"]]);
+  assert.equal(fails[0].message, "rejects item 1 is not a plain string");
+});

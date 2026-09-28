@@ -14,7 +14,10 @@ export const TESTS = Object.freeze([
 ].map(Object.freeze));
 
 const VAGUE = /\b(engaging|compelling|high[- ]quality|good|great|clear|clean|professional|polished|nice|strong|effective|appropriate|better|amazing|excellent|best|world[- ]class|seamless|intuitive|robust)\b/i;
-const NO_ACTION = /^(continue|follow[- ]up|tbd|todo|keep going|pick (this|it) (back )?up)\b|\bas (we )?discussed\b/i;
+// A no-action word fails only when it is the WHOLE next action: "continue drafting section two" names one.
+const NO_ACTION = /^(continue|follow[- ]?up|tbd|todo|keep going|pick (this|it) (back )?up|n\/?a|none)\W*$/i;
+// A pointer into a conversation the next reader cannot see, anywhere in the text.
+const CONVERSATION = /\bas (we )?discussed\b|\bas mentioned (earlier|above)\b/i;
 const list = (v) => (Array.isArray(v) ? v : []);
 // A value that is only a YAML comment, or null / ~, is a placeholder: the reader hands it back as a
 // string, and it must never count as present. Every presence check goes through str().
@@ -62,7 +65,12 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   });
 
   // 5
-  if (!list(d.rejects).some((x) => str(x))) out.push(f(5, "rejects", "fail", "nothing is rejected", "List what the work must not do under rejects:."));
+  // rejects items are plain strings; a non-string item is named on its own rather than hidden
+  // behind "nothing is rejected".
+  const rejects = list(d.rejects);
+  const notStrings = rejects.map((x, i) => (x != null && typeof x !== "string" ? i + 1 : 0)).filter(Boolean);
+  notStrings.forEach((n) => out.push(f(5, "rejects-item", "fail", `rejects item ${n} is not a plain string`, "Write each rejected pole as one plain line of text.")));
+  if (!notStrings.length && !rejects.some((x) => str(x))) out.push(f(5, "rejects", "fail", "nothing is rejected", "List what the work must not do under rejects:."));
 
   // 6
   const ex = list(d.examples);
@@ -78,7 +86,8 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   const next = str(d.resume?.next_action);
   if (!next) out.push(f(7, "next-action", "fail", "no resume.next_action", "Write the single concrete step that starts the next session."));
   else if (NO_ACTION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" names no action`, "Name the concrete step."));
-  if (/\bas (we )?discussed\b|\bas mentioned (earlier|above)\b/i.test(spec.body || "")) out.push(f(7, "conversation-pointer", "warn", "the body points into a conversation the next reader cannot see", "State the thing itself."));
+  else if (CONVERSATION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" points into a conversation the next reader cannot see`, "State the step itself."));
+  if (CONVERSATION.test(spec.body || "")) out.push(f(7, "conversation-pointer", "warn", "the body points into a conversation the next reader cannot see", "State the thing itself."));
 
   // 8
   if (!str(d.feedback?.issues)) out.push(f(8, "feedback-issues", "fail", "no feedback.issues", "Say where adopters file issues and pull requests."));

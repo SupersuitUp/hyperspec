@@ -65,9 +65,11 @@ A spec is a hyperspec when it passes these nine tests. Each one is checkable, wh
 
 The form of the work has a known list of decision points: for an essay, who it is for, what it argues, how it opens, how long it runs, what it refuses to say, and so on. Each one is decided, delegated with the rule the agent uses to decide it, or open. An open decision stops the work. Nothing is left to the average.
 
+`lint` checks that at least one decision is listed and that each listed decision is well-formed. Whether the list covers every decision the form of the work has is the author's job, because the linter does not know the form's full list.
+
 ### 2. every requirement can fail
 
-Each line is written so a specific observation could show it was not met. "Engaging" fails this test. "A reader who has never heard the term can say what it means after the first section" passes it.
+Each line is written so a specific observation could show it was not met, under `fails_when`. The observation is what makes a requirement failable. "A reader who has never heard the term can say what it means after the first section" is one. A vague word such as "engaging" in `fails_when` is reported as a warning, because it leans on an adjective where an observation should be.
 
 ### 3. every requirement names its check
 
@@ -75,7 +77,7 @@ Either a deterministic station (a lint, a schema, a source match) or a judgment 
 
 ### 4. every field says where it came from and who wrote it
 
-Where: a brain dump line, an interview answer, a transcript, a prior piece. Who: a person or an agent, and which one, and whether a human explicitly chose it or an agent proposed it and nobody objected. Neither answer is bad on its own. Knowing which is what lets you debug: an agent that invented a detail, or a person who put in something wrong, both show up as a field with an author you can ask.
+Where: a brain dump line, an interview answer, a transcript, a prior piece. Who: a person or an agent, and which one, and whether a human explicitly chose it or an agent proposed it and nobody objected. `lint` checks `source`, `author` and `chosen_by` on every decision, and `source` and `author` on every requirement. Neither answer is bad on its own. Knowing which is what lets you debug: an agent that invented a detail, or a person who put in something wrong, both show up as a field with an author you can ask.
 
 ### 5. negative space is specified
 
@@ -150,7 +152,7 @@ improvement:
 
 ## The test-to-field map
 
-The rules module is exactly this table.
+Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), or `null`, or `~`, counts as missing.
 
 | Test | Fails when |
 |---|---|
@@ -158,9 +160,9 @@ The rules module is exactly this table.
 | 2 every requirement can fail | no `requirements`; a requirement without `text` or without `fails_when`. A vague word in `fails_when` is a warning |
 | 3 every requirement names its check | a requirement whose `check` has neither `station` nor `rubric` |
 | 4 every field says where it came from and who wrote it | a decision or requirement without `source` or `author`; a decision whose `chosen_by` is not human or agent |
-| 5 negative space is specified | `rejects` missing or empty |
-| 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a relative `path` that does not exist |
-| 7 a stranger can resume it | `resume.next_action` missing, or one that names no action (continue, follow up, tbd, todo, keep going, pick it back up, as discussed). "as discussed" in the body is a warning |
+| 5 negative space is specified | `rejects` missing or empty; a `rejects` item that is not a plain string |
+| 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a `path` that is not an http(s) URL and does not exist, read relative to the spec or as an absolute path |
+| 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning |
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
 | 9 it improves itself | `improvement.ledger` missing; if the ledger file exists, a line that is not JSON, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason` |
 
@@ -171,7 +173,7 @@ The rules module is exactly this table.
 - **0** every test passes and nothing is open.
 - **1** at least one test fails.
 - **3** every test passes, but a decision is left open, so the work waits on that decision.
-- **2** usage error, or the file could not be read.
+- **2** usage error; a file that could not be read; a file whose frontmatter is missing or broken; or a file that is not a hyperspec. A file is a hyperspec when its frontmatter has a `hyperspec` key.
 
 ## The improvement ledger
 
