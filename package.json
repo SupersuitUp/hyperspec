@@ -6,6 +6,10 @@
   "bin": {
     "hyperspec": "bin/hyperspec.mjs"
   },
+  "exports": {
+    "./recipe": "./src/writer.mjs",
+    "./package.json": "./package.json"
+  },
   "files": [
     "bin/",
     "src/",
