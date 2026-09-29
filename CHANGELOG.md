@@ -10,11 +10,13 @@ where every fact comes from, and in fiction how each character speaks and what t
 each scene. `hyperspec lint` checks all of it under the same nine tests, and
 `hyperspec init --profile writing` lays every block out for you to fill in.
 
-**Behavior change for existing specs:** a value that is only `TODO`, `TBD`, `FIXME`, `XXX` or
-`placeholder` (in any case, and `<placeholder>`) now counts as missing, everywhere, in specs
-with no profile too. A spec that passed 0.2.0 with `source: TODO` on a decision now fails that
-test. Real text that starts with one of those words, such as `TODO: write the opening`, still
-counts as present.
+**Behavior change for existing specs:** a placeholder now counts as missing, everywhere, in
+specs with no profile too. A placeholder is a whole value, trimmed and in any case, of `todo`,
+`tbd`, `fixme`, `xxx`, `placeholder`, `<placeholder>`, `n/a`, a run of dashes, a run of question
+marks, or an ellipsis, optionally followed by a trailing `.`, `:` or `!`. A spec that passed
+0.2.0 with `source: TODO` or `source: n/a` on a decision now fails that test. Real text that
+starts with one of those, such as `TODO: write the opening`, still counts as present, and so
+does `none`.
 
 - `profile: writing` opts a spec in; its blocks live under a top-level `writing:` map:
   `materials`, `dna`, `persona`, `audience`, `goal`, `form`, `spine`, `sources`, and
@@ -28,20 +30,26 @@ counts as present.
   deferred block does not count as complete.
 - Progress is never stored: a `writing.progress` key fails test 7, because saved progress goes
   stale the first time a session dies mid-arc. Progress is read off the folder instead.
-- Field rules for every block, each under the test it belongs to: closed sets for `trust`,
-  `reader`, `change.kind`, the shape of `persona.identity` and `unsourced_claim`; five to ten
-  `goal.conditions` naming real requirements (test 2); spine claims that name real materials
-  (test 4); `persona.facts_from: sources` and a non-empty `will_not_say` (test 5); a `why` on
-  every golden, material and golden paths that exist, and golden and rejected lines for every
-  character (test 6). A `stance` outside peer, mentor, witness and guide is a warning.
+- Field rules for every block, each under the test it belongs to: closed sets for `fiction`
+  (absent means false), `trust`, `reader`, `change.kind`, the shape of `persona.identity` and
+  `unsourced_claim`; unique ids for materials, spine claims and characters; a length envelope
+  of whole numbers of at least 1 (test 1); five to ten distinct `goal.conditions` naming real
+  requirements, each listed once (test 2); spine claims that name real materials (test 4);
+  `persona.facts_from: sources` and a non-empty `will_not_say` (test 5); a `why` on every
+  golden, material and golden paths that exist, and golden and rejected lines for every
+  character with no line in both (test 6). A repeated id counts once toward a minimum. A
+  `stance` outside peer, mentor, witness and guide is a warning.
 - A character needs speech rules (what they say and never say), wants, fears, what they hide,
   an arc state, a knowledge timeline, and golden and rejected lines. `relationships` and a
   pointer to a character `entity` file are optional.
 - `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` writes a
   skeleton with every required block in schema order, every field a placeholder, and open
   decisions for the four blocks that need your judgment first (dna, persona, audience, goal).
-  It fails lint until the placeholders are replaced. An unknown `--profile` exits 2.
-- `lint` warns under test 7 on a `profile` it does not know, and checks none of its rules.
+  It fails lint until the placeholders are replaced. `init` exits 2 with a plain message on a
+  `--profile` with no value or one it does not know, `--fiction` or `--form` without
+  `--profile writing`, `--kind` with it, and a folder that does not exist.
+- `lint` warns under test 7 on a `profile` it does not know, and checks none of its rules. A
+  name every object inherits, such as `constructor`, is an unknown profile like any other.
 - WRITING.md documents the profile: the ten components, the schema with every field, the test
   mapping, the closed sets, the seven materials labels and what each may be used as, and
   deferral. It ships in the package.

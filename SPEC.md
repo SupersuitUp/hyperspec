@@ -206,7 +206,7 @@ improvement:
 
 ## The test-to-field map
 
-Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), `null`, `~`, or one of the placeholder words `TODO`, `TBD`, `FIXME`, `XXX`, `placeholder` or `<placeholder>`, in any case, counts as missing. Real text that starts with one of those words (`TODO: write the opening`) counts as present, and so does a quoted value that happens to start with `#` (`source: "# literal"`).
+Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), `null`, `~`, or a placeholder counts as missing. A placeholder is a whole value, trimmed and in any case, of `todo`, `tbd`, `fixme`, `xxx`, `placeholder`, `<placeholder>`, `n/a`, a run of dashes, a run of question marks, or an ellipsis, optionally followed by a trailing `.`, `:` or `!`. Real text that starts with one of those (`TODO: write the opening`) counts as present, and so do `none` and a quoted value that happens to start with `#` (`source: "# literal"`).
 
 | Test | Fails when |
 |---|---|

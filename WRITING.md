@@ -153,7 +153,7 @@ path the linter checks must name a file that exists.
 
 ```yaml
 profile: writing
-fiction: false                       # true requires writing.characters
+fiction: false                       # optional, true or false; absent means false. true requires writing.characters
 writing:
   materials:
     items:                           # at least one
@@ -215,7 +215,7 @@ writing:
     change:
       kind: action                   # belief | action | feeling
       text: the reader asks the three questions and waits
-    conditions:                      # 5 to 10 ids of top-level requirements
+    conditions:                      # 5 to 10 distinct ids of top-level requirements, each once
       - r1
       - r2
       - r3
@@ -227,7 +227,7 @@ writing:
     author: example-author
   form:
     name: essay                      # open set
-    length:
+    length:                          # whole numbers, at least 1, min no more than max
       min: 700
       max: 1100
       unit: words
@@ -243,7 +243,7 @@ writing:
     author: example-author
   spine:
     kind: primer                     # open set
-    claims:                          # 3 to 7, in order
+    claims:                          # 3 to 7, in order, each with its own id
       - id: c1
         text: the first one-on-one is the one meeting the report should set the agenda for
         materials:                   # ids from materials.items; voice-memo#segment is accepted
@@ -267,7 +267,7 @@ writing:
       station: every factual claim points at a source span
     source: sourcing pass
     author: agent:claude
-  characters:                        # required when fiction: true
+  characters:                        # required when fiction: true; ids unique
     - id: ines
       entity: world/ines.json        # optional; if given, the file must exist
       speech:
@@ -288,7 +288,7 @@ writing:
       arc_state: has let go of the bakery, and has not yet let go of him
       golden_lines:                  # at least one
         - Flour first. Then you can talk.
-      rejected_lines:                # at least one
+      rejected_lines:                # at least one, and none of them also golden
         - I'm so sorry I didn't tell you sooner.
       check:
         rubric: blind attribution test, knowledge-leak check, consistency against golden and rejected lines
@@ -304,9 +304,11 @@ Write every map in block style, one key per line, as above. The YAML reader hype
 a flow list such as `[r1, r2]`, but it reads an inline map such as `{ station: ... }` as a plain
 string, and a flow list followed by a comment on the same line as a string too.
 
-A value that is only `TODO`, `TBD`, `FIXME`, `XXX` or `placeholder` counts as missing, here and
-everywhere else in a hyperspec, so a scaffolded field cannot pass a presence check. Real text
-that starts with one of those words, such as `TODO: write the opening`, counts as present.
+A placeholder counts as missing, here and everywhere else in a hyperspec, so a scaffolded field
+cannot pass a presence check. A placeholder is a whole value, trimmed and in any case, of `todo`,
+`tbd`, `fixme`, `xxx`, `placeholder`, `<placeholder>`, `n/a`, a run of dashes, a run of question
+marks, or an ellipsis, optionally followed by a trailing `.`, `:` or `!`. Real text that starts
+with one of those, such as `TODO: write the opening`, counts as present, and so does `none`.
 
 ## The test mapping
 
@@ -315,12 +317,12 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; two materials share an id; `form.length.min` or `max` is not a number, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven claims; a character has no knowledge entry, or an entry lacks `by` or `knows`. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
-| 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten ids, or names an id that is not a top-level requirement |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items` |
 | 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources` |
-| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines |
+| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded) |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
 | 9 it improves itself | nothing further; the core rule applies |
@@ -336,7 +338,7 @@ Each row lists what the writing profile adds to that test. The core conditions i
 | `audience.reader` | `person`, `agent` |
 | `goal.change.kind` | `belief`, `action`, `feeling` |
 | `sources.unsourced_claim` | `fail`, `warn` |
-| `fiction` | `true`, `false` |
+| `fiction` | `true`, `false`; absent means `false` |
 
 `form.name` and `spine.kind` are open: name the form and the kind of argument in your own words.
 
@@ -395,7 +397,12 @@ says what you have to answer before the placeholder means anything. `--form` set
 and `writing.form.name`, and defaults to `essay`. `--fiction` sets `fiction: true` and adds one
 character with the same treatment. The skeleton never passes: it lints `fail`, with
 `writing: 1/9 blocks complete` (or `0/9` with `--fiction`), until the placeholders and the open
-decisions are replaced with real content. A `--profile` this linter does not know exits 2.
+decisions are replaced with real content.
+
+`init` refuses, with exit 2 and a plain message, anything it would otherwise have to ignore:
+`--profile` with no value or one this linter does not know, `--fiction` or `--form` without
+`--profile writing`, `--kind` with it (the form sets the kind), and a file in a folder that does
+not exist.
 
 ## Worked examples
 
