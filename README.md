@@ -30,7 +30,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec regenerate <recipe> --out <path> --clicker <slug> <one change> [--run cmd]` | Make a child recipe from a parent and one named change, rerunning only the stages it reaches. |
 | `hyperspec compare <child-recipe> --doctor cmd` | Grade a child and its parent through one doctor against one spec. |
 
-Every command takes `--json`. `hyperspec --help` prints every flag.
+Every command except `init` takes `--json`. `hyperspec --help` prints every flag.
 
 ## Exit codes
 
@@ -40,6 +40,8 @@ error or a file that cannot be read, has broken frontmatter, or is not a hypersp
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2
 usage or unreadable input, 3 pending, when `regenerate` has stages waiting for a runner.
+`regenerate` also exits 1 when a stage it ran reported a failing verdict, or none. A stage it
+reused keeps its parent's verdict and does not change the exit code.
 
 ## Recipes
 
@@ -52,8 +54,10 @@ change what an old recipe reproduces.
 
 A recipe runs again three ways. `reproduce` re-checks every recorded hash and never runs a
 model. `regenerate` takes one named change, reruns only the stages that change reaches, and
-reuses the rest. `compare` grades the new output and its parent through the same doctor against
-the same spec, so a claim that the new one is better is a number.
+reuses the rest. The runner you give it prints each stage's output and a `VERDICT` line; a
+runner that prints no verdict fails the stage. `compare` grades the new output and its parent
+through the same doctor against the same spec, so a claim that the new one is better is a
+number. It grades only the bytes each recipe records, and refuses an output edited since.
 
 ### 30 seconds
 

@@ -24,7 +24,7 @@ decisions:
   - id: recipe-verbs
     state: decided
     value: a recipe runs again three ways, reproduce (re-check every recorded hash), regenerate (one named change, rerunning only the stages it reaches) and compare (both outputs graded by one doctor against one spec)
-    source: SPEC.md, section "Recipes"
+    source: "the recipe standard: \"Every output can be reproduced, and regenerated with one more ingredient\""
     author: gary-sheng
     chosen_by: human
   - id: recipe-store
@@ -288,6 +288,8 @@ key = sha256(canonical({ reads, spec, factory, model }))
 - `spec` is the spec's hash, `factory` is the factory version, and `model` is the stage's model settings or `null`.
 - Canonical JSON sorts keys at every depth, drops keys whose value is undefined, keeps array order, and carries no whitespace. Every hash is SHA-256, lowercase hex, over exact bytes.
 
+A recorded hash is exactly 64 lowercase hex characters. Anything else names no blob: no path is ever built from it, `reproduce` fails the step that holds it, and `recipe check` fails it.
+
 Two stages with the same key read the same bytes under the same spec, factory version and settings. A matching key is the only thing that lets `regenerate` reuse a stage.
 
 ### The blob store
@@ -300,13 +302,13 @@ This is what makes a recipe reproducible: a file edited next month does not chan
 
 A factory records its recipe as it runs, through `@supersuit/hyperspec/recipe`:
 
-- `startRecipe({ output, factory, spec, clicker, store })` loads the spec, stores its bytes, and fills `spec.authors`. Paths resolve against the working directory.
+- `startRecipe({ output, factory, spec, clicker, store })` loads the spec, stores its bytes, and fills `spec.authors`, recording `null` for an entry with no author. Paths resolve against the working directory.
 - `input(name, path)` stores the file's bytes and records it. A repeated name is refused.
-- `stage({ id, reads, model, output, verdict })` stores the output and computes the key. An unknown read, a read of a later stage, and a repeated id are refused.
+- `stage({ id, reads, model, output, verdict })` stores the output and computes the key. `model` and `verdict` are kept as JSON writes them, so the key is computed from exactly what the recipe file holds. An unknown read, a read of a later stage, and a repeated id are refused.
 - `finish({ approver })` refuses a recipe with no stages. Otherwise it writes the output file from the last stage's blob, or checks that an output already on disk matches it, writes the recipe, and returns the completeness findings.
 - `approve(recipePath, by)` sets the approver and returns the findings again.
 
-`hyperspec recipe check <output-or-recipe>` runs the completeness check. It fails a recipe missing the factory version, the spec hash, `spec.authors`, the clicker or the approver; an input with no hash; no stages; a stage with no verdict, a verdict whose `pass` is not true or false, or a stage still pending; a stored key that differs from the key recomputed from the recipe; a last stage whose output is not `output.sha256`; and a `parent` without a `change`, or the reverse. It warns on a stage that declares no reads. `hyperspec recipe approve <recipe> --by <slug>` records the approver.
+`hyperspec recipe check <output-or-recipe>` runs the completeness check. It fails a recipe missing the factory name or version, the spec hash, `spec.authors`, the clicker or the approver; an input with no hash; any recorded hash that is not 64 lowercase hex characters; no stages; a stage with no verdict, a verdict whose `pass` is not true or false, or a stage still pending; a stored key that differs from the key recomputed from the recipe; a last stage whose output is not `output.sha256`; and a `parent` without a `change`, or the reverse. It warns on a stage that declares no reads, and on a spec id with no author, naming the id. It reads the recipe only: whether the blobs are still in the store is what `reproduce` checks. `hyperspec recipe approve <recipe> --by <slug>` records the approver.
 
 ### reproduce
 
@@ -318,11 +320,11 @@ A factory records its recipe as it runs, through `@supersuit/hyperspec/recipe`:
 
 `hyperspec regenerate <recipe> --out <path> --clicker <slug>` takes exactly one change:
 
-- `--add-input <name>=<path>` adds an input, and each `--reads <stage-id>` adds it to that stage's reads. `--reads` may be given more than once. A stage whose `reads` is empty already reads every input.
+- `--add-input <name>=<path>` adds an input, and each `--reads <stage-id>` adds it to that stage's reads. `--reads` may be given more than once. A stage whose `reads` is empty already reads every input. An input that no stage would read is refused, since the child would be its parent with an unused input recorded.
 - `--swap-input <name>=<path>` replaces an input. A file with the same bytes is refused, since swapping it would change nothing.
 - `--factory-version <version>` names a factory version other than the parent's.
 
-The child is the parent with that change applied. Each stage, in order, is reused only when three things hold: the key recomputed from the child's hashes equals the key the parent recorded; the parent's recorded key matches the key recomputed from the parent's own record; and the stage's output blob checks out. Any other stage reruns. With `--run <command>`, each stage is decided once everything it reads has run, so a stage whose upstream reran and came out byte for byte the same is still reused. Without `--run`, nothing runs: a stage that must rerun is written as pending, and every stage that reads it is pending too, with no key.
+The child is the parent with that change applied. Each stage, in order, is reused only when two things hold: the key recomputed from the child's hashes equals the key the parent recorded, and the parent's recorded key matches the key recomputed from the parent's own record. A stage whose key differs reruns. A stage whose key matches but whose recorded output blob is missing or altered stops the regeneration, and nothing is written, since rerunning a stage whose key has not changed is exactly what regenerate must never do. With `--run <command>`, each stage is decided once everything it reads has run, so a stage whose upstream reran and came out byte for byte the same is still reused. Without `--run`, nothing runs: a stage that must rerun is written as pending, and every stage that reads it is pending too, with no key.
 
 Nothing is written until the outcome is known. Then the new blobs, the child's output file, and `<out>.recipe.json` are written; while any stage is pending there is no output yet, so only the blobs and the recipe are. The output is written through a temporary file and read back against its hash. The child names its parent and the change, one line such as `added input call-2 (materials/call-2.md)`, `swapped input call to materials/call-v2.md`, or `factory 0.3.0 to 0.4.0`, which `--change <text>` replaces. Its approver is `null`. The parent recipe, its output and its blobs are only read. `--out` must not exist and must not be the parent's output, its folder must exist, and it is checked again just before anything is written.
 
@@ -330,13 +332,16 @@ Nothing is written until the outcome is known. Then the new blobs, the child's o
 
 - stdin is `{ "stage": "<id>", "reads": [{ "ref": "<ref>", "sha256": "<hex>", "path": "<file>" }], "model": <settings or null> }`. Each `path` is a temporary file holding that read's exact bytes, removed after the stage runs.
 - stdout, byte for byte, is the stage's output.
-- The last stderr line that begins `VERDICT ` carries the verdict as a JSON object whose `pass` is true or false. `station` defaults to `runner` and `note` to an empty string. With no such line, the verdict is `{ "station": "runner", "pass": true, "note": "no verdict reported" }`.
+- The last stderr line that begins `VERDICT ` carries the verdict as a JSON object whose `pass` is true or false. `station` defaults to `runner` and `note` to an empty string. With no such line, the verdict is `{ "station": "runner", "pass": false, "note": "runner reported no verdict" }`: silence is not a verdict, so a runner has to say something.
 - A runner that exits non-zero, or a `VERDICT` line that is not such an object, stops the regeneration and names the stage, and nothing is written.
-- A verdict whose `pass` is false still produces a child, written in full, and the command exits 1 naming the stage.
+- A failing verdict from a stage that ran in this regeneration, including a runner that reported none, still produces a child, written in full, and the command exits 1 naming the stage.
+- A reused stage keeps the verdict its parent recorded, and that verdict does not affect the exit code, even when it failed. Only the stages this regeneration ran are counted.
 
 ### compare
 
-`hyperspec compare <child-recipe> --doctor <command> [--parent <recipe>] [--spec <file>]` grades the child's output and its parent's output with the same doctor command against the same spec. The parent defaults to the one the child names, and the spec to the child's spec. It warns when the parent recipe's bytes have changed since the child was made, and its `--json` result says whether the spec being graded against differs from the one the parent was made from.
+`hyperspec compare <child-recipe> --doctor <command> [--parent <recipe>] [--spec <file>]` grades the child's output and its parent's output with the same doctor command against the same spec. The parent defaults to the one the child names, and the spec to the child's spec. It warns when the parent recipe's bytes have changed since the child was made, and when the spec being graded against differs from the one the parent was made from; both outputs are still graded against that one file.
+
+A score is attributed to a recipe, so the bytes graded must be the bytes the recipe records. Before the doctor runs, each output file is hashed against its recipe's `output.sha256`. A file that does not match, edited by hand or replaced since, is refused with `parent output does not match its recipe; run hyperspec reproduce --restore` (or `child`), and nothing is graded or appended to the ledger.
 
 **The doctor contract.** hyperspec runs `/bin/sh -c <command>` once per output, with the same command both times. stdin is `{ "output": "<file>", "spec": "<file>" }`, both absolute paths. The last non-empty stdout line is a JSON object with a finite numeric `score` and an optional `notes`. Nothing from a recipe is placed into the command itself.
 
@@ -351,8 +356,14 @@ The recipe commands use the same numbers as `lint`. Every one takes `--json`, wh
 | `recipe check` | complete, warnings allowed | no recipe beside the path, or a check failed | a recipe that cannot be read or is not JSON | |
 | `recipe approve` | approver recorded, remaining findings printed | | `--by` missing, or a recipe that cannot be read | |
 | `reproduce` | every hash checks out | a check failed | a usage error, or a recipe that cannot be read | |
-| `regenerate` | child written, every verdict passed | a runner failed or a blob it needs is missing, and nothing was written; or the child was written with a failing verdict | a usage error, such as no change or more than one, a missing `--out` or `--clicker`, an `--out` that exists, an unknown stage in `--reads`, a parent or input that cannot be read | child written with stages waiting for a runner |
-| `compare` | the child did not regress | the child regressed | a usage error, a recipe or spec that cannot be read, a child that names no parent when none is given, a missing output file, or a doctor that failed | |
+| `regenerate` | child written, and every stage that ran reported a passing verdict | a runner failed or a blob it needs is missing, and nothing was written; or the child was written with a failing verdict from a stage that ran | a usage error, such as no change or more than one, a missing `--out` or `--clicker`, an `--out` that exists, an unknown stage in `--reads`, an added input no stage reads, a parent or input that cannot be read | child written with stages waiting for a runner |
+| `compare` | the child did not regress | the child regressed | a usage error, a recipe or spec that cannot be read, a child that names no parent when none is given, a missing output file or one that does not match its recipe, or a doctor that failed | |
+
+### Known limits in 0.2
+
+- A pending child cannot yet be finished in place. Rerunning `regenerate` with `--run` is refused because the child recipe exists; to produce the output, rerun `regenerate` on the parent with a runner and a new `--out`.
+- Approve a recipe before regenerating from it. Approval rewrites the recipe's bytes, and a child records its parent's hash, so approving a parent after a child exists makes `compare` warn that the parent recipe changed.
+- `reproduce`, `regenerate` and `compare` are commands, not yet library functions. `@supersuit/hyperspec/recipe` exports the writer (`startRecipe`, `approve`); a factory runs the other three through the `hyperspec` command.
 
 ## Why now
 

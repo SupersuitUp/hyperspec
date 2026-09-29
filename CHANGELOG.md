@@ -19,12 +19,19 @@ calls no model to do any of this: the steps that need one are commands you suppl
   `--add-input name=path [--reads stage]...`, `--swap-input name=path` or
   `--factory-version v`, reruns only the stages it reaches through `--run <runner>`, reuses
   the rest, and writes a child recipe naming its parent and the change. Without `--run` the
-  child is written with those stages pending, and the command exits 3.
+  child is written with those stages pending, and the command exits 3. A runner that prints
+  no `VERDICT` line fails that stage. An added input that no stage reads is refused.
 - `hyperspec compare <child-recipe> --doctor <command>` grades the child and its parent with
   one doctor against one spec, exits 1 on a regression naming the change as the suspect, and
-  appends the result to the spec's improvement ledger.
+  appends the result to the spec's improvement ledger. It refuses an output file that no
+  longer matches its recipe, so a hand edit is never scored as the change's doing.
+- A recorded hash must be 64 lowercase hex characters. Anything else names no blob, so a
+  crafted recipe cannot point a read outside the store.
 - `@supersuit/hyperspec/recipe` exports `startRecipe` and `approve`, which a factory calls as
   it runs to record inputs and stages and write the recipe.
+- The package now declares `exports`, so `@supersuit/hyperspec/recipe` and
+  `@supersuit/hyperspec/package.json` are the only paths you can import. Deep imports of
+  `src/` files, which resolved in 0.1.0, no longer do.
 - `examples/recipe/` is a worked factory, runner and doctor. The README walks the full loop,
   and a test runs that walkthrough exactly as written, so the two cannot drift apart.
 - SPEC.md gains a Recipes section: the recipe file, the stage key, the blob store, each
