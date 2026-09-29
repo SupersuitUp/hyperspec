@@ -92,8 +92,32 @@ function splitParagraphs(text) {
 // matching open one on its own line (`He was done." Next.` splits the same way); this is a
 // side effect of the same rule rather than special-cased, and is deterministic either way.
 //
+// A line break followed by a list marker is also a boundary: optional spaces or tabs, then "-", "*",
+// "+", or digits followed by "." or ")", then a space. Without this, a bullet that is entirely a
+// quotation ending in `."` never meets an unquoted terminator (its punctuation sits inside the
+// quote) and runs into the next bullet. A segment that opens on a list marker steps over the
+// marker first, so a numbered item's own "1." or "2)" is never read as a sentence ending. A line
+// that merely starts with a hyphenated word ("self-evident"), a decimal ("3.5") or a hyphen with
+// no space after it ("-ish") is not a marker and does not split.
+//
 // Leading and trailing whitespace around the whole text, and the whitespace run between sentences,
 // is left out of every segment, the same as splitParagraphs.
+const LIST_MARKER = /[ \t]*(?:[-*+]|\d+[.)]) /y;
+
+// If a list marker begins at `pos` (after optional spaces or tabs), the index just past the marker
+// symbol (before its trailing space), else -1. Callers only ask at the start of a line.
+function listMarkerEnd(text, pos) {
+  LIST_MARKER.lastIndex = pos;
+  return LIST_MARKER.test(text) ? LIST_MARKER.lastIndex - 1 : -1;
+}
+
+// True when `pos` sits at the start of a line once any leading spaces or tabs are skipped back over.
+function atLineStart(text, pos) {
+  let k = pos - 1;
+  while (k >= 0 && (text[k] === " " || text[k] === "\t")) k--;
+  return k < 0 || text[k] === "\n";
+}
+
 function splitSentences(text) {
   const n = text.length;
   const out = [];
@@ -101,9 +125,27 @@ function splitSentences(text) {
   let i = 0;
   while (i < n && isWhitespace(text[i])) i++;
   let start = i;
+  // A segment that opens on a list marker begins scanning past it, so "1." is not a terminator.
+  const skipMarker = (pos) => (atLineStart(text, pos) ? Math.max(pos, listMarkerEnd(text, pos)) : pos);
+  i = skipMarker(start);
   while (i < n) {
     const ch = text[i];
-    if (ch === "\n") { inQuote = false; i++; continue; }
+    if (ch === "\n") {
+      inQuote = false;
+      const markerEnd = listMarkerEnd(text, i + 1);
+      if (markerEnd !== -1) {
+        let end = i;
+        while (end > start && isWhitespace(text[end - 1])) end--;
+        if (end > start) out.push({ start, end });
+        let k = i + 1;
+        while (text[k] === " " || text[k] === "\t") k++;
+        start = k;
+        i = markerEnd;
+        continue;
+      }
+      i++;
+      continue;
+    }
     if (ch === '"') { inQuote = !inQuote; i++; continue; }
     if (!inQuote && (ch === "." || ch === "?" || ch === "!")) {
       let j = i + 1;
@@ -115,7 +157,7 @@ function splitSentences(text) {
         let k = end;
         while (k < n && isWhitespace(text[k])) k++;
         start = k;
-        i = k;
+        i = skipMarker(k);
         continue;
       }
     }

@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
 import { loadSpec } from "../src/load.mjs";
-import { readSegments } from "../src/segments.mjs";
+import { readSegments, splitSegments } from "../src/segments.mjs";
 import { MATERIAL_LABELS } from "../src/labels.mjs";
 
 // The two worked examples WRITING.md points at. They are the documentation's proof: each one has
@@ -114,6 +114,22 @@ test("every material in both examples is marked, and every segments file is vali
     assert.deepEqual(m.findings, [], `${m.example}: ${m.id}`);
     assert.equal(m.header.material, m.id);
     assert.ok(m.segments.length >= 2, `${m.example}: ${m.id} is split into more than one segment`);
+  }
+});
+
+test("every example segments file keeps the spans segments init writes, so an adopter can reproduce the marking", () => {
+  // Only the labels (and the fields they need) are hand work; the boundaries are the splitter's,
+  // in paragraph mode or sentence mode. No example needs a hand split.
+  for (const name of EXAMPLES) {
+    const d = loadSpec(join(BASE, name)).data;
+    for (const it of d.writing.materials.items) {
+      const text = readFileSync(join(BASE, it.path), "utf8");
+      const r = readSegments(join(BASE, it.segments), {});
+      const spans = (segs) => segs.map((s) => `${s.start}-${s.end}`).join(",");
+      const want = spans(r.segments);
+      const modes = ["paragraph", "sentence"].filter((by) => spans(splitSegments(text, { by })) === want);
+      assert.ok(modes.length > 0, `${name}: material ${it.id} matches neither splitter mode`);
+    }
   }
 });
 

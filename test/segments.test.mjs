@@ -715,3 +715,62 @@ test("readSegments: a gap consisting solely of an NBSP between segments does not
   const r = readSegments(segmentsPath, { materialPath });
   assert.deepEqual(fails(r.findings).filter((x) => x.id === "writing-materials-coverage"), []);
 });
+
+// A newline followed by a list marker (optional spaces or tabs, then "-", "*", "+", or digits
+// followed by "." or ")", then a space) is a segment boundary in sentence mode. Without it, a
+// bullet that is entirely a quotation ending in `."` never meets an unquoted terminator and runs
+// into the next bullet. Paragraph mode is unaffected.
+
+test("splitSegments sentence: a bullet that is entirely a quotation ending in .\" ends at its own line, never running into the next bullet", () => {
+  const text = [
+    '- "If I have something urgent, it is not a one-on-one topic. I send it the day it happens."',
+    "- The first one-on-one with a new report is always the same: she asks how they like to receive",
+    "  feedback, in writing or out loud, right away or at the end of the week.",
+  ].join("\n");
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), [
+    '- "If I have something urgent, it is not a one-on-one topic. I send it the day it happens."',
+    "- The first one-on-one with a new report is always the same: she asks how they like to receive\n  feedback, in writing or out loud, right away or at the end of the week.",
+  ]);
+  for (const s of segs) assert.equal(text.slice(s.start, s.end), s.text);
+});
+
+test("splitSegments sentence: *, + and indented markers are list boundaries too, and a bullet with no terminal punctuation still ends at the next bullet", () => {
+  const text = "* first item with no period\n+ second item\n  - nested item\n- last one.";
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), [
+    "* first item with no period",
+    "+ second item",
+    "- nested item",
+    "- last one.",
+  ]);
+  for (const s of segs) assert.equal(text.slice(s.start, s.end), s.text);
+});
+
+test("splitSegments sentence: a numbered list splits per item, and the item number's own period or parenthesis is never a sentence boundary", () => {
+  const text = "Steps:\n1. Weigh the flour. Never scoop it.\n2. Check the water\n10) Shape the rye.";
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), [
+    "Steps:",
+    "1. Weigh the flour.",
+    "Never scoop it.",
+    "2. Check the water",
+    "10) Shape the rye.",
+  ]);
+  for (const s of segs) assert.equal(text.slice(s.start, s.end), s.text);
+});
+
+test("splitSegments sentence: a wrapped line starting with a hyphenated word, a decimal or a bare hyphen is never a list boundary", () => {
+  const text = "The rule was\nself-evident to her and\n3.5 hours is the proof\n-ish at best, she said. Done.";
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), [
+    "The rule was\nself-evident to her and\n3.5 hours is the proof\n-ish at best, she said.",
+    "Done.",
+  ]);
+});
+
+test("splitSegments paragraph: list markers do not split a paragraph", () => {
+  const text = '- "A quoted bullet."\n- A second bullet.\n\nNext paragraph.';
+  const segs = splitSegments(text, { by: "paragraph" });
+  assert.deepEqual(segs.map((s) => s.text), ['- "A quoted bullet."\n- A second bullet.', "Next paragraph."]);
+});
