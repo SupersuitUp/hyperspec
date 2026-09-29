@@ -1,4 +1,4 @@
-// Materials marking (build 4). hyperspec never calls a model: a material is split into candidate
+// Materials marking (hyperspec 0.4). hyperspec never calls a model: a material is split into candidate
 // segments deterministically (splitSegments), an agent or a person labels each one by hand-editing
 // the JSONL file `segments init` wrote, and this module reads that file back and checks it
 // (readSegments). Labeling itself is judgment and stays outside this file entirely; everything
@@ -18,7 +18,7 @@ import { MATERIAL_LABELS } from "./labels.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const nonEmptyStr = (v) => typeof v === "string" && v.trim() !== "";
-// R1: own counts as set when it is the JSON boolean true or the string "true"; anything else
+// own counts as set when it is the JSON boolean true or the string "true"; anything else
 // (false, "false", missing, any other value) is unset.
 const ownIsSet = (obj) => obj?.own === true || obj?.own === "true";
 // The SAME whitespace test the coverage check below uses (/\S/, JS's Unicode-aware class, which
@@ -33,7 +33,7 @@ const isWhitespace = (ch) => /\s/.test(ch);
 // agent assigns real labels afterward by editing the JSONL file this feeds.
 
 // A line's [start, contentEnd) span, contentEnd excluding that line's own terminator ("\n" or, for
-// CRLF, "\r\n" — the \r is excluded from content the same way the \n is, so a blank CRLF line
+// CRLF, "\r\n"; the \r is excluded from content the same way the \n is, so a blank CRLF line
 // reads as blank, but the \r is never dropped from the original text itself: it simply falls
 // outside every line's content span, same as \n does, and stays untouched wherever it sits inside
 // a multi-line segment). The final line (no trailing "\n") has contentEnd === text.length.
@@ -54,7 +54,7 @@ function lineSpans(text) {
 const isBlankLine = (content) => /^[ \t]*$/.test(content);
 
 // Paragraphs: a maximal run of consecutive non-blank lines. The blank line(s) between two
-// paragraphs, and their terminators, are never part of either paragraph's span — "whitespace
+// paragraphs, and their terminators, are never part of either paragraph's span: "whitespace
 // between segments is left out of every segment." A multi-line paragraph keeps the single "\n" (or
 // "\r\n") between its own lines, since that is internal to the paragraph, not a separator.
 function splitParagraphs(text) {
@@ -76,7 +76,7 @@ function splitParagraphs(text) {
 }
 
 // Sentences: split on ".", "?" or "!" followed by whitespace (or end of text), never while inside
-// a quoted span (a run opened by '"' and not yet closed) on the SAME line — inQuote resets at
+// a quoted span (a run opened by '"' and not yet closed) on the SAME line. inQuote resets at
 // every "\n" regardless of whether a quote is actually still open, so a stray unterminated quote
 // can never suppress boundaries on a later line. Punctuation strictly INSIDE an open quote on the
 // same line (the case this rule exists for, e.g. a title like "Wait." spoken mid-sentence) is
@@ -86,7 +86,7 @@ function splitParagraphs(text) {
 // boundary, and that "punctuation + closing quote" branch is reachable more often than "same
 // line" alone suggests: because inQuote resets on every "\n", a quote opened on one line and
 // closed with punctuation on a LATER line is, by the time that later line's punctuation is
-// reached, read as not-currently-in-a-quote — so the branch fires there too, closing the segment
+// reached, read as not-currently-in-a-quote, so the branch fires there too, closing the segment
 // right after the quote mark (`He said "long\nquote here." Next.` -> one segment ending after the
 // closing quote, then "Next."). The same branch also fires on an orphan closing quote with no
 // matching open one on its own line (`He was done." Next.` splits the same way); this is a
@@ -187,7 +187,7 @@ export function splitSegments(text, { by = "paragraph" } = {}) {
 // file; every failure mode becomes a finding in the lint shape (test, id, severity, message, fix),
 // the same shape src/rules.mjs and src/writing-fields.mjs already use. readSegments never reads
 // MATERIAL_LABELS' meaning into anything beyond the closed-set and per-label-field checks below;
-// spine-ref resolution (m1#s3, and the private/question refusal) is build 4 task 2's job, in
+// spine-ref resolution (m1#s3, and the private/question refusal) happens in
 // src/writing-fields.mjs, which calls this and then checks refs against the returned segments.
 //
 // materialPath is optional: without it, only the structural checks that need no material text run
@@ -195,12 +195,12 @@ export function splitSegments(text, { by = "paragraph" } = {}) {
 // checks run too: verbatim text, coverage, overlap and staleness. materialId, when given, is
 // compared against the header's own "material" field.
 //
-// R2: EVERY finding message names which material it is about (and the segment id, where one
+// EVERY finding message names which material it is about (and the segment id, where one
 // applies), so two materials that each have a broken "s1" never produce identical-looking
 // findings. The finding `id` fields stay rule ids and may still repeat across materials (the same
-// way core findings do); it is the message text this ruling is about. The material tag preferred,
+// way core findings do); it is the message text this rule is about. The material tag preferred,
 // in order: the caller's own materialId, else the header's own "material" field (once parsed),
-// else the segments file's own basename — the last resort covers the missing-file and
+// else the segments file's own basename. The last resort covers the missing-file and
 // unparsable-header cases, where neither of the first two is available yet.
 export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
   const findings = [];
@@ -237,7 +237,7 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
 
   // Computed once header parsing has settled, so every finding from here on (including the
   // header's own shape findings) can use it. header?.material is only trusted when it is a real,
-  // non-empty string — a header that fails its own presence check contributes nothing here.
+  // non-empty string; a header that fails its own presence check contributes nothing here.
   const matTag = materialId ?? (header && nonEmptyStr(header.material) ? header.material : fallbackTag);
   const matPrefix = (segId) => (segId ? `material ${matTag}, segment ${segId}: ` : `material ${matTag}: `);
 

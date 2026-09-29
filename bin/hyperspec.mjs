@@ -35,11 +35,12 @@ const HELP = `hyperspec <command> [options]
   segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]
                                split a material into candidate segments, written as JSONL to
                                <material>.segments.jsonl by default; every segment starts
-                               label: unlabeled, never valid in lint — label each one by hand
+                               label: unlabeled, never valid in lint; label each one by hand
                                (claim, story, quote, stance, question, aside, private), then run
                                hyperspec lint on the spec; refuses to overwrite an existing file
                                (exit 2); exit 2 for a missing material or a --by outside
-                               paragraph/sentence
+                               paragraph/sentence; --by sentence also starts a segment at each
+                               list item (-, *, +, 1. or 1) then a space)
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json

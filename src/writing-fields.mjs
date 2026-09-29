@@ -74,7 +74,7 @@ function materialsFields(raw, d, here, idPrefix) {
     if (!p) out.push(f(1, `${idPrefix}-item-${i}-path`, "fail", `material ${tag} has no path`, "Add path: to the material."));
     else out.push(...pathFindings(here, p, `${idPrefix}-item-${i}-path`, "material", "Fix the path, or add the material file."));
 
-    // Build 4: marking is required once 0.4 ships. A material item with no segments: field is not
+    // Marking is required from 0.4 on. A material item with no segments: field is not
     // marked at all (the design puts marking before specifying), so it fails on its own, distinct
     // from the segments file existing but being broken (readSegments' own findings below). The
     // material's text-dependent checks (verbatim, coverage, overlap, staleness) only run when the
