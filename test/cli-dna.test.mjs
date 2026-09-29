@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -210,4 +210,33 @@ test("dna measure re-run after fixing a golden's missing field writes features.j
   const r = run("dna", "measure", scope);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(existsSync(join(scope, "features.json")));
+});
+
+// ---------------------------------------------------------------------------------------------
+// A goldens/ folder that resolves outside its scope, and an operator's own goldens/README.md
+
+test("dna measure refuses a goldens/ folder that is a symlink to another scope's goldens (exit 1), naming the real target, and writes nothing", () => {
+  const dir = tempDir("hs-cli-dna-");
+  assert.equal(runIn(dir, "dna", "init", "theology", ...INIT_ARGS).status, 0);
+  writeGolden(join(dir, "theology"), "grace.md");
+  assert.equal(runIn(dir, "dna", "init", "memo", ...INIT_ARGS).status, 0);
+  rmSync(join(dir, "memo", "goldens"), { recursive: true });
+  symlinkSync(join(dir, "theology", "goldens"), join(dir, "memo", "goldens"));
+  const r = runIn(dir, "dna", "measure", "memo");
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /\.\.\/theology\/goldens/);
+  assert.doesNotMatch(r.stdout, /\/private\/|\/tmp\/|\/Users\//);
+  assert.ok(!existsSync(join(dir, "memo", "features.json")));
+});
+
+test("dna init over a folder with no scope.md never overwrites an existing goldens/README.md", () => {
+  const dir = tempDir("hs-cli-dna-");
+  const scope = join(dir, "scope");
+  mkdirSync(join(scope, "goldens"), { recursive: true });
+  writeFileSync(join(scope, "goldens", "README.md"), "my own notes on these goldens\n");
+  writeGolden(scope, "kept.md");
+  const r = run("dna", "init", scope, ...INIT_ARGS);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(existsSync(join(scope, "scope.md")));
+  assert.equal(readFileSync(join(scope, "goldens", "README.md"), "utf8"), "my own notes on these goldens\n");
 });

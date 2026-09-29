@@ -135,11 +135,15 @@ const scoped = () => doc.split("\n## Scoped DNA\n")[1].split("\n## ")[0];
 const sub = (heading) => scoped().split(`\n### ${heading}\n`)[1].split("\n### ")[0];
 const SCOPE = join(ROOT, "examples", "writing", "dna", "essay-new-managers-teach");
 
-// The ids src/writing-fields.mjs raises for writing.dna.scope_dir, listed explicitly (they are
+// The ids src/writing-fields.mjs raises for writing.dna.scope_dir and the spec's own
+// writing.dna.scope, listed explicitly (they are
 // built from idPrefix, so the structural collector below cannot read them), and each has to
 // appear in that file verbatim, so one renamed or added without this list changing fails.
 const WRITING_FIELDS_DNA_IDS = [
   ["writing-dna-scope-dir", 1, "`${idPrefix}-scope-dir`"],
+  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-form`"],
+  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-audience`"],
+  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-purpose`"],
   ["writing-dna-scope-mismatch-<field>", 1, "`${idPrefix}-scope-mismatch-${idSuffix}`"],
   ["writing-dna-golden-leak", 5, "`${idPrefix}-golden-leak`"],
   ["writing-dna-features-missing", 6, "`${idPrefix}-features-missing`"],

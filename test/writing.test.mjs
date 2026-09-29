@@ -337,7 +337,7 @@ test("dna: scope missing form, audience or purpose fails test 1", () => {
   ));
   const f = fails(s);
   assert.deepEqual(f.map((x) => x.test), [1, 1]);
-  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-dna-scope-audience", "writing-dna-scope-purpose"]);
+  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-dna-spec-scope-audience", "writing-dna-spec-scope-purpose"]);
 });
 
 test("dna: a rules path that does not exist fails test 6", () => {
@@ -379,8 +379,10 @@ test("dna: scope_dir present, scope.md's writer disagreeing with writing.dna.wri
     const p = join(d, "dna-scope", "scope.md");
     writeFileSync(p, readFileSync(p, "utf8").replace("writer: example-author", "writer: someone-else"));
   });
+  // features.json recorded the scope as it was, so editing scope.md also leaves it stale.
   const f = fails(s);
-  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-mismatch-writer"]]);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-mismatch-writer"], [6, "writing-dna-features-stale"]]);
+  assert.match(f[1].message, /scope changed: writer/);
   assert.match(f[0].message, /example-author/);
   assert.match(f[0].message, /someone-else/);
 });
@@ -396,7 +398,7 @@ for (const c of SCOPE_MISMATCH_CASES) {
       const p = join(d, "dna-scope", "scope.md");
       writeFileSync(p, readFileSync(p, "utf8").replace(c.from, c.to));
     });
-    assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, c.id]]);
+    assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, c.id], [6, "writing-dna-features-stale"]]);
   });
 }
 
@@ -1049,7 +1051,7 @@ const FIELD_RULE_CASES = [
   {
     name: "dna: scope with no form fails test 1",
     edit: (t) => t.replace("      form: essay\n", ""),
-    expect: [[1, "writing-dna-scope-form"]],
+    expect: [[1, "writing-dna-spec-scope-form"]],
   },
   {
     name: "dna: no rules field at all (distinct from a rules path that does not exist) fails test 1",
@@ -1200,4 +1202,119 @@ test("materials: three items sharing an id produce exactly one duplicate finding
   ));
   const f = fails(s);
   assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-materials-item-id"]]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A golden the spec lists must be one of the goldens the scope reader actually reads: a regular
+// .md file directly in the scope's goldens/ folder, other than README.md. Anything else inside
+// goldens/ (a subfolder, the README, another extension) is never checked for why, approved_by or
+// source and never measured, so it fails test 5 like a golden from another scope.
+
+const onlyIds = (s) => fails(s).map((x) => [x.test, x.id]);
+
+for (const c of [
+  { name: "a file in a subfolder of goldens/", path: "dna-scope/goldens/drafts/hollow.md", make: (d) => { mkdirSync(join(d, "dna-scope", "goldens", "drafts")); writeFileSync(join(d, "dna-scope", "goldens", "drafts", "hollow.md"), "A passage with no frontmatter at all.\n"); } },
+  { name: "goldens/README.md", path: "dna-scope/goldens/README.md", make: (d) => writeFileSync(join(d, "dna-scope", "goldens", "README.md"), "# Goldens\n\nNotes for people.\n") },
+  { name: "a golden with another extension", path: "dna-scope/goldens/raw.txt", make: (d) => writeFileSync(join(d, "dna-scope", "goldens", "raw.txt"), "A passage in a text file.\n") },
+]) {
+  test(`dna: a listed golden that is ${c.name} is not one of the scope's goldens, and fails test 5, golden-leak, naming it`, () => {
+    const s = dnaScopeVariant((t) => t.replace("path: dna-scope/goldens/opening.md", `path: ${c.path}`), c.make);
+    assert.deepEqual(onlyIds(s), [[5, "writing-dna-golden-leak"]]);
+    const f = fails(s)[0];
+    assert.match(f.message, /is not one of the scope's goldens/);
+    assert.ok(f.message.includes(c.path), f.message);
+    assert.ok(f.message.includes("dna-scope"), f.message);
+  });
+}
+
+test("dna: a listed golden reached through a symlink that resolves outside the scope says so, and never tells you to move it where it already is", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "WRITING-STYLE.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-golden-leak"]]);
+  assert.match(f[0].message, /is a symlink that resolves outside/);
+  assert.doesNotMatch(f[0].message, /does not live under/);
+  assert.doesNotMatch(f[0].fix, /^Move /);
+  assert.match(f[0].fix, /Replace the link/);
+  assert.doesNotMatch(`${f[0].message} ${f[0].fix}`, /\/private\/|\/tmp\/|\/Users\//);
+});
+
+test("dna: a goldens/ folder that is a symlink to another scope's goldens fails test 5, goldens-outside, naming the real target relative to the scope", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    // The other scope holds the same passages byte for byte, so nothing else (features.json
+    // included) can notice the swap.
+    mkdirSync(join(d, "other-scope"));
+    cpSync(join(d, "dna-scope", "goldens"), join(d, "other-scope", "goldens"), { recursive: true });
+    rmSync(join(d, "dna-scope", "goldens"), { recursive: true });
+    symlinkSync(join(d, "other-scope", "goldens"), join(d, "dna-scope", "goldens"));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-goldens-outside"]]);
+  assert.match(f[0].message, /\.\.\/other-scope\/goldens/);
+  assert.doesNotMatch(`${f[0].message} ${f[0].fix}`, /\/private\/|\/tmp\/|\/Users\//);
+});
+
+test("dna: a whole scope folder reached through a symlink is fine, since scope.md travels with it", () => {
+  const s = dnaScopeVariant((t) => t.replace("scope_dir: dna-scope", "scope_dir: linked-scope").replace("path: dna-scope/goldens/opening.md", "path: linked-scope/goldens/opening.md"),
+    (d) => symlinkSync(join(d, "dna-scope"), join(d, "linked-scope")));
+  assert.deepEqual(fails(s), []);
+});
+
+// features.json is current only when it is exactly what dna measure would write now: the same
+// goldens by hash, the same scope fields, the known dna version, and the same numbers.
+
+test("dna: features.json whose scope differs from scope.md is stale, test 6, naming the field", () => {
+  const s = dnaScopeVariant((t) => t.replace("      audience: builders\n", "      audience: board members\n"), (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("audience: builders", "audience: board members"));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /scope changed: audience/);
+});
+
+test("dna: features.json with an unknown dna version is stale, test 6, naming the version", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    writeFileSync(p, readFileSync(p, "utf8").replace('"dna": "0.1"', '"dna": "0.2"'));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /dna version "0\.2"/);
+});
+
+test("dna: features.json with hand-edited numbers is stale, test 6, naming the features that differ from a fresh measurement", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    const data = JSON.parse(readFileSync(p, "utf8"));
+    data.features.word_count = 5000;
+    data.features.signature_words = ["synergy"];
+    writeFileSync(p, `${JSON.stringify(data, null, 2)}\n`);
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /features differ from a fresh measurement: word_count, signature_words/);
+});
+
+test("dna: features.json with the right content in a shape dna measure never writes is stale, test 6", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    writeFileSync(p, JSON.stringify(JSON.parse(readFileSync(p, "utf8"))));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /not byte for byte what `hyperspec dna measure` writes/);
+});
+
+test("dna: the spec's own missing scope field and scope.md's missing field carry different ids", () => {
+  const s = dnaScopeVariant((t) => t.replace("      form: essay\n", ""), (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("form: essay\n", ""));
+  });
+  const ids = fails(s).map((x) => x.id);
+  assert.ok(ids.includes("writing-dna-spec-scope-form"), ids.join(", "));
+  assert.ok(ids.includes("writing-dna-scope-form"), ids.join(", "));
+  assert.equal(ids.filter((x) => x === "writing-dna-scope-form").length, 1, "one finding per file, never two under one id");
 });

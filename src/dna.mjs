@@ -18,8 +18,8 @@
 // paragraphs, sentence mode within each paragraph for sentences), so a golden's paragraph count
 // and its sentence count are never two different notions of where a boundary falls.
 
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, realpathSync } from "node:fs";
+import { join, relative } from "node:path";
 import { parseSkillFile } from "@supersuit/superskill/yaml";
 import { sha256 } from "./hash.mjs";
 import { splitSegments } from "./segments.mjs";
@@ -36,11 +36,34 @@ const f = (test, id, severity, message, fix) => ({ test, id, severity, message, 
 // which is the guidance file `dna init` writes into an otherwise-empty goldens/ folder. Sorted
 // by filename, so golden order (and therefore features.json's goldens list and word pooling
 // order) never depends on the filesystem's own directory-listing order.
+// isGoldenFileName is the one definition of which names in goldens/ are goldens, shared with the
+// spec linter, which refuses a listed golden the reader would never read.
+export function isGoldenFileName(name) {
+  const lower = String(name).toLowerCase();
+  return lower.endsWith(".md") && lower !== "readme.md";
+}
+
 function listGoldenFiles(goldensDir) {
   return readdirSync(goldensDir, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md") && e.name.toLowerCase() !== "readme.md")
+    .filter((e) => e.isFile() && isGoldenFileName(e.name))
     .map((e) => e.name)
     .sort();
+}
+
+// The folder a scope's goldens really live in, when <dir>/goldens resolves somewhere else: a
+// goldens/ folder that is a symlink (to another scope's goldens, say) would otherwise carry that
+// scope's passages into this one under this scope's name. Returned relative to the scope's own
+// real folder, so a message built from it never names a folder on this machine. null when the
+// folder is where it should be, or cannot be resolved at all (a missing folder is reported as
+// goldens-missing by the listing below).
+function goldensElsewhere(dir) {
+  try {
+    const dirReal = realpathSync(dir);
+    const goldensReal = realpathSync(join(dir, "goldens"));
+    return goldensReal === join(dirReal, "goldens") ? null : relative(dirReal, goldensReal);
+  } catch {
+    return null;
+  }
 }
 
 // readGoldens(dir): reads <dir>/goldens/*.md. Returns { goldens, findings }. Every finding is in
@@ -53,6 +76,14 @@ export function readGoldens(dir, { displayDir } = {}) {
   const shown = displayDir ?? dir;
   const goldensDir = join(dir, "goldens");
   const findings = [];
+
+  const elsewhere = goldensElsewhere(dir);
+  if (elsewhere !== null) {
+    findings.push(f(5, "writing-dna-goldens-outside", "fail",
+      `scope "${shown}": its goldens/ folder resolves to ${elsewhere}, outside the scope; a golden feeds only work that shares its scope`,
+      `Replace ${shown}/goldens with a real folder holding this scope's own goldens, copying in any passage that belongs to this scope too.`));
+    return { goldens: [], findings };
+  }
 
   let names;
   try {
@@ -343,13 +374,18 @@ export function measureFeatures(texts) {
   };
 }
 
-// writeFeatures(scopeDir, { scope, goldens, features }): writes <scopeDir>/features.json.
-// 2-space JSON, a trailing newline, keys in the fixed order below, goldens sorted by path: the
-// same goldens always produce byte-identical bytes. Returns { path, data }.
-export function writeFeatures(scopeDir, { scope, goldens, features }) {
+// features.json: 2-space JSON, a trailing newline, keys in the fixed order below, goldens sorted
+// by path, so the same goldens always produce byte-identical bytes. DNA_FORMAT is the version of
+// this shape, recorded in the file as "dna".
+export const DNA_FORMAT = "0.1";
+
+// featuresText({ scope, goldens, features }): the exact bytes writeFeatures writes, and the data
+// they encode. The spec linter builds these from the scope as it reads now and compares them to
+// the file, so a features.json is current only when it is what dna measure would write today.
+export function featuresText({ scope, goldens, features }) {
   const sortedGoldens = [...(goldens ?? [])].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const data = {
-    dna: "0.1",
+    dna: DNA_FORMAT,
     scope: {
       writer: scope?.writer ?? "",
       form: scope?.form ?? "",
@@ -359,8 +395,15 @@ export function writeFeatures(scopeDir, { scope, goldens, features }) {
     goldens: sortedGoldens.map((g) => ({ path: g.path, sha256: g.sha256 })),
     features,
   };
+  return { data, text: `${JSON.stringify(data, null, 2)}\n` };
+}
+
+// writeFeatures(scopeDir, { scope, goldens, features }): writes <scopeDir>/features.json, the
+// bytes featuresText returns. Returns { path, data }.
+export function writeFeatures(scopeDir, input) {
+  const { data, text } = featuresText(input);
   const path = join(scopeDir, "features.json");
-  writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
+  writeFileAtomic(path, text);
   return { path, data };
 }
 

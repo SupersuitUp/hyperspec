@@ -10,21 +10,28 @@ a passage that is right for one kind of writing never teaches its moves to anoth
 measures each scope's style from its goldens (sentence and paragraph length, punctuation,
 pronouns, signature words), counts and never judges, and still calls no model.
 
-**No behavior change for existing specs.** Scoped DNA is opt-in through a new optional field,
-`writing.dna.scope_dir`. A spec without it, writing or not, lints exactly as it did in 0.4.0.
+**What passes and fails is unchanged for existing specs.** Scoped DNA is opt-in through a new
+optional field, `writing.dna.scope_dir`, and a spec without it passes and fails exactly as it did
+in 0.4.0. **One finding id is renamed:** a writing spec whose own `writing.dna.scope` has no form,
+audience or purpose now reports `writing-dna-spec-scope-form` (and `-audience`, `-purpose`) where
+0.4.0 reported `writing-dna-scope-form`. That id now means a scope folder's `scope.md` lacks the
+field, so each id names one file. A tool that matches on the old id needs the new one.
 
 - `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` writes a scope
   folder: `scope.md` (writer, form, audience, purpose, optional notes) and a `goldens/` folder
-  holding a README on the golden file shape. It refuses to overwrite an existing `scope.md`, and
+  holding a README on the golden file shape. It refuses to overwrite an existing `scope.md`, never
+  replaces a `goldens/README.md` that is already there, and
   exits 2 with a plain message on a missing flag, a flag whose value is a placeholder, or a
   parent folder that does not exist. Paths print as you gave them.
-- A golden is one file in `goldens/`: frontmatter `why` (the move it teaches), `approved_by` (a
-  person; an approver starting `agent:` is refused, because golden means a human approved it)
-  and `source` are required, `approved_on` is optional, and the body is the passage, verbatim.
+- A golden is one `.md` file directly in `goldens/`, other than `README.md`: frontmatter `why`
+  (the move it teaches), `approved_by` (a person; an approver starting `agent:` is refused,
+  because golden means a human approved it) and `source` are required, `approved_on` is optional,
+  and the body is the passage, verbatim. A `goldens/` folder that resolves outside its scope, such
+  as a symlink to another scope's goldens, is refused under test 5, naming where it leads.
 - `hyperspec dna measure <scope-dir> [--json]` checks every golden and writes
   `<scope-dir>/features.json`: the scope, each golden's path and SHA-256, and the features. If
-  the scope or any golden fails a check it writes nothing and exits 1, so a hollow golden is never
-  measured in. The same goldens always produce the same bytes.
+  the scope or any golden fails a check it writes nothing and exits 1, so a hollow or borrowed
+  golden is never measured in. The same goldens always produce the same bytes.
 - The features: word count; sentence length in words (mean, median, 90th percentile); paragraph
   length in sentences and in words; per-1000-word rates of commas, semicolons, colons, em dashes,
   en dashes, exclamation marks, question marks, parentheses and quotation marks; contraction,
@@ -32,11 +39,13 @@ pronouns, signature words), counts and never judges, and still calls no model.
   15 signature words. Sentences and paragraphs are split the same way `segments init` splits
   them.
 - With `writing.dna.scope_dir`, `lint` checks that `scope.md` matches the spec's writer, form,
-  audience and purpose (test 1), that every golden the spec lists lives inside the scope's
-  `goldens/` folder, following symlinks to the file's real path (test 5), that every golden
-  in the folder has its `why` (test 6), a person's approval and a source (test 4) and a passage
-  (test 1), and that `features.json` exists and names exactly the goldens there now, unchanged
-  (test 6). A `scope_dir` that is present but a placeholder fails test 1.
+  audience and purpose (test 1); that every golden the spec lists is one of the scope's goldens,
+  after following any symlink, and never a passage in a subfolder, in `README.md` or in another
+  kind of file (test 5); that every golden in the folder has its `why` (test 6), a person's
+  approval and a source (test 4) and a passage (test 1); and that `features.json` is exactly what
+  `dna measure` would write now (test 6). The stale finding names what differs: goldens added,
+  removed or changed, a changed `scope.md` field, an unknown format version, or a number edited by
+  hand. A `scope_dir` that is present but a placeholder fails test 1.
 - Every new finding id starts `writing-dna-`, and every message names the scope folder as the
   spec wrote it and the golden by its path inside the folder, never a folder on your machine.
   WRITING.md lists every one with its test.

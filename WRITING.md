@@ -328,8 +328,8 @@ Each row lists what the writing profile adds to that test. The core conditions i
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
-| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment; with `dna.scope_dir`, a golden the spec lists lives outside the scope's `goldens/` folder |
-| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or stale |
+| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment; with `dna.scope_dir`, a golden the spec lists is not one of the scope's goldens (it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file), or the scope's `goldens/` folder resolves outside the scope |
+| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
 | 9 it improves itself | nothing further; the core rule applies |
@@ -577,11 +577,18 @@ purpose: teach
 after its scope so a person can tell scopes apart at a glance. hyperspec reads the scope from
 `scope.md`, never from the folder's name.
 
+`goldens/` must be a real folder inside the scope. A `goldens/` that resolves somewhere else, such
+as a symlink to another scope's goldens, would carry that scope's passages into this one under
+this scope's name, so `dna measure` refuses it and lint fails it under test 5, both naming where it
+leads. A whole scope folder reached through a symlink is fine, because `scope.md` travels with
+it.
+
 ### A golden
 
 A golden is a real passage the writer marked as right, one per file in `goldens/`. Every `.md`
-file there except `README.md` is a golden (a symlink is not read). This is the essay example's
-opening:
+file directly in `goldens/` is a golden except `README.md`, which is for notes to people and is
+never read as a golden. A subfolder, a file with another extension, and a symlink sitting in the
+folder are not read either. This is the essay example's opening:
 
 ```markdown
 ---
@@ -619,9 +626,9 @@ npx @supersuit/hyperspec dna init dna/essay-new-managers-teach --writer example-
 
 `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` writes `scope.md`
 and a `goldens/` folder holding only a README on the golden file shape. All four flags are
-required. It refuses to overwrite an existing `scope.md`, and exits 2 with a plain message on a
-missing flag, a flag whose value is a placeholder, or a scope folder whose parent folder does not
-exist. Then add one file per golden.
+required. It refuses to overwrite an existing `scope.md`, never replaces a `goldens/README.md`
+that is already there, and exits 2 with a plain message on a missing flag, a flag whose value is a
+placeholder, or a scope folder whose parent folder does not exist. Then add one file per golden.
 
 ### Measuring a scope
 
@@ -638,8 +645,8 @@ wrote dna/essay-new-managers-teach/features.json
 
 `hyperspec dna measure <scope-dir> [--json]` reads every golden, checks each one's own fields, and
 writes `<scope-dir>/features.json`. If the scope or any golden fails a check (no `why`, an agent
-approver, no passage), it prints the findings, writes nothing and exits 1, so a hollow golden is
-never measured into the DNA. It exits 0 when it wrote the file and 2 on a usage error. `--json`
+approver, no passage, a `goldens/` folder that resolves outside the scope), it prints the findings,
+writes nothing and exits 1, so a hollow or borrowed golden is never measured into the DNA. It exits 0 when it wrote the file and 2 on a usage error. `--json`
 prints the same result as JSON. The same goldens always produce the same bytes.
 
 `features.json` holds `dna` (the version of this format, `"0.1"`), `scope` (the four fields from
@@ -669,13 +676,16 @@ words.
 | `mean_word_length` | characters per word | plain words or long ones |
 | `signature_words` | up to 15 words of four or more letters that are not common function words and appear at least twice, most frequent first, ties in alphabetical order | the vocabulary the writer returns to in this scope |
 
-### When a golden changes
+### When the scope changes
 
-`features.json` pins every golden by the SHA-256 of its file. Add a golden, remove one, or change
-any byte of one (its passage or its frontmatter), and the measurements describe goldens that are
-no longer there: lint fails the scope as stale under test 6 and names every golden that was
-added, removed or changed. Run `dna measure` again. The hash is over bytes, so a line-ending
-conversion counts as a change, as it does for a segments file (see
+`features.json` is current only when it is exactly what `dna measure` would write from the scope
+as it reads now: the same goldens, pinned by the SHA-256 of each file; the same four fields as
+`scope.md`; the format version `"0.1"`; and the same numbers. Add a golden, remove one, change any
+byte of one (its passage or its frontmatter), edit `scope.md`, or edit a number by hand, and lint
+fails the scope as stale under test 6. The finding names what differs: each golden added, removed
+or changed, each scope field that changed, an unknown version, or each feature whose number no
+longer matches a fresh measurement. Run `dna measure` again. The hash is over bytes, so a
+line-ending conversion counts as a change, as it does for a segments file (see
 [When a material changes](#when-a-material-changes)).
 
 ### Naming the scope in a spec
@@ -703,12 +713,15 @@ that:
 
 - `scope.md`'s writer equals `dna.writer`, and its form, audience and purpose equal `dna.scope`,
   compared trimmed and ignoring case (test 1);
-- every golden the spec lists lives inside the scope's `goldens/` folder, judged by the file's real
-  path after following any symlink (test 5). A golden from another scope is a leak, the
-  exact thing a scope exists to prevent;
+- every golden the spec lists is one of the scope's goldens: after following any symlink, a `.md`
+  file directly in the scope's own `goldens/` folder, other than `README.md` (test 5). A golden
+  from another scope is a leak, the exact thing a scope exists to prevent, and so is a passage in
+  a subfolder, in `README.md` or in another kind of file, which would feed the spec without ever
+  being checked or measured;
 - every golden in the folder, listed in the spec or not, has a `why` (test 6), an `approved_by`
   that names a person and a `source` (test 4), and a passage (test 1);
-- `features.json` exists and is current (test 6).
+- `features.json` exists and is current, as [When the scope changes](#when-the-scope-changes)
+  defines it (test 6).
 
 The spec still gives each golden it lists a `why`, as in 0.4; the essay example keeps it the same
 as the golden file's own. A `scope_dir` that is present but a placeholder, such as `TODO`, fails
@@ -724,25 +737,27 @@ path inside the folder, so the output is the same on every machine. `<field>` is
 | Id | Test | Fails when |
 |---|---|---|
 | `writing-dna-scope-dir` | 1 | `writing.dna.scope_dir` is present and is a placeholder |
+| `writing-dna-spec-scope-<field>` | 1 | the spec's own `writing.dna.scope` has no `form`, `audience` or `purpose` (this check runs with or without `scope_dir`) |
 | `writing-dna-scope-missing` | 1 | `scope.md` does not exist, cannot be read, or its frontmatter does not parse |
-| `writing-dna-scope-<field>` | 1 | `scope.md` has no such field. A spec whose own `writing.dna.scope` has no form, audience or purpose reports the same id, and the message says which file it means |
+| `writing-dna-scope-<field>` | 1 | `scope.md` has no such field |
 | `writing-dna-scope-mismatch-<field>` | 1 | `scope.md` and the spec disagree on that field |
 | `writing-dna-goldens-missing` | 1 | the `goldens/` folder does not exist or cannot be read |
 | `writing-dna-goldens-empty` | 1 | `goldens/` holds no golden |
+| `writing-dna-goldens-outside` | 5 | `goldens/` resolves to a folder outside the scope, such as a symlink to another scope's goldens |
 | `writing-dna-golden-unreadable` | 1 | a golden file cannot be read |
 | `writing-dna-golden-frontmatter` | 1 | a golden's frontmatter opens with `---` and never closes |
 | `writing-dna-golden-empty` | 1 | a golden has no passage |
 | `writing-dna-golden-approved-by` | 4 | a golden has no `approved_by` |
 | `writing-dna-golden-approved-by-agent` | 4 | a golden's `approved_by` starts `agent:`, in any case |
 | `writing-dna-golden-source` | 4 | a golden has no `source` |
-| `writing-dna-golden-leak` | 5 | a golden the spec lists lives outside the scope's `goldens/` folder |
+| `writing-dna-golden-leak` | 5 | a golden the spec lists is not one of the scope's goldens: it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file |
 | `writing-dna-golden-why` | 6 | a golden has no `why` |
 | `writing-dna-features-missing` | 6 | the scope has no `features.json`, or it is not valid JSON |
-| `writing-dna-features-stale` | 6 | a golden was added, removed or changed since `features.json` was written |
+| `writing-dna-features-stale` | 6 | `features.json` is not what `dna measure` would write now: a golden was added, removed or changed, `scope.md` changed, the version is unknown, or a number differs from a fresh measurement |
 
 `dna measure` raises the ids that come from the folder alone: every row except `scope-dir`,
-`scope-mismatch-<field>`, `golden-leak` and the two `features-` rows, which need a spec to
-compare against. Lint raises all of them.
+`spec-scope-<field>`, `scope-mismatch-<field>`, `golden-leak` and the two `features-` rows, which
+need a spec to compare against. Lint raises all of them.
 
 ### Reading a scope from your own tool
 
@@ -756,7 +771,7 @@ const { scope, goldens, findings } = readScope("dna/essay-new-managers-teach");
 const features = measureFeatures(goldens.map((g) => g.text));
 ```
 
-`readScope` never throws. It returns the scope's four fields and `notes` (or `null` when
+`readScope` never throws for a folder path, whatever is or is not in the folder. It returns the scope's four fields and `notes` (or `null` when
 `scope.md` cannot be read at all), every golden it could read, with its `path`, `why`,
 `approved_by`, `source`, `approved_on`, `text` and `sha256`, and findings in the shape lint
 reports. `displayDir` sets how the folder is named in messages. `measureFeatures` takes an array

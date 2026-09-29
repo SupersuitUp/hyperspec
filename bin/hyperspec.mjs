@@ -210,7 +210,12 @@ if (cmd === "dna") {
 
     mkdirSync(join(scopeAbs, "goldens"), { recursive: true });
     writeFileSync(scopeMdPath, scopeTemplate({ writer, form, audience, purpose }));
-    writeFileSync(join(scopeAbs, "goldens", "README.md"), GOLDENS_README);
+    // An operator's own goldens/README.md is theirs: write the guidance only where none exists.
+    try {
+      writeFileSync(join(scopeAbs, "goldens", "README.md"), GOLDENS_README, { flag: "wx" });
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
     console.log(`wrote ${scopeMdDisplay} and ${scopeDir}/goldens/. Add goldens, then run: hyperspec dna measure ${scopeDir}`);
     process.exit(0);
   }
