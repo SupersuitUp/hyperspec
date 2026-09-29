@@ -35,3 +35,10 @@ test("I2: every relative example path in SPEC.md ships in the npm tarball", asyn
     assert.ok(shipped, `${p} is not inside anything package.json "files" ships`);
   }
 });
+
+test("M5: SPEC.md's improvement ledger ships in the npm tarball, so the packaged SPEC.md lints with no warning", async () => {
+  const { loadSpec } = await import("../src/load.mjs");
+  const files = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).files;
+  const ledger = loadSpec(join(ROOT, "SPEC.md")).data.improvement.ledger;
+  assert.ok(files.some((f) => (f.endsWith("/") ? ledger.startsWith(f) : ledger === f)), `${ledger} is not inside anything package.json "files" ships`);
+});

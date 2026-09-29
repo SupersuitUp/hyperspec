@@ -124,6 +124,14 @@ function parseArgs(args, { valueFlags = [], boolFlags = [], repeatableFlags = []
   return { positionals, values };
 }
 
+// name=path, split on the FIRST =, so a path that itself contains = survives intact. A value with
+// no = is a usage error (exit 2).
+function namePath(flagName, raw) {
+  const eq = raw.indexOf("=");
+  if (eq === -1) { console.error(`${flagName} needs name=path`); process.exit(2); }
+  return { name: raw.slice(0, eq), path: raw.slice(eq + 1) };
+}
+
 function printFindings(findings) {
   if (!findings.length) { console.log("ok"); return; }
   for (const f of findings) console.log(`${f.severity === "fail" ? "fail" : "warn"} [${f.field}] ${f.message}`);
@@ -238,16 +246,11 @@ if (cmd === "regenerate") {
 
   const change = {};
   if (parsed.values["--add-input"] !== undefined) {
-    const raw = parsed.values["--add-input"];
-    const eq = raw.indexOf("=");
-    if (eq === -1) { console.error("--add-input needs name=path"); process.exit(2); }
-    change.addInput = { name: raw.slice(0, eq), path: raw.slice(eq + 1), reads: parsed.values["--reads"] };
+    const pair = namePath("--add-input", parsed.values["--add-input"]);
+    change.addInput = { ...pair, reads: parsed.values["--reads"] };
   }
   if (parsed.values["--swap-input"] !== undefined) {
-    const raw = parsed.values["--swap-input"];
-    const eq = raw.indexOf("=");
-    if (eq === -1) { console.error("--swap-input needs name=path"); process.exit(2); }
-    change.swapInput = { name: raw.slice(0, eq), path: raw.slice(eq + 1) };
+    change.swapInput = namePath("--swap-input", parsed.values["--swap-input"]);
   }
   if (parsed.values["--factory-version"] !== undefined) change.factoryVersion = parsed.values["--factory-version"];
 

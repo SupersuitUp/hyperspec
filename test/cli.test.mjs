@@ -84,3 +84,24 @@ test("I5: a directory ledger is reported as a failure and the next file is still
   const out = JSON.parse(r.stdout);
   assert.deepEqual(out.files.map((x) => x.status), ["fail", "pass"]);
 });
+
+// M6: init quotes a title or kind a YAML reader would misread, so what lint reads back is what was typed.
+test("M6: init quotes titles with YAML-special characters, and the title reads back exactly", async () => {
+  const { loadSpec } = await import("../src/load.mjs");
+  const titles = ["My # piece", "[draft] essay", '"Quoted" rest', "- dash", "ok: colon", "*star", "{brace}", "trailing ", "@at", "`tick", "!bang", "|pipe", ">gt", "?q", "%pct", "&amp", "null", "true", "123", "line\nbreak", "back\\slash"];
+  for (const title of titles) {
+    const p = join(mkdtempSync(join(tmpdir(), "hs-")), "new.md");
+    assert.equal(run("init", p, "--title", title, "--kind", "essay: long").status, 0, title);
+    const s = loadSpec(p);
+    assert.equal(s.error, undefined, title);
+    assert.equal(s.data.title, title, title);
+    assert.equal(s.data.kind, "essay: long", title);
+    assert.equal(s.body.split("\n").filter((l) => l.startsWith("# ")).length, 1, `one heading line for ${JSON.stringify(title)}`);
+  }
+});
+test("M6: a plain title is left unquoted", () => {
+  const p = join(mkdtempSync(join(tmpdir(), "hs-")), "new.md");
+  assert.equal(run("init", p, "--title", "My piece, part 2 (draft)", "--kind", "essay").status, 0);
+  assert.match(readFileSync(p, "utf8"), /^title: My piece, part 2 \(draft\)$/m);
+  assert.match(readFileSync(p, "utf8"), /^kind: essay$/m);
+});

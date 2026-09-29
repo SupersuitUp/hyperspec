@@ -79,9 +79,13 @@ test("9: an improved verdict with no change fails test 9", () => {
   assert.deepEqual(failsOn(loadSpec(s.path)), [9]);
 });
 
-test("9: no ledger declared fails test 9; a declared ledger not yet written is fine", () => {
+test("9: no ledger declared fails test 9; a declared ledger not yet written is a warning, never a failure (M5)", () => {
   assert.deepEqual(failsOn(variant((t) => t.replace(/improvement:\n  ledger: .*\n/, ""))), [9]);
-  assert.deepEqual(failsOn(variant((t) => t.replace("ledger: runs.jsonl", "ledger: later.jsonl"))), []);
+  const s = variant((t) => t.replace("ledger: runs.jsonl", "ledger: later.jsonl"));
+  assert.deepEqual(failsOn(s), []);
+  const warns = lintSpec(s).filter((x) => x.severity === "warn");
+  assert.deepEqual(warns.map((x) => [x.test, x.id]), [[9, "ledger-missing"]]);
+  assert.match(warns[0].message, /later\.jsonl/);
 });
 
 test("every finding names its test, a severity, a message and a fix", () => {
@@ -164,6 +168,7 @@ const ledger = (text) => (s) => { writeFileSync(join(s.dir, "runs.jsonl"), text)
 const BY_ID = [
   ["decisions", 1, cut(/decisions:\n(  .*\n)+/)],
   ["decision-id", 1, sub("  - id: audience\n    state", "  - state")],
+  ["requirement-id", 1, sub("  - id: r1", "  - id: audience")],
   ["decision-state", 1, sub("state: decided", "state: maybe")],
   ["decided-value", 1, cut(/    value: .*\n/)],
   ["delegated-rule", 1, cut(/    rule: .*\n/)],
@@ -182,6 +187,8 @@ const BY_ID = [
   ["examples", 6, cut(/examples:\n(  .*\n)+/)],
   ["example-path", 6, sub("  - path: goldens/opening.md\n    why", "  - why")],
   ["example-missing", 6, sub("goldens/opening.md", "goldens/missing.md")],
+  ["example-not-file", 6, sub("goldens/opening.md", "goldens")],
+  ["example-self", 6, sub("goldens/opening.md", "spec.md")],
   ["example-why", 6, cut(/    why: .*\n/)],
   ["next-action", 7, cut(/resume:\n(  .*\n)+/)],
   ["next-action-vague", 7, sub(/next_action: .*/, "next_action: tbd")],
@@ -241,4 +248,57 @@ test("I6: 'as discussed' in plain prose warns; inside an inline code span or a f
   assert.equal(pointerWarns("~~~\nas we discussed\n~~~\n"), 0);
   assert.equal(pointerWarns("`code` then as discussed in prose"), 1);
   assert.equal(pointerWarns("| a table row | as mentioned earlier |"), 1);
+});
+
+// R8: one id namespace across decisions and requirements, because a recipe's spec.authors maps
+// every id to its author and a shared id would lose one of them.
+test("R8: an id shared by a decision and a requirement fails test 1, naming the id", () => {
+  const s = variant((t) => t.replace("  - id: r1", "  - id: audience"));
+  const fails = lintSpec(s).filter((x) => x.severity === "fail");
+  assert.deepEqual(fails.map((x) => [x.test, x.id]), [[1, "requirement-id"]]);
+  assert.match(fails[0].message, /"audience"/);
+  assert.match(fails[0].fix, /unique across decisions and requirements/);
+});
+test("R8: two requirements sharing an id fail test 1, naming the id", () => {
+  const s = variant((t) => t.replace("rejects:", `  - id: r1
+    text: a second requirement
+    fails_when: it is missing
+    check:
+      station: a check
+    source: design doc
+    author: gary-sheng
+rejects:`));
+  const fails = lintSpec(s).filter((x) => x.severity === "fail");
+  assert.deepEqual(fails.map((x) => [x.test, x.id]), [[1, "requirement-id"]]);
+  assert.match(fails[0].message, /"r1" is used twice/);
+});
+test("R8: a duplicate decision id says ids are unique across decisions and requirements", () => {
+  const f = lintSpec(variant((t) => t.replace("id: length", "id: audience"))).find((x) => x.id === "decision-id");
+  assert.match(f.fix, /unique across decisions and requirements/);
+});
+
+// M4: a hyperspec version this linter does not know is a warning, never a failure.
+test("M4: an unknown hyperspec version is a warning under test 7, never a failure", () => {
+  const s = variant((t) => t.replace('hyperspec: "0.1"', 'hyperspec: "0.9"'));
+  assert.deepEqual(failsOn(s), []);
+  const warns = lintSpec(s).filter((x) => x.severity === "warn");
+  assert.deepEqual(warns.map((x) => [x.test, x.id]), [[7, "hyperspec-version"]]);
+  assert.match(warns[0].message, /"0\.9"/);
+});
+test("M4: the known version, quoted or not, raises nothing", () => {
+  assert.deepEqual(lintSpec(valid()), []);
+  assert.deepEqual(lintSpec(variant((t) => t.replace('hyperspec: "0.1"', "hyperspec: 0.1"))), []);
+});
+
+// M5: an example must be a file other than the spec itself.
+test("M5: an example that is a directory fails test 6 with 'not a file'", () => {
+  const fails = lintSpec(variant((t) => t.replace("goldens/opening.md", "goldens"))).filter((x) => x.severity === "fail");
+  assert.deepEqual(fails.map((x) => [x.test, x.id, x.message]), [[6, "example-not-file", 'example "goldens" is not a file']]);
+});
+test("M5: an example that points at the spec itself fails test 6, by relative or absolute path", () => {
+  const rel = variant((t) => t.replace("goldens/opening.md", "spec.md"));
+  assert.deepEqual(lintSpec(rel).filter((x) => x.severity === "fail").map((x) => [x.test, x.id]), [[6, "example-self"]]);
+  const abs = variant((t) => t);
+  writeFileSync(abs.path, readFileSync(abs.path, "utf8").replace("goldens/opening.md", abs.path));
+  assert.deepEqual(lintSpec(loadSpec(abs.path)).filter((x) => x.severity === "fail").map((x) => x.id), ["example-self"]);
 });

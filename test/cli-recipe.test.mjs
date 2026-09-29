@@ -359,6 +359,42 @@ test("regenerate: --reads only touches the named stage; a sibling stage is reuse
   assert.match(r.stdout, /draft: rerun/); // transitive reader of outline
 });
 
+test("regenerate: --reads given twice attaches the new input to both named stages", () => {
+  const dir = project();
+  const { recipePath } = buildThreeStageParent(dir);
+  const extra = join(dir, "materials", "extra.txt");
+  writeFileSync(extra, "extra");
+  const out = join(dir, "essay-v2.md");
+  const r = run(
+    "regenerate", recipePath,
+    "--out", out, "--clicker", "gary-sheng",
+    "--add-input", `extra=${extra}`,
+    "--reads", "outline", "--reads", "notes",
+    "--run", passThroughRunner(dir),
+  );
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /outline: rerun/);
+  assert.match(r.stdout, /notes: rerun/);
+  assert.match(r.stdout, /draft: rerun/);
+  const child = JSON.parse(readFileSync(`${out}.recipe.json`, "utf8"));
+  const reads = Object.fromEntries(child.stages.map((st) => [st.id, st.reads]));
+  assert.deepEqual(reads.outline, ["input:note", "input:extra"]);
+  assert.deepEqual(reads.notes, ["input:note", "input:extra"]);
+  assert.deepEqual(reads.draft, ["stage:outline", "stage:notes"]);
+});
+
+test("regenerate: a --swap-input path containing = keeps everything after the first =", () => {
+  const dir = project();
+  const { recipePath } = buildSimpleParent(dir);
+  const swapped = join(dir, "materials", "a=b.txt");
+  writeFileSync(swapped, "different bytes");
+  const out = join(dir, "essay-v2.md");
+  const r = run("regenerate", recipePath, "--out", out, "--clicker", "gary-sheng", "--swap-input", `note=${swapped}`, "--run", passThroughRunner(dir));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const child = JSON.parse(readFileSync(`${out}.recipe.json`, "utf8"));
+  assert.equal(child.inputs[0].path, "materials/a=b.txt");
+});
+
 test("regenerate: no --run leaves the changed stage pending, exit 3", () => {
   const dir = project();
   const { recipePath } = buildSimpleParent(dir);

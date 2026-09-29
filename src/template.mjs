@@ -1,8 +1,17 @@
+// A scalar left unquoted only when every YAML reader reads it back as the same text: it starts
+// with a letter or digit, holds only letters, digits, spaces and plain punctuation, and is not a
+// word YAML turns into null, a boolean or a number. Anything else is written as a JSON string,
+// which is also a valid YAML double-quoted scalar.
+const PLAIN = /^[A-Za-z0-9][A-Za-z0-9 _.,'()/-]*$/;
+const RESOLVES = /^(null|~|true|false|yes|no|on|off|y|n|[-+]?(\d[\d_]*)?\.?\d+([eE][-+]?\d+)?|0x[0-9a-f]+|0o[0-7]+|\.inf|\.nan)$/i;
+const scalar = (v) => (PLAIN.test(v) && !/\s$/.test(v) && !RESOLVES.test(v) ? v : JSON.stringify(v));
+
 export function template({ title = "Untitled", kind = "document" } = {}) {
+  const heading = String(title).replace(/\s+/g, " ").trim();
   return `---
 hyperspec: "0.1"
-title: ${title}
-kind: ${kind}
+title: ${scalar(String(title))}
+kind: ${scalar(String(kind))}
 decisions:
   - id: audience
     state: open
@@ -22,6 +31,6 @@ improvement:
   ledger: runs.jsonl
 ---
 
-# ${title}
+# ${heading}
 `;
 }

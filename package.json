@@ -15,6 +15,7 @@
     "src/",
     "examples/",
     "SPEC.md",
+    "runs.jsonl",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
