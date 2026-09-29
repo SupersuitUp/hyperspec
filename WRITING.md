@@ -737,9 +737,9 @@ path inside the folder, so the output is the same on every machine. `<field>` is
 | Id | Test | Fails when |
 |---|---|---|
 | `writing-dna-scope-dir` | 1 | `writing.dna.scope_dir` is present and is a placeholder |
-| `writing-dna-spec-scope-<field>` | 1 | the spec's own `writing.dna.scope` has no `form`, `audience` or `purpose` (this check runs with or without `scope_dir`) |
+| `writing-dna-scope-<field>` | 1 | the spec's own `writing.dna.scope` has no `form`, `audience` or `purpose` (this check runs with or without `scope_dir`, and is the id 0.4 used) |
 | `writing-dna-scope-missing` | 1 | `scope.md` does not exist, cannot be read, or its frontmatter does not parse |
-| `writing-dna-scope-<field>` | 1 | `scope.md` has no such field |
+| `writing-dna-scope-file-<field>` | 1 | `scope.md` has no such field |
 | `writing-dna-scope-mismatch-<field>` | 1 | `scope.md` and the spec disagree on that field |
 | `writing-dna-goldens-missing` | 1 | the `goldens/` folder does not exist or cannot be read |
 | `writing-dna-goldens-empty` | 1 | `goldens/` holds no golden |
@@ -756,7 +756,7 @@ path inside the folder, so the output is the same on every machine. `<field>` is
 | `writing-dna-features-stale` | 6 | `features.json` is not what `dna measure` would write now: a golden was added, removed or changed, `scope.md` changed, the version is unknown, or a number differs from a fresh measurement |
 
 `dna measure` raises the ids that come from the folder alone: every row except `scope-dir`,
-`spec-scope-<field>`, `scope-mismatch-<field>`, `golden-leak` and the two `features-` rows, which
+`scope-<field>`, `scope-mismatch-<field>`, `golden-leak` and the two `features-` rows, which
 need a spec to compare against. Lint raises all of them.
 
 ### Reading a scope from your own tool

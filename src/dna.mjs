@@ -204,7 +204,7 @@ export function readScope(dir, { displayDir } = {}) {
       scope = { writer, form, audience, purpose, notes: str(data.notes) };
       for (const [field, value] of [["writer", writer], ["form", form], ["audience", audience], ["purpose", purpose]]) {
         if (!value) {
-          findings.push(f(1, `writing-dna-scope-${field}`, "fail",
+          findings.push(f(1, `writing-dna-scope-file-${field}`, "fail",
             `scope "${shown}": scope.md has no ${field}`,
             `Add ${field}: to scope.md.`));
         }

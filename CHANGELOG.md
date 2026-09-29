@@ -10,12 +10,9 @@ a passage that is right for one kind of writing never teaches its moves to anoth
 measures each scope's style from its goldens (sentence and paragraph length, punctuation,
 pronouns, signature words), counts and never judges, and still calls no model.
 
-**What passes and fails is unchanged for existing specs.** Scoped DNA is opt-in through a new
-optional field, `writing.dna.scope_dir`, and a spec without it passes and fails exactly as it did
-in 0.4.0. **One finding id is renamed:** a writing spec whose own `writing.dna.scope` has no form,
-audience or purpose now reports `writing-dna-spec-scope-form` (and `-audience`, `-purpose`) where
-0.4.0 reported `writing-dna-scope-form`. That id now means a scope folder's `scope.md` lacks the
-field, so each id names one file. A tool that matches on the old id needs the new one.
+**No behavior change for existing specs.** Scoped DNA is opt-in through a new optional field,
+`writing.dna.scope_dir`. A spec without it passes and fails exactly as it did in 0.4.0, and no
+finding id changed: every id below is new.
 
 - `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` writes a scope
   folder: `scope.md` (writer, form, audience, purpose, optional notes) and a `goldens/` folder
@@ -46,9 +43,16 @@ field, so each id names one file. A tool that matches on the old id needs the ne
   `dna measure` would write now (test 6). The stale finding names what differs: goldens added,
   removed or changed, a changed `scope.md` field, an unknown format version, or a number edited by
   hand. A `scope_dir` that is present but a placeholder fails test 1.
-- Every new finding id starts `writing-dna-`, and every message names the scope folder as the
-  spec wrote it and the golden by its path inside the folder, never a folder on your machine.
-  WRITING.md lists every one with its test.
+- New finding ids, all starting `writing-dna-`: `scope-dir`, `scope-missing`,
+  `scope-file-<field>` (a scope's `scope.md` lacks writer, form, audience or purpose),
+  `scope-mismatch-<field>`, `goldens-missing`, `goldens-empty`, `goldens-outside`,
+  `golden-unreadable`, `golden-frontmatter`, `golden-empty`, `golden-approved-by`,
+  `golden-approved-by-agent`, `golden-source`, `golden-leak`, `golden-why`, `features-missing` and
+  `features-stale`. Every existing id is unchanged; in particular a spec whose own
+  `writing.dna.scope` lacks a field still reports `writing-dna-scope-form` (and `-audience`,
+  `-purpose`) as in 0.4.0. Every message names the scope folder as the spec wrote it and the
+  golden by its path inside the folder, never a folder on your machine. WRITING.md lists every one
+  with its test.
 - `hyperspec init --profile writing` shows `scope_dir: TODO` in the `dna` block, which fails until
   it names a scope folder or is deleted.
 - Two new exports from `@supersuit/hyperspec/writing`: `readScope`, which reads a scope folder

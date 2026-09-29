@@ -336,7 +336,7 @@ test("dna: scope missing form, audience or purpose fails test 1", () => {
   ));
   const f = fails(s);
   assert.deepEqual(f.map((x) => x.test), [1, 1]);
-  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-dna-spec-scope-audience", "writing-dna-spec-scope-purpose"]);
+  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-dna-scope-audience", "writing-dna-scope-purpose"]);
 });
 
 test("dna: a rules path that does not exist fails test 6", () => {
@@ -1047,9 +1047,9 @@ const FIELD_RULE_CASES = [
     expect: [[1, "writing-dna-writer"]],
   },
   {
-    name: "dna: scope with no form fails test 1",
+    name: "dna: scope with no form fails test 1 as writing-dna-scope-form, the id 0.4.0 shipped",
     edit: (t) => t.replace("      form: essay\n", ""),
-    expect: [[1, "writing-dna-spec-scope-form"]],
+    expect: [[1, "writing-dna-scope-form"]],
   },
   {
     name: "dna: no rules field at all (distinct from a rules path that does not exist) fails test 1",
@@ -1312,7 +1312,8 @@ test("dna: the spec's own missing scope field and scope.md's missing field carry
     writeFileSync(p, readFileSync(p, "utf8").replace("form: essay\n", ""));
   });
   const ids = fails(s).map((x) => x.id);
-  assert.ok(ids.includes("writing-dna-spec-scope-form"), ids.join(", "));
-  assert.ok(ids.includes("writing-dna-scope-form"), ids.join(", "));
+  // The spec's own field keeps the id 0.4.0 shipped; scope.md's is new in 0.5.
   assert.equal(ids.filter((x) => x === "writing-dna-scope-form").length, 1, "one finding per file, never two under one id");
+  assert.equal(ids.filter((x) => x === "writing-dna-scope-file-form").length, 1, ids.join(", "));
+  assert.ok(!ids.includes("writing-dna-spec-scope-form"), ids.join(", "));
 });

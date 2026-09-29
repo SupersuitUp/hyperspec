@@ -188,7 +188,7 @@ function leakFinding(idPrefix, reason, p, i, scopeDirRaw) {
 // One field of the spec's own dna claim against the same field read off scope.md. Silent when
 // either side is empty: an empty spec-side value already fails its own presence check above (e.g.
 // writing-dna-writer), and an empty disk-side value already fails as one of readScope's own
-// findings (e.g. writing-dna-scope-writer); comparing two things when one is already known-broken
+// findings (e.g. writing-dna-scope-file-writer); comparing two things when one is already known-broken
 // would just be a second name for the same defect, not a second defect.
 function scopeMismatch(out, idPrefix, scopeDirRaw, label, idSuffix, specVal, diskVal) {
   const a = str(specVal);
@@ -247,10 +247,11 @@ function dnaFields(raw, d, here, idPrefix) {
   const out = [];
   if (!str(raw.writer)) out.push(f(1, `${idPrefix}-writer`, "fail", "writing.dna has no writer", "Add writer:."));
   const scope = isObj(raw.scope) ? raw.scope : {};
-  // spec-scope-<field>: the spec's own writing.dna.scope; scope-<field> (src/dna.mjs) is scope.md's.
-  if (!str(scope.form)) out.push(f(1, `${idPrefix}-spec-scope-form`, "fail", "writing.dna.scope has no form", "Add scope.form:."));
-  if (!str(scope.audience)) out.push(f(1, `${idPrefix}-spec-scope-audience`, "fail", "writing.dna.scope has no audience", "Add scope.audience:."));
-  if (!str(scope.purpose)) out.push(f(1, `${idPrefix}-spec-scope-purpose`, "fail", "writing.dna.scope has no purpose", "Add scope.purpose:."));
+  // scope-<field> is the spec's own writing.dna.scope, the id 0.4.0 shipped; scope-file-<field>
+  // (src/dna.mjs) is a scope folder's scope.md.
+  if (!str(scope.form)) out.push(f(1, `${idPrefix}-scope-form`, "fail", "writing.dna.scope has no form", "Add scope.form:."));
+  if (!str(scope.audience)) out.push(f(1, `${idPrefix}-scope-audience`, "fail", "writing.dna.scope has no audience", "Add scope.audience:."));
+  if (!str(scope.purpose)) out.push(f(1, `${idPrefix}-scope-purpose`, "fail", "writing.dna.scope has no purpose", "Add scope.purpose:."));
   const rulesPath = str(raw.rules);
   if (!rulesPath) out.push(f(1, `${idPrefix}-rules`, "fail", "writing.dna has no rules", "Add rules: the path to the always-on writing style."));
   else out.push(...pathFindings(here, rulesPath, `${idPrefix}-rules`, "dna.rules", "Fix the path, or add the file."));

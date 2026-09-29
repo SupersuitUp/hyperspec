@@ -141,9 +141,9 @@ const SCOPE = join(ROOT, "examples", "writing", "dna", "essay-new-managers-teach
 // appear in that file verbatim, so one renamed or added without this list changing fails.
 const WRITING_FIELDS_DNA_IDS = [
   ["writing-dna-scope-dir", 1, "`${idPrefix}-scope-dir`"],
-  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-form`"],
-  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-audience`"],
-  ["writing-dna-spec-scope-<field>", 1, "`${idPrefix}-spec-scope-purpose`"],
+  ["writing-dna-scope-<field>", 1, "`${idPrefix}-scope-form`"],
+  ["writing-dna-scope-<field>", 1, "`${idPrefix}-scope-audience`"],
+  ["writing-dna-scope-<field>", 1, "`${idPrefix}-scope-purpose`"],
   ["writing-dna-scope-mismatch-<field>", 1, "`${idPrefix}-scope-mismatch-${idSuffix}`"],
   ["writing-dna-golden-leak", 5, "`${idPrefix}-golden-leak`"],
   ["writing-dna-features-missing", 6, "`${idPrefix}-features-missing`"],

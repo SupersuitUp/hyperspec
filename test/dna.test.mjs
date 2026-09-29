@@ -228,9 +228,9 @@ test("readScope: scope.md missing a required field is one finding per field, tes
   const { scope, findings } = readScope(dir);
   assert.equal(scope.writer, "example-author");
   assert.equal(scope.audience, "");
-  assert.ok(findings.some((x) => x.id === "writing-dna-scope-audience" && x.test === 1));
-  assert.ok(findings.some((x) => x.id === "writing-dna-scope-purpose" && x.test === 1));
-  assert.ok(!findings.some((x) => x.id === "writing-dna-scope-writer"));
+  assert.ok(findings.some((x) => x.id === "writing-dna-scope-file-audience" && x.test === 1));
+  assert.ok(findings.some((x) => x.id === "writing-dna-scope-file-purpose" && x.test === 1));
+  assert.ok(!findings.some((x) => x.id === "writing-dna-scope-file-writer"));
 });
 
 test("readGoldens: an empty goldens/ folder (only README.md) is a finding, test 1, goldens-empty", () => {
