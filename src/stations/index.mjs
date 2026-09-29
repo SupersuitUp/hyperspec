@@ -8,9 +8,15 @@
 // check.mjs or the CLI needs to change when it does.
 
 import * as form from "./form.mjs";
+import * as terms from "./terms.mjs";
+import * as claims from "./claims.mjs";
+import * as links from "./links.mjs";
 
 export const STATIONS = Object.freeze([
   { name: form.name, run: form.run },
+  { name: terms.name, run: terms.run },
+  { name: claims.name, run: claims.run },
+  { name: links.name, run: links.run },
 ]);
 
 export const STATION_NAMES = Object.freeze(STATIONS.map((s) => s.name));

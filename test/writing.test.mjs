@@ -621,6 +621,35 @@ test("audience: reader outside person/agent fails test 1", () => {
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-reader"]]);
 });
 
+test("audience: terms is optional; the fixture has none and still lints clean", () => {
+  assert.equal(valid().data.writing.audience.terms, undefined);
+  assert.deepEqual(failIds(valid()), []);
+});
+
+test("audience: terms, when present with real entries, adds no finding", () => {
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms:\n      - hyperspec\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), []);
+});
+
+test("audience: terms present but empty fails test 1", () => {
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms: []\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-terms"]]);
+});
+
+test("audience: terms present with only placeholder entries fails test 1", () => {
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms:\n      - TODO\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-terms"]]);
+});
+
+test("audience: a non-string terms entry fails test 1, naming which entry", () => {
+  // The YAML reader turns a bare "- word" list item into a plain string, but "- key: value"
+  // parses as a one-key object, the same trick the "rejects-item" test above (test/rules.test.mjs)
+  // uses to get a genuinely non-string entry past the parser.
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms:\n      - hyperspec\n      - text: not a plain string\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-terms"]]);
+  assert.equal(fails(s)[0].message, "writing.audience.terms item 2 is not a plain string");
+});
+
 test("goal: change.kind outside belief/action/feeling fails test 1", () => {
   const s = variant((t) => t.replace("kind: belief", "kind: mindset"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-goal-change-kind"]]);

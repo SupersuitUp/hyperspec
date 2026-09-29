@@ -365,6 +365,24 @@ function audienceFields(raw, d, here, idPrefix) {
   if (!list(raw.knows).some((x) => str(x))) out.push(f(1, `${idPrefix}-knows`, "fail", "writing.audience has no knows", "List at least one term the reader already has."));
   const reader = str(raw.reader);
   if (!READER_VALUES.includes(reader)) out.push(f(1, `${idPrefix}-reader`, "fail", `writing.audience.reader is "${reader || "(none)"}"`, "Set reader to person or agent."));
+
+  // terms (0.6, optional): the reader-may-not-know terms the check command's `terms` station
+  // checks are defined at first use. The KEY being absent is fine and does not change the
+  // audience block's completeness (the same "absence is 0.4/0.5 behavior" shape scope_dir and
+  // characters use elsewhere in this file): nothing below runs, and the block can still be
+  // complete with no terms: field at all. Present, though, every entry must be real text: a
+  // non-string entry is named on its own (mirroring the top-level `rejects` list's own item
+  // check in src/rules.mjs), and a list with a key but no real entries fails as a whole, the same
+  // "declared but empty" shape audience.knows already uses one line up.
+  if (raw.terms !== undefined) {
+    const terms = list(raw.terms);
+    const notStrings = terms.map((x, i) => (x != null && typeof x !== "string" ? i + 1 : 0)).filter(Boolean);
+    notStrings.forEach((n) => out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${n} is not a plain string`, "Write each term as plain text, e.g. a word or short phrase.")));
+    if (!notStrings.length && !terms.some((x) => str(x))) {
+      out.push(f(1, `${idPrefix}-terms`, "fail", "writing.audience.terms is present but has no real entries", "List at least one term, or remove terms: entirely; it is optional."));
+    }
+  }
+
   return out;
 }
 
