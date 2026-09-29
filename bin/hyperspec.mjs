@@ -9,7 +9,6 @@ import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
 import { regenerate } from "../src/regenerate.mjs";
 import { compare } from "../src/compare.mjs";
-import { storeRoot } from "../src/blobs.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -166,7 +165,7 @@ if (cmd === "recipe") {
       process.exit(2);
     }
 
-    const findings = checkRecipe(loaded.data, { root: storeRoot({ from: loaded.dir }) });
+    const findings = checkRecipe(loaded.data);
     const hasFail = findings.some((f) => f.severity === "fail");
     if (json) console.log(JSON.stringify({ recipe: recipePath, findings }, null, 2));
     else { console.log(`${recipePath}:`); printFindings(findings); }

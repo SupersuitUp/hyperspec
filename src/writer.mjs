@@ -9,7 +9,7 @@ import { loadSpec } from "./load.mjs";
 // What every outcome factory calls at the end of a run to record what it made, from what, and
 // how. output and spec are paths, resolved against process.cwd(); every path stored inside the
 // recipe (output.path, spec.path, each input's path) is relative to the recipe file's own
-// directory, per the recipe file convention (constraints.md).
+// directory, per the recipe file convention in SPEC.md.
 export function startRecipe({ output, factory, spec, clicker, store } = {}) {
   const outputAbs = resolve(process.cwd(), output);
   const recipePath = `${outputAbs}.recipe.json`;
@@ -29,7 +29,8 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
     if (Object.prototype.hasOwnProperty.call(authors, d.id)) {
       throw new Error(`spec id ${d.id} is used twice; ids must be unique across decisions and requirements`);
     }
-    authors[d.id] = d.author;
+    // null rather than undefined, which JSON would drop: recipe check then names the id.
+    authors[d.id] = typeof d.author === "string" && d.author.trim() ? d.author : null;
   }
 
   const recipe = {
@@ -67,7 +68,10 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
       if (recipe.stages.some((s) => s.id === id)) throw new Error(`duplicate stage id: ${id}`);
       const hex = putBlob(root, stageOutput);
       const index = recipe.stages.length;
-      const entry = { id, reads: reads ?? [], model: model ?? undefined, key: undefined, output: { sha256: hex }, verdict };
+      // The key must be computed from exactly what the recipe file will hold. A Date, an
+      // undefined, or anything else JSON writes differently from how it hashes would otherwise
+      // produce a recipe that fails its own key check the moment it is read back.
+      const entry = { id, reads: reads ?? [], model: asWritten(model ?? undefined), key: undefined, output: { sha256: hex }, verdict: asWritten(verdict) };
       recipe.stages.push(entry);
       try {
         entry.key = stageKey(recipe, index);
@@ -99,16 +103,23 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
         writeFileAtomic(outputAbs, getBlob(root, last.output.sha256));
       }
       writeRecipe(recipePath, recipe);
-      return { path: recipePath, findings: checkRecipe(recipe, { root }) };
+      return { path: recipePath, findings: checkRecipe(asWritten(recipe)) };
     },
   };
 }
 
 // Rereads the recipe, sets approver, rewrites it, and returns the new findings.
 export function approve(recipePath, by) {
-  const { data, dir, error } = readRecipe(recipePath);
+  const { data, error } = readRecipe(recipePath);
   if (error) throw new Error(error);
   data.approver = by;
   writeRecipe(recipePath, data);
-  return checkRecipe(data, { root: storeRoot({ from: dir }) });
+  return checkRecipe(data);
+}
+
+// A value exactly as the recipe file will hold it: what JSON.stringify writes, read back.
+function asWritten(value) {
+  if (value === undefined) return undefined;
+  const text = JSON.stringify(value);
+  return text === undefined ? undefined : JSON.parse(text);
 }

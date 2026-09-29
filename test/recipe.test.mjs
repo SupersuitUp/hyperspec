@@ -351,8 +351,19 @@ test("checkRecipe does not warn on a stage with declared reads", () => {
   assert.ok(!findings.some((f) => f.field === "stages[0].reads"));
 });
 
-test("checkRecipe accepts a { root } option without throwing", () => {
-  assert.deepEqual(checkRecipe(validRecipe(), { root: "/some/store/root" }), []);
+test("checkRecipe fails a recipe whose factory has no name", () => {
+  const recipe = validRecipe();
+  delete recipe.factory.name;
+  const f = checkRecipe(recipe).find((x) => x.field === "factory.name");
+  assert.equal(f?.severity, "fail");
+  assert.equal(f.message, "factory.name is missing");
+});
+
+test("checkRecipe warns, naming the id, on a spec entry with no author", () => {
+  const recipe = validRecipe();
+  recipe.spec.authors.length = null;
+  const findings = checkRecipe(recipe);
+  assert.deepEqual(findings, [{ severity: "warn", field: "spec.authors.length", message: 'spec id "length" has no author' }]);
 });
 
 test("checkRecipe surfaces a bad read ref as a stages[i].key fail rather than throwing", () => {

@@ -388,3 +388,32 @@ test("@supersuit/hyperspec/recipe resolves via the package's own self-reference 
   assert.equal(startRecipeSelfRef, startRecipe);
   assert.equal(approveSelfRef, approve);
 });
+
+// ---- what is hashed is what is written ----
+
+test("model settings that JSON writes differently from how they hash still produce a self-consistent recipe", () => {
+  const dir = project();
+  const specPath = writeSpec(dir);
+  const r = startRecipe({ output: join(dir, "essay.md"), factory: { name: "compose-a-piece", version: "0.3.0" }, spec: specPath, clicker: "gary-sheng" });
+  r.stage({ id: "s1", reads: ["spec"], model: { when: new Date(0), stops: [undefined, "x"], seed: undefined }, output: "one", verdict: { station: "s", pass: true, note: "" } });
+  const { path, findings } = r.finish({ approver: "gary-sheng" });
+  assert.deepEqual(findings, []);
+
+  // Read back from disk, the recipe passes its own key check.
+  const written = readRecipe(path).data;
+  assert.deepEqual(written.stages[0].model, { when: "1970-01-01T00:00:00.000Z", stops: [null, "x"] });
+  assert.deepEqual(checkRecipe(written), []);
+});
+
+test("a spec entry with no author is recorded as null, and recipe check names it", () => {
+  const dir = project();
+  const specPath = join(dir, "essay.hyperspec.md");
+  writeFileSync(specPath, readFileSync(writeSpec(dir), "utf8").replace("    author: agent:claude\n", ""));
+  const r = startRecipe({ output: join(dir, "essay.md"), factory: { name: "compose-a-piece", version: "0.3.0" }, spec: specPath, clicker: "gary-sheng" });
+  r.stage({ id: "s1", reads: ["spec"], output: "one", verdict: { station: "s", pass: true, note: "" } });
+  const { path, findings } = r.finish({ approver: "gary-sheng" });
+
+  const written = readRecipe(path).data;
+  assert.deepEqual(written.spec.authors, { audience: "gary-sheng", length: null });
+  assert.deepEqual(findings, [{ severity: "warn", field: "spec.authors.length", message: 'spec id "length" has no author' }]);
+});

@@ -85,11 +85,12 @@ export function stageKey(recipe, stageIndex) {
 // Implements spec requirement recipe-completeness: every fail below is a field the recipe must
 // carry for it to count as done; the one warn flags a stage that will rerun on every regeneration
 // because it declared nothing.
-export function checkRecipe(recipe, { root } = {}) {
+export function checkRecipe(recipe) {
   const out = [];
   const fail = (field, message) => out.push({ severity: "fail", field, message });
   const warn = (field, message) => out.push({ severity: "warn", field, message });
 
+  if (!present(recipe.factory?.name)) fail("factory.name", "factory.name is missing");
   if (!present(recipe.factory?.version)) fail("factory.version", "factory.version is missing");
   if (!present(recipe.spec?.sha256)) fail("spec.sha256", "spec.sha256 is missing");
   else if (!isSha256(recipe.spec.sha256)) fail("spec.sha256", `spec.sha256 ${NOT_HEX}`);
@@ -97,6 +98,12 @@ export function checkRecipe(recipe, { root } = {}) {
   const authors = recipe.spec?.authors;
   if (!authors || typeof authors !== "object" || Array.isArray(authors) || Object.keys(authors).length === 0) {
     fail("spec.authors", "spec.authors is missing");
+  } else {
+    // The writer records null for a spec entry with no author rather than dropping the id, so the
+    // gap stays visible here instead of disappearing from the map.
+    for (const [id, author] of Object.entries(authors)) {
+      if (!present(author)) warn(`spec.authors.${id}`, `spec id "${id}" has no author`);
+    }
   }
   if (!present(recipe.clicker)) fail("clicker", "clicker is missing");
   if (!present(recipe.approver)) fail("approver", "approver is missing");
