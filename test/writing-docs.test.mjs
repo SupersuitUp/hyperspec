@@ -67,20 +67,40 @@ test("the page's sample segments file is exactly what segments init writes for t
   assert.deepEqual(lines(fence(marking(), "jsonl")), lines(readFileSync(join(d, "materials", "voice-memo.md.segments.jsonl"), "utf8")));
 });
 
+test("the page's sample labels every quote with only the quoted words, and uses every field a label needs", () => {
+  const segs = fence(marking(), "jsonl").trim().split("\n").slice(1).map((l) => JSON.parse(l));
+  const quotes = segs.filter((x) => x.label === "quote");
+  assert.ok(quotes.length > 0);
+  for (const q of quotes) assert.match(q.text, /^"[^"]*"$/, `quote ${q.id} holds only a quotation: ${q.text}`);
+});
+
+// Every finding id src/segments.mjs raises, collected structurally: every call to its f() helper,
+// and the test fails if any call does not pass its id as a literal the collector can read. The
+// marking ids src/writing-fields.mjs raises are listed explicitly below, and each has to appear
+// there verbatim, so one renamed or added without the list changing fails too.
+const WRITING_FIELDS_MARKING_IDS = [
+  ["writing-materials-unmarked", 1, '"writing-materials-unmarked"'],
+  ["writing-spine-materials-segments-unresolvable-<material>", 4, "`${idPrefix}-materials-segments-unresolvable-${mid}`"],
+  ["writing-spine-claim-<n>-materials-segment-unknown", 4, "`${idPrefix}-claim-${i}-materials-segment-unknown`"],
+  ["writing-spine-claim-<n>-materials-segment-private", 5, "`${idPrefix}-claim-${i}-materials-segment-private`"],
+  ["writing-spine-claim-<n>-materials-segment-question", 5, "`${idPrefix}-claim-${i}-materials-segment-question`"],
+];
+
 test("the findings table lists every materials-marking finding id the linter raises, under its test", () => {
-  // Every id src/segments.mjs raises, and the ones src/writing-fields.mjs raises about marking
-  // (an unmarked item and the spine's segment refs). Template parts become "*" on both sides.
-  const norm = (id) => id.replace(/\$\{idPrefix\}/g, "writing-spine").replace(/\$\{[^}]+\}|<[^>]+>/g, "*");
+  const norm = (id) => id.replace(/\$\{[^}]+\}|<[^>]+>/g, "*");
   const fromSource = new Set();
-  for (const [file, keep] of [["segments.mjs", () => true], ["writing-fields.mjs", (id) => /segment|unmarked/.test(id)]]) {
-    const src = readFileSync(join(ROOT, "src", file), "utf8");
-    for (const m of src.matchAll(/\bf\((\d), [`"]((?:writing-materials|\$\{idPrefix\})[^`"]*)[`"]/g)) {
-      if (keep(m[2])) fromSource.add(`${norm(m[2])} ${m[1]}`);
-    }
+  const segSrc = readFileSync(join(ROOT, "src", "segments.mjs"), "utf8");
+  const calls = [...segSrc.matchAll(/\bf\(/g)].length;
+  const literal = [...segSrc.matchAll(/\bf\((\d), [`"]([^`"]+)[`"]/g)];
+  assert.equal(literal.length, calls, "every f() call in src/segments.mjs passes its test and id as literals");
+  for (const m of literal) fromSource.add(`${norm(m[2])} ${m[1]}`);
+  const wfSrc = readFileSync(join(ROOT, "src", "writing-fields.mjs"), "utf8");
+  for (const [id, t, literalInSource] of WRITING_FIELDS_MARKING_IDS) {
+    assert.ok(wfSrc.includes(`f(${t}, ${literalInSource}`), `src/writing-fields.mjs raises ${literalInSource} under test ${t}`);
+    fromSource.add(`${norm(id)} ${t}`);
   }
   const section = marking().split("\n### Findings\n")[1].split("\n### ")[0];
   const fromDoc = new Set([...section.matchAll(/^\| `([^`]+)` \| ([1-9]) \|/gm)].map((m) => `${norm(m[1])} ${m[2]}`));
-  assert.ok(fromSource.size >= 20, `found ${fromSource.size} ids in the source`);
   assert.deepEqual([...fromDoc].sort(), [...fromSource].sort());
 });
 

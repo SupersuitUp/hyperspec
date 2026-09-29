@@ -52,9 +52,12 @@ labeled. Specs with no profile are unaffected.
   matches its source verbatim, and the markings are current".
 - Both writing examples ship with every material marked. Between them they use all seven labels,
   and every spine claim cites segments.
-- WRITING.md gains a Marking materials section: the file format, the labels and what each needs,
-  coverage, staleness, citing segments, every finding with its test, and the import. README and
-  SPEC.md point at it.
+- WRITING.md gains a Marking materials section: the file format with a worked sample, the labels
+  and what each needs, coverage, staleness (including a line-ending conversion, which changes the
+  hash), citing segments, every finding with its test, and the import. README and SPEC.md point
+  at it.
+- The repository's `.gitattributes` keeps example materials and test fixtures LF on every
+  checkout, so the hashes their segments files pin still match on a Windows clone.
 
 ## 0.3.0 (2026-09-29)
 

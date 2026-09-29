@@ -257,7 +257,7 @@ writing:
         text: three questions are enough to hand the meeting over
         materials:
           - voice-memo#s2
-          - voice-memo#s4
+          - voice-memo#s5
     check:
       rubric: each claim lands, in order, and nothing is argued outside the chain
     source: spine interview
@@ -391,18 +391,24 @@ My first one-on-one as a manager was a disaster. I ran it from my own list.
 
 The first one-on-one is the one meeting the report should set the agenda for.
 
-My first manager, in my second week: "Ask what they want to talk about, then stop talking."
+My first manager said this to me in my second week, and I wrote it down.
+
+"Ask what they want to talk about, then stop talking."
 ```
 
-`segments init` writes four segments, and once they are labeled the file reads:
+`segments init` writes five segments, and once they are labeled the file reads:
 
 ```jsonl
-{"material":"voice-memo","path":"materials/voice-memo.md","sha256":"8691f5ae7421487668cf67252ac179ecc7d8e876acfc7bf0cc5651993d0b645e"}
+{"material":"voice-memo","path":"materials/voice-memo.md","sha256":"66c62b995a6f29c72f2a9a20c6b27deaef5d9b195bb6bab96336c06f9a8f2bfc"}
 {"id":"s1","start":0,"end":45,"label":"aside","text":"Voice memo, recorded on a walk. Raw thinking."}
 {"id":"s2","start":47,"end":122,"label":"story","teller":"example-author","text":"My first one-on-one as a manager was a disaster. I ran it from my own list."}
 {"id":"s3","start":124,"end":201,"label":"claim","own":true,"text":"The first one-on-one is the one meeting the report should set the agenda for."}
-{"id":"s4","start":203,"end":294,"label":"quote","speaker":"the author's first manager","text":"My first manager, in my second week: \"Ask what they want to talk about, then stop talking.\""}
+{"id":"s4","start":203,"end":275,"label":"story","teller":"example-author","text":"My first manager said this to me in my second week, and I wrote it down."}
+{"id":"s5","start":277,"end":331,"label":"quote","speaker":"the author's first manager","text":"\"Ask what they want to talk about, then stop talking.\""}
 ```
+
+The author's framing, s4, is a segment of its own, so the quote, s5, holds only the manager's
+words, which is all a `quote` may hold.
 
 - **Header.** `material` is the item's id and must match it. `path` records the material path
   given to `segments init`; lint reads the material from the item's own `path`. `sha256` is the
@@ -448,6 +454,12 @@ lint fails the segments file as stale (test 4), because its offsets and labels d
 is no longer there. Mark it again: run `segments init` with `--out` to a new file, point the
 material item at it, and label every segment, carrying labels over from the old file wherever the
 text did not change.
+
+The hash is over the file's bytes, so a change nobody would call an edit still counts. Converting
+line endings is the common one: a material marked with LF endings reads as stale once an editor
+or a checkout setting rewrites it with CRLF. Mark a material in the line endings it will be kept
+in, and if it lives in git, pin them with a `.gitattributes` line such as
+`materials/** text eol=lf`.
 
 ### Citing segments in the spine
 

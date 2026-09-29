@@ -1,0 +1,4 @@
+# Example materials and test fixtures are pinned by SHA-256 in their segments files, so their bytes
+# must not change on checkout. Keep them LF on every platform, whatever core.autocrlf says.
+examples/** text eol=lf
+test/fixtures/** text eol=lf
