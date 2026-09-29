@@ -381,7 +381,8 @@ test("goldens removed after prepare so lineup no longer applies: stale, naming t
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
   assert.match(r.stdout, /fail \[judge-stale\] lineup no longer applies \(writing\.dna\.scope_dir "dna-scope"[^\n]*\): the DNA scope's goldens \(dna-scope\/goldens\) changed since the packet was prepared, or the packet was edited$/m);
-  assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
+  assert.ok(r.stdout.includes("fix: Restore the DNA scope's goldens (dna-scope/goldens) and record this verdict again; as they are now, judge prepare skips lineup for this spec and draft."), r.stdout);
+  assert.ok(!r.stdout.includes("judge the new packet"), "prepare writes no new lineup packet");
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });
 

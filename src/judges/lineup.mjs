@@ -154,12 +154,12 @@ function lineupPlan(spec, draft) {
 
   const disk = readScope(resolve(spec.dir || ".", scopeDir), { displayDir: scopeDir });
   if (disk.findings.some((x) => x.id === "writing-dna-goldens-missing" || x.id === "writing-dna-goldens-outside")) {
-    return { skip: `writing.dna.scope_dir "${scopeDir}": its goldens cannot be read (run \`hyperspec lint\` for details)` };
+    return { skip: `writing.dna.scope_dir "${scopeDir}": its goldens cannot be read (run \`hyperspec lint\` for details)`, fromSources: true };
   }
   const read = disk.goldens.filter((g) => g.text).map((g) => ({ source: g.path, paragraphs: reflowedParagraphs(g.text) }));
-  if (!read.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no goldens` };
+  if (!read.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no goldens`, fromSources: true };
   const withProse = read.filter((g) => g.paragraphs.length);
-  if (!withProse.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no golden with a prose paragraph` };
+  if (!withProse.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no golden with a prose paragraph`, fromSources: true };
 
   const all = withProse.flatMap((g) => g.paragraphs);
   const lengths = all.map((p) => chars(p.text));
@@ -169,7 +169,7 @@ function lineupPlan(spec, draft) {
   const drafted = reflowedParagraphs(draft.text);
   if (!drafted.length) return { skip: "the draft has no prose paragraph to put in the lineup" };
   const passage = pickPassage(drafted, lengths, { exclude: new Set(all.map((p) => p.text)) });
-  if (!passage) return { skip: "every prose paragraph of the draft is already a golden in the scope, word for word" };
+  if (!passage) return { skip: "every prose paragraph of the draft is already a golden in the scope, word for word", fromSources: true };
   return { scope: disk.scope, goldens, passage };
 }
 
@@ -178,6 +178,14 @@ function lineupPlan(spec, draft) {
 // paragraph in the draft that is not already a golden.
 export function skipReason(spec, draft) {
   return lineupPlan(spec, draft).skip ?? null;
+}
+
+// The skip reason when lineup skips because of its goldens (unreadable, none, none with prose, or
+// every draft paragraph already one of them), else null: record calls such a packet stale rather
+// than altered.
+export function sourceSkip(spec, draft) {
+  const p = lineupPlan(spec, draft);
+  return p.fromSources ? p.skip : null;
 }
 
 // Where the lineup's inputs come from beyond the spec and the draft: record names them when the

@@ -1,33 +1,59 @@
 // Attribution (fiction only): a blind test of whether the characters' voices can be told apart. The
-// packet holds every dialogue line of the draft whose speaker hyperspec can determine mechanically,
-// with the speaker and all the narration around it removed, plus each character's speech block,
+// packet holds the draft's dialogue lines whose speaker hyperspec can determine mechanically, with
+// the speaker and all the narration around them removed, plus each character's speech block,
 // golden and rejected lines. The judge names a speaker for every line; record compares the answers
 // with the true speakers, which live only in the answer key (attribution.key.json, rebuilt at record
-// time, never read back), and the station passes when at least 80 percent are right.
+// time, never read back). The station passes when accuracy averaged per speaker is 80 percent or
+// more, so naming one speaker for every line cannot pass.
 //
-// Dialogue lines are the draft's double-quoted spans, straight ("...") or curly (U+201C ...
-// U+201D), paired within one paragraph with code masked first: the quotes station's own
-// quotedSpans (src/stations/quotes.mjs), so both stations read the same spans. A span with no
-// letter or digit in it is not a line. Lines are numbered L1..Ln in draft order, counting only the
-// lines that are attributed.
+// Dialogue lines. The draft's double-quoted spans, straight ("...") or curly (U+201C ... U+201D),
+// paired within one paragraph with code masked first: the quotes station's own quotedSpans
+// (src/stations/quotes.mjs). A span with no letter or digit is not a line. A quote split by a
+// speech tag ("Twenty minutes," Ines said, "then we fold it.") is one line: the first part ends in
+// a comma, and the narration between the parts is a speech tag ending in a comma (ruling R15).
+// Lines keep draft order and are numbered L1..Ln over the lines that are attributed.
 //
-// The true speaker comes from the paragraph holding the line, with every quoted span in that
-// paragraph blanked out (what a character says is not who says it): if exactly one character is
-// named there, by id or by name, as whole words and case-insensitively, that character spoke the
-// line. A paragraph that names no character, or two or more, cannot be attributed mechanically: the
-// line is left out, and the packet carries only how many were (excluded), never their text. A
-// character named there who has no speech block leaves the line out too, since the judge is never
-// shown that character.
+// The true speaker (ruling R11) comes ONLY from a speech tag: narration in the same paragraph that
+// sits right against the quote, directly after its closing mark (`"...," Ines said`, `"...," said
+// Ines`) or directly before its opening mark, ending in a comma or colon (`Ines said, "..."`). A
+// tag is a subject next to a verb from SPEECH_VERBS. The subject can be:
+//   - a character's id or name, whole words, any case ("Ines said", "said Ines"); a possessive
+//     ("Ines's") is not a name, and an action beat ("Theo nodded") is not a tag;
+//   - "I", when persona.identity is character:<id>: the narrator speaks;
+//   - "she" or "he" (lower case after a quote, either case before one), only when exactly two
+//     characters have speech blocks and one of them is the narrator: the other one speaks.
+// Anything else leaves the line out, counted in the packet (excluded) and listed in the key with its
+// reason. The key must never be wrong, so every doubt excludes: no tag, a tag whose subject cannot
+// be resolved to a character with a speech block, tags naming two speakers.
+//
+// A line of three or more words that contains, or is contained in, any character's golden or
+// rejected line (compared as lower-cased words) is left out too (ruling R13): shown beside the
+// speech lines, it would give its speaker away.
 
 import { str } from "../placeholder.mjs";
 import { quotedSpans } from "../stations/quotes.mjs";
-import { lineAt, maskCode, maskRanges } from "../stations/util.mjs";
+import { lineAt, maskCode } from "../stations/util.mjs";
 
 export const name = "attribution";
 
-// Pass at 80 percent or more, compared as whole numbers: correct / included >= 4 / 5.
+// Pass at 80 percent or more, compared exactly: mean per-speaker accuracy >= 4 / 5.
 export const PASS_NUMERATOR = 4;
 export const PASS_DENOMINATOR = 5;
+
+// The verbs that make narration a speech tag, one closed list. Everything else ("nodded", "laughed",
+// "did not look up") is an action beat and names nobody.
+export const SPEECH_VERBS = Object.freeze([
+  "said", "says", "asked", "asks", "told", "tells", "replied", "replies", "called", "calls",
+  "whispered", "whispers", "shouted", "shouts", "answered", "answers", "added", "adds", "went on", "goes on",
+]);
+
+// Why a dialogue line was left out, as the key records it.
+export const EXCLUDED = Object.freeze({
+  noTag: "no speech tag",
+  unknown: "the speech tag names no character with a speech block",
+  conflict: "speech tags name more than one speaker",
+  repeats: "repeats a golden or rejected line",
+});
 
 export const ATTRIBUTION_INSTRUCTIONS = [
   "Each entry in inputs.lines is one line of dialogue from the draft, with its speaker and the narration around it removed.",
@@ -39,55 +65,131 @@ export const ATTRIBUTION_INSTRUCTIONS = [
 const isObject = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
 const texts = (v) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 const WORD = "\\p{L}\\p{N}";
+const HAS_WORD = new RegExp(`[${WORD}]`, "u");
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const VERB = `(?:${SPEECH_VERBS.map((v) => v.split(" ").map(escapeRe).join("\\s+")).join("|")})`;
+// A name or verb ends at a non-word character, and an apostrophe is not an end: "Ines's" is not "Ines".
+const END = `(?![${WORD}'’])`;
+const START = `(?<![${WORD}'’])`;
+const UNKNOWN = Symbol("unknown speaker");
 
-// A character's id or name as a whole-word, case-insensitive pattern: its words (split on anything
-// that is not a letter or digit, so the id "old-man" reads as "old man") joined in the text by
-// whitespace, hyphens or underscores. An apostrophe ends a word, so "Ines's" names ines. null when
-// the value has no words.
-export function namePattern(value) {
+// A character's id or name as the pattern source of its words (split on anything that is not a
+// letter or digit, so the id "old-man" reads as "old man"), joined in the text by whitespace,
+// hyphens or underscores; null when the value has no words.
+function nameSource(value) {
   const words = String(value).split(new RegExp(`[^${WORD}]+`, "u")).filter(Boolean);
-  if (!words.length) return null;
-  return new RegExp(`(?<![${WORD}])${words.map(escapeRe).join("[\\s_-]+")}(?![${WORD}])`, "iu");
+  return words.length ? words.map(escapeRe).join("[\\s_-]+") : null;
 }
 
-// Every character entry with an id, as { id, name, patterns, speech }: speech is the character's
-// speech block when it is an object with at least one entry, else null.
-function castOf(spec) {
-  const list = Array.isArray(spec.data?.writing?.characters) ? spec.data.writing.characters : [];
-  return list.filter((c) => isObject(c) && str(c.id)).map((c) => {
-    const id = str(c.id);
-    const nm = str(c.name);
-    const speech = isObject(c.speech) && (texts(c.speech.uses).length || texts(c.speech.never).length || str(c.speech.rhythm)) ? c.speech : null;
-    return { id, name: nm, patterns: [namePattern(id), nm ? namePattern(nm) : null].filter(Boolean), speech, raw: c };
-  });
+// The tag matchers for one cast: each { after, before, speaker }, where after is anchored at the
+// start of the narration following a quote and before at the end of the narration preceding one;
+// speaker is a character id, or UNKNOWN when the subject cannot be resolved (a first-person tag with
+// no narrator, a pronoun outside a two-hander). cast: [{ id, name, speech }]; narrator: an id or null.
+function tagMatchers(cast, narrator) {
+  const speaking = cast.filter((c) => c.speech);
+  const speakerOr = (id) => (id && speaking.some((c) => c.id === id) ? id : UNKNOWN);
+  const narratorId = narrator && cast.some((c) => c.id === narrator) ? narrator : null;
+  const other = narratorId && speaking.length === 2 && speaking.some((c) => c.id === narratorId) ? speaking.find((c) => c.id !== narratorId).id : null;
+  const out = [];
+  for (const c of cast) {
+    for (const src of [nameSource(c.id), c.name ? nameSource(c.name) : null].filter(Boolean)) {
+      const speaker = speakerOr(c.id);
+      out.push({ after: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${VERB}\\s+${src})${END}`, "iu"), before: new RegExp(`${START}(?:${src}\\s+${VERB}|${VERB}\\s+${src})\\s*[,:]\\s*$`, "iu"), speaker });
+    }
+  }
+  out.push({ after: new RegExp(`^\\s*I\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}I\\s+${VERB}\\s*[,:]\\s*$`, "u"), speaker: speakerOr(narratorId) });
+  out.push({ after: new RegExp(`^\\s*(?:she|he)\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}(?:[Ss]he|[Hh]e)\\s+${VERB}\\s*[,:]\\s*$`, "u"), speaker: speakerOr(other) });
+  return out;
+}
+
+// The speakers a stretch of narration tags: `side` is "after" (it follows a quote) or "before" (it
+// precedes one).
+function tagged(matchers, narration, side) {
+  return matchers.filter((m) => m[side].test(narration)).map((m) => m.speaker);
+}
+
+// A text as its lower-cased words, space-joined, for comparing a line with the speech lines.
+const wordsKey = (text) => (String(text).toLowerCase().replace(/[‘’]/g, "'").match(/[\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*/gu) ?? []).join(" ");
+
+// Whether a line repeats a golden or rejected line: three or more words, contained in one or
+// containing one, compared as words.
+function repeatsSpeechLine(text, speechKeys) {
+  const key = wordsKey(text);
+  if (key.split(" ").filter(Boolean).length < 3) return false;
+  const k = ` ${key} `;
+  return speechKeys.some((s) => s && (` ${s} `.includes(k) || k.includes(` ${s} `)));
 }
 
 // The draft's dialogue lines split into the attributed and the left out: { lines: [{ id, text,
-// speaker, line }], excluded: [{ line, text, named }] }. cast is castOf(spec); a line is attributed
-// only to a character with speech.
-export function dialogueLines(draftText, cast) {
+// speaker, line }], excluded: [{ line, text, reason }] }. cast: [{ id, name, speech, golden,
+// rejected }] (speech null for a character with no speech block); narrator: the persona's character
+// id, or null.
+export function dialogueLines(draftText, cast, { narrator = null } = {}) {
   const masked = maskCode(draftText);
-  const spans = quotedSpans(masked).filter((s) => new RegExp(`[${WORD}]`, "u").test(s.inner));
-  const byPara = new Map();
+  const matchers = tagMatchers(cast, narrator);
+  const speechKeys = cast.flatMap((c) => [...(c.golden ?? []), ...(c.rejected ?? [])]).map(wordsKey);
+
+  // Every quoted span once, grouped by paragraph in draft order; spans with no word are dropped
+  // here, after they have bounded their neighbours' narration.
+  const paragraphs = [];
   for (const s of quotedSpans(masked)) {
-    const key = s.para.start;
-    if (!byPara.has(key)) byPara.set(key, []);
-    byPara.get(key).push(s);
+    const last = paragraphs.at(-1);
+    if (last && last.start === s.para.start) last.spans.push(s);
+    else paragraphs.push({ start: s.para.start, end: s.para.end, spans: [s] });
   }
+
   const lines = [];
   const excluded = [];
-  for (const s of spans) {
-    const siblings = byPara.get(s.para.start);
-    const around = maskRanges(masked, siblings).slice(s.para.start, s.para.end);
-    const named = cast.filter((c) => c.patterns.some((re) => re.test(around))).map((c) => c.id);
-    const text = s.inner.replace(/\s+/g, " ").trim();
-    const line = lineAt(draftText, s.start);
-    const speaker = named.length === 1 ? cast.find((c) => c.id === named[0]) : null;
-    if (speaker?.speech) lines.push({ id: `L${lines.length + 1}`, text, speaker: speaker.id, line });
-    else excluded.push({ line, text, named });
+  for (const para of paragraphs) {
+    const { spans } = para;
+    const narrationBefore = (i) => masked.slice(i === 0 ? para.start : spans[i - 1].end, spans[i].start);
+    const narrationAfter = (i) => masked.slice(spans[i].end, i + 1 < spans.length ? spans[i + 1].start : para.end);
+    for (let i = 0; i < spans.length; i++) {
+      if (!HAS_WORD.test(spans[i].inner)) continue;
+      // Merge a quote split by a speech tag: this part ends in a comma, and the narration up to the
+      // next part is a tag that ends in a comma.
+      let j = i;
+      while (j + 1 < spans.length && /,\s*$/.test(spans[j].inner) && HAS_WORD.test(spans[j + 1].inner)
+        && /,\s*$/.test(narrationAfter(j)) && tagged(matchers, narrationAfter(j), "after").length) j += 1;
+      const speakers = new Set([...tagged(matchers, narrationBefore(i), "before")]);
+      for (let k = i; k <= j; k++) for (const s of tagged(matchers, narrationAfter(k), "after")) speakers.add(s);
+      const text = spans.slice(i, j + 1).map((s) => s.inner.replace(/\s+/g, " ").trim()).join(" ");
+      const line = lineAt(draftText, spans[i].start);
+      let reason = null;
+      if (repeatsSpeechLine(text, speechKeys)) reason = EXCLUDED.repeats;
+      else if (!speakers.size) reason = EXCLUDED.noTag;
+      else if (speakers.size > 1) reason = EXCLUDED.conflict;
+      else if ([...speakers][0] === UNKNOWN) reason = EXCLUDED.unknown;
+      if (reason) excluded.push({ line, text, reason });
+      else lines.push({ id: `L${lines.length + 1}`, text, speaker: [...speakers][0], line });
+      i = j;
+    }
   }
   return { lines, excluded };
+}
+
+// Every character entry with an id, as { id, name, speech, golden, rejected, raw }: speech is the
+// character's speech block when it is an object with at least one entry, else null.
+function castOf(spec) {
+  const list = Array.isArray(spec.data?.writing?.characters) ? spec.data.writing.characters : [];
+  return list.filter((c) => isObject(c) && str(c.id)).map((c) => {
+    const speech = isObject(c.speech) && (texts(c.speech.uses).length || texts(c.speech.never).length || str(c.speech.rhythm)) ? c.speech : null;
+    return { id: str(c.id), name: str(c.name), speech, golden: texts(c.golden_lines), rejected: texts(c.rejected_lines), raw: c };
+  });
+}
+
+// The narrator: persona.identity character:<id>, or null.
+function narratorOf(spec) {
+  const m = /^character:(.+)$/.exec(str(spec.data?.writing?.persona?.identity));
+  return m ? m[1].trim() : null;
+}
+
+// "2 with no speech tag, 1 repeating a golden or rejected line": how many lines were left out, why.
+function excludedBreakdown(excluded) {
+  const counts = new Map();
+  for (const e of excluded) counts.set(e.reason, (counts.get(e.reason) ?? 0) + 1);
+  const said = { [EXCLUDED.noTag]: "with no speech tag", [EXCLUDED.unknown]: "whose tag names no character with a speech block", [EXCLUDED.conflict]: "whose tags name more than one speaker", [EXCLUDED.repeats]: "repeating a golden or rejected line" };
+  return [...counts].map(([reason, n]) => `${n} ${said[reason]}`).join(", ");
 }
 
 // The rubric: the distinct check.rubric texts of the characters in the test, in their order, one per
@@ -104,23 +206,25 @@ function plan(spec, draft) {
   if (speaking.length < 2) return { skip: `attribution needs at least two characters with a speech block; writing.characters has ${speaking.length}` };
   const rubric = rubricOf(speaking);
   if (!rubric) return { skip: "no character's check has a rubric" };
-  const { lines, excluded } = dialogueLines(draft.text, cast);
-  if (!lines.length) {
-    return { skip: excluded.length
-      ? `none of the draft's ${excluded.length} dialogue line${excluded.length === 1 ? "" : "s"} can be attributed mechanically: each paragraph holding one names no character, or more than one`
-      : "the draft has no dialogue line (a double-quoted span)" };
+  const { lines, excluded } = dialogueLines(draft.text, cast, { narrator: narratorOf(spec) });
+  const total = lines.length + excluded.length;
+  if (!total) return { skip: "the draft has no dialogue line (a double-quoted span)" };
+  if (!lines.length) return { skip: `none of the draft's ${total} dialogue line${total === 1 ? "" : "s"} can be attributed mechanically (${excludedBreakdown(excluded)})` };
+  const speakers = [...new Set(lines.map((l) => l.speaker))];
+  if (speakers.length < 2) {
+    return { skip: `attribution needs attributable lines from at least two speakers; all ${lines.length} of the draft's attributable dialogue line${lines.length === 1 ? " is" : "s are"} ${speakers[0]}'s${excluded.length ? ` (${excluded.length} left out: ${excludedBreakdown(excluded)})` : ""}` };
   }
   return { speaking, rubric, lines, excluded };
 }
 
 // null when attribution applies: fiction, at least two characters with a speech block, a rubric on
-// one of them, and at least one line whose speaker the draft names mechanically.
+// one of them, and attributable lines from at least two speakers.
 export function skipReason(spec, draft) {
   return plan(spec, draft).skip ?? null;
 }
 
 // The packet (the lines' text only, and how many lines were left out) and the key (every line's
-// true speaker and draft line, and the lines left out with what was named around them).
+// true speaker and draft line, and the lines left out with why).
 export function packet(spec, draft) {
   const p = plan(spec, draft);
   const ids = p.lines.map((l) => l.id);
@@ -132,8 +236,8 @@ export function packet(spec, draft) {
         id: c.id,
         ...(c.name ? { name: c.name } : {}),
         speech: { uses: texts(c.speech.uses), never: texts(c.speech.never), rhythm: str(c.speech.rhythm) },
-        golden_lines: texts(c.raw.golden_lines),
-        rejected_lines: texts(c.raw.rejected_lines),
+        golden_lines: c.golden,
+        rejected_lines: c.rejected,
       })),
       lines: p.lines.map((l) => ({ id: l.id, text: l.text })),
       excluded: p.excluded.length,
@@ -193,26 +297,37 @@ export function validate(verdict, pkt, t) {
   return out;
 }
 
-// Accuracy against the rebuilt key: pass at 80 percent or more. Every misattributed line is a
-// warning at its draft line; falling under 80 percent is the failure. summary reports the accuracy
-// as a fraction and a percentage (rounded down, so a failing score never prints as 80%).
+const pctFloor = (num, den) => Number((BigInt(num) * 100n) / BigInt(den));
+
+// Accuracy against the rebuilt key, per speaker (ruling R12): each speaker's share of their own
+// lines named correctly, averaged over the speakers with lines. Pass when that mean is 80 percent or
+// more, compared exactly. Every misattributed line is a warning at its draft line; a mean under 80
+// percent is the failure. summary reports every speaker's accuracy as a fraction and a percentage,
+// and the mean (percentages round down, so a failing mean never prints as 80%).
 export function derive(verdict, pkt, t, key) {
   const said = new Map(verdict.lines.map((l) => [l.id, speakerId(l.speaker, pkt.inputs.characters)]));
-  const total = key.lines.length;
+  const order = pkt.inputs.characters.map((c) => c.id).filter((id) => key.lines.some((l) => l.speaker === id));
+  const per = new Map(order.map((id) => [id, { right: 0, total: 0 }]));
   const findings = [];
-  let correct = 0;
   for (const l of key.lines) {
     const got = said.get(l.id);
-    if (got === l.speaker) { correct += 1; continue; }
-    findings.push({ ...t.finding("judge-attribution-miss", `${l.id} was attributed to ${got}; the narration around it names ${l.speaker}`, `Make this line sound like ${l.speaker} (their speech block and golden lines), and unlike ${got}.`, l.line), severity: "warn" });
+    const s = per.get(l.speaker);
+    s.total += 1;
+    if (got === l.speaker) { s.right += 1; continue; }
+    findings.push({ ...t.finding("judge-attribution-miss", `${l.id} was attributed to ${got}; its speech tag names ${l.speaker}`, `Make this line sound like ${l.speaker} (their speech block and golden lines), and unlike ${got}.`, l.line), severity: "warn" });
   }
-  const pct = Math.floor((correct * 100) / total);
-  const fraction = `${correct}/${total} (${pct}%)`;
-  const pass = correct * PASS_DENOMINATOR >= total * PASS_NUMERATOR;
+  // mean = (sum over speakers of right_s / total_s) / k, kept as one exact fraction num / den.
+  const totals = order.map((id) => BigInt(per.get(id).total));
+  const product = totals.reduce((a, b) => a * b, 1n);
+  const num = order.reduce((acc, id) => acc + BigInt(per.get(id).right) * (product / BigInt(per.get(id).total)), 0n);
+  const den = product * BigInt(order.length);
+  const pass = num * BigInt(PASS_DENOMINATOR) >= den * BigInt(PASS_NUMERATOR);
+  const mean = Number((num * 100n) / den);
+  const perText = order.map((id) => { const s = per.get(id); return `${id} ${s.right}/${s.total} (${pctFloor(s.right, s.total)}%)`; }).join(", ");
   if (!pass) {
-    findings.unshift(t.finding("judge-attribution-accuracy", `the judge attributed ${fraction} of the dialogue lines correctly, under the 80% that tells the voices apart`, "Make the voices more distinct, each line in its character's speech (see the misattributed lines), then prepare and judge again."));
+    findings.unshift(t.finding("judge-attribution-accuracy", `the judge's accuracy averaged over speakers is ${mean}% (${perText}), under the 80% that tells the voices apart`, "Make the voices more distinct, each line in its character's speech (see the misattributed lines), then prepare and judge again."));
   }
   const left = key.excluded.length;
-  const summary = `accuracy ${fraction}, passing at 80%${left ? `; ${left} dialogue line${left === 1 ? "" : "s"} left out (no single character named around ${left === 1 ? "it" : "them"})` : ""}`;
+  const summary = `accuracy per speaker: ${perText}; mean ${mean}%, passing at 80%${left ? `; ${left} dialogue line${left === 1 ? "" : "s"} left out (${excludedBreakdown(key.excluded)})` : ""}`;
   return { status: pass ? "pass" : "fail", findings, summary };
 }

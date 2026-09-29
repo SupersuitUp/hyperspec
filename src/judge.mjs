@@ -262,20 +262,26 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // an edited draft), and the message says so without claiming either hash is honest (ruling R10),
   // since nothing on disk can tell these apart. Anything else is an altered packet.
   //
-  // The same holds when such a station no longer applies at all (its source file was deleted, say,
-  // so persona's claims ledger cannot be read): with the spec and draft hashes matching, a skip
-  // that was not there at prepare time can only come from those files, or from a forged hash, so
-  // it is stale too, and the message names the skip reason and the sources.
+  // A station can also stop applying because of those files (persona's claims ledger deleted,
+  // lineup's goldens removed): its sourceSkip names that reason, and with the spec and draft hashes
+  // matching the packet is stale for the same reason, the message saying the station no longer
+  // applies and why. Any other skip (the spec changed under a forged hash, say) is an altered
+  // packet. Neither message tells the user to judge a packet prepare will no longer write.
   const sources = judge.inputSources?.(spec) ?? null;
-  const staleSources = (message) => ({ ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${message}: ${sources} changed since the packet was prepared, or the packet was edited`, `Run judge prepare again (with --force) so the packet is built from the spec, the draft and ${sources} as they are now, and judge the new packet.`)], code: 1 });
-  if (sources && !rebuilt) return staleSources(`${judge.name} no longer applies (${skip})`);
+  const staleSources = (message, fix) => ({ ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${message}: ${sources} changed since the packet was prepared, or the packet was edited`, fix)], code: 1 });
+  const sourceSkip = !rebuilt && sources ? judge.sourceSkip?.(spec, draft) ?? null : null;
+  if (sourceSkip) {
+    return staleSources(`${judge.name} no longer applies (${sourceSkip})`, `Restore ${sources} and record this verdict again; as they are now, judge prepare skips ${judge.name} for this spec and draft.`);
+  }
   if (rebuilt && rebuilt.packetBytes !== packetText && sources && packetJson(packet) === packetText
       && JSON.stringify({ ...packet, inputs: null }) === JSON.stringify({ ...rebuilt.packet, inputs: null })) {
-    return staleSources(`the packet's inputs no longer match what the spec, the draft and ${sources} produce now`);
+    return staleSources(`the packet's inputs no longer match what the spec, the draft and ${sources} produce now`, `Run judge prepare again (with --force) so the packet is built from the spec, the draft and ${sources} as they are now, and judge the new packet.`);
   }
-  if (!rebuilt || rebuilt.packetBytes !== packetText) {
-    const why = rebuilt ? "is not the packet judge prepare builds from the spec and draft on disk" : `is for a station that does not apply to this spec (${skip})`;
-    return { ...base, ok: false, invalid: true, findings: [t.finding("judge-packet-altered", `${packetPathArg} ${why}`, "Run judge prepare again (with --force) and judge the new packet; never edit a packet.")], code: 1 };
+  if (!rebuilt) {
+    return { ...base, ok: false, invalid: true, findings: [t.finding("judge-packet-altered", `${packetPathArg} is for a station that does not apply to this spec and draft (${skip})`, `judge prepare writes no ${judge.name} packet for this spec and draft; record verdicts only on packets prepare writes, and never edit one.`)], code: 1 };
+  }
+  if (rebuilt.packetBytes !== packetText) {
+    return { ...base, ok: false, invalid: true, findings: [t.finding("judge-packet-altered", `${packetPathArg} is not the packet judge prepare builds from the spec and draft on disk`, "Run judge prepare again (with --force) and judge the new packet; never edit a packet.")], code: 1 };
   }
 
   let verdictJson;

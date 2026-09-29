@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { cli, workspace, storyWorkspace, forStation, personaVerdict, writeVerdict, ledgerLines, prepare, record, claimsJsonl, CLAIMS, DRAFT, STORY_DRAFT } from "./judge-fixture.mjs";
 import { PERSONA_INSTRUCTIONS, PERSONA_KINDS, packet as personaPacket, skipReason } from "../src/judges/persona.mjs";
 
@@ -33,7 +34,7 @@ test("the persona packet: the persona rubric verbatim, fixed instructions, the p
   assert.equal(p.station, "persona");
   assert.equal(p.rubric, "persona-consistency judge; stance and voice hold, no fact appears that is not in the claims ledger");
   assert.equal(p.instructions, PERSONA_INSTRUCTIONS);
-  for (const s of ["inputs.persona", "inputs.claims", "stance", "assertion", "will_not_say", "unsourced_fact", "verbatim", "three whole words", "verdict shape"]) assert.ok(p.instructions.includes(s), s);
+  for (const s of ["inputs.persona", "inputs.claims", "stance", "assertion", "will_not_say", "unsourced_fact", "verbatim", "three whole words", "verdict shape", "When inputs.claims is null, no claims ledger is declared and facts cannot be checked against sources: do not report unsourced_fact."]) assert.ok(p.instructions.includes(s), s);
   assert.deepEqual(Object.keys(p.inputs), ["persona", "claims", "draft"]);
   assert.deepEqual(p.inputs.persona, {
     identity: "self",
@@ -81,13 +82,13 @@ test("a story's persona packet carries its claims ledger's texts", () => {
   assert.equal(p.inputs.draft, STORY_DRAFT);
 });
 
-test("with no claims ledger declared, the claims are an empty list (lint refuses that spec, so asked directly)", () => {
+test("with no claims ledger declared, the claims are null (asked directly)", () => {
   const persona = { identity: "self", stance: "peer", may_assert: ["x"], will_not_say: ["y"], check: { rubric: "hold the stance" } };
   const spec = { dir: ".", data: { writing: { persona } } };
   assert.equal(skipReason(spec, { text: DRAFT }), null);
-  assert.deepEqual(personaPacket(spec, { text: DRAFT }).inputs.claims, []);
+  assert.equal(personaPacket(spec, { text: DRAFT }).inputs.claims, null);
   const deferred = { dir: ".", data: { writing: { persona, sources: "deferred" } } };
-  assert.deepEqual(personaPacket(deferred, { text: DRAFT }).inputs.claims, []);
+  assert.equal(personaPacket(deferred, { text: DRAFT }).inputs.claims, null);
   assert.equal(skipReason({ dir: ".", data: { writing: {} } }, { text: DRAFT }), "writing.persona is not written (deferred)");
 });
 
@@ -207,6 +208,7 @@ test("a claims ledger deleted after prepare is stale too: the station no longer 
   assert.equal(j.stale, true);
   assert.deepEqual(ids(j.findings), ["judge-stale"]);
   assert.match(j.findings[0].message, /^persona no longer applies \(writing\.sources\.ledger "essay\.claims\.jsonl" cannot be read .*\): the claims ledger \(essay\.claims\.jsonl\) changed since the packet was prepared, or the packet was edited$/);
+  assert.equal(j.findings[0].fix, "Restore the claims ledger (essay.claims.jsonl) and record this verdict again; as they are now, judge prepare skips persona for this spec and draft.");
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });
 
@@ -241,4 +243,57 @@ test("persona lines keep their own history: one-shot, then a failing verdict on 
   const lines = ledgerLines(w.ledger).filter((l) => l.kind === "judge");
   assert.deepEqual(lines.map((l) => [l.station, l.status, l.verdict]), [["persona", "pass", "one-shot"], ["persona", "fail", "not-improved"]]);
   assert.match(cli(["lint", w.spec]).stdout, /pass \(9\/9\)/);
+});
+
+// ---- no claims ledger declared (writing.sources deferred) -----------------------------------------
+
+// The fixture with writing.sources deferred by a delegated decision: it still lints 9/9.
+function withoutLedger() {
+  const w = workspace();
+  const text = readFileSync(w.spec, "utf8");
+  const edited = text
+    .replace(/  sources:\n(?: {4}.*\n)+/, "")
+    .replace("decisions:\n", "decisions:\n  - id: writing-sources\n    state: delegated\n    rule: no factual claims are made; nothing needs a ledger\n    source: sourcing pass\n    author: gary-sheng\n    chosen_by: human\n");
+  assert.ok(!edited.includes("essay.claims.jsonl"));
+  writeFileSync(w.spec, edited);
+  assert.match(cli(["lint", w.spec]).stdout, /pass \(9\/9\)/);
+  return ready(w);
+}
+
+test("with no claims ledger declared, the packet's claims are null and unsourced_fact leaves the schema", () => {
+  const w = withoutLedger();
+  const p = json(w.packet);
+  assert.equal(p.inputs.claims, null);
+  assert.deepEqual(p.verdict_schema.properties.breaks.items.properties.kind.enum, ["stance", "assertion", "will_not_say"]);
+});
+
+test("with no claims ledger declared, a break of kind unsourced_fact is an invalid verdict; other kinds still record", () => {
+  const w = withoutLedger();
+  let { r, j } = recordJson(w, personaVerdict((v) => { v.breaks = [brk("The nine tests run on every spec", "unsourced_fact", "inputs.claims is null")]; }));
+  assert.equal(r.status, 1);
+  assert.equal(j.invalid, true);
+  assert.deepEqual(ids(j.findings), ["judge-persona-no-ledger"]);
+  assert.equal(j.findings[0].message, "breaks[0].kind is unsourced_fact, but the spec declares no claims ledger, so no fact can be checked against sources");
+  assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
+  ({ r, j } = recordJson(w, personaVerdict((v) => { v.breaks = [brk("The nine tests run on every spec", "stance")]; })));
+  assert.equal(r.status, 1);
+  assert.equal(j.status, "fail");
+  assert.deepEqual(ids(j.findings), ["judge-persona-break"]);
+});
+
+test("a skip that is not the ledger's (the rubric removed, the spec hash forged) is an altered packet, never 'judge the new packet'", () => {
+  const w = ready();
+  const text = readFileSync(w.spec, "utf8");
+  writeFileSync(w.spec, text.replace("      rubric: persona-consistency judge; stance and voice hold, no fact appears that is not in the claims ledger\n", "      station: a stance check\n"));
+  const p = json(w.packet);
+  p.spec_sha256 = createHash("sha256").update(readFileSync(w.spec)).digest("hex");
+  writeFileSync(w.packet, `${JSON.stringify(p, null, 2)}\n`);
+  const { r, j } = recordJson(w, personaVerdict());
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(j.invalid, true);
+  assert.deepEqual(ids(j.findings), ["judge-packet-altered"]);
+  assert.match(j.findings[0].message, /is for a station that does not apply to this spec and draft \(writing\.persona\.check has no rubric\)$/);
+  assert.equal(j.findings[0].fix, "judge prepare writes no persona packet for this spec and draft; record verdicts only on packets prepare writes, and never edit one.");
+  assert.ok(!/claims ledger/.test(j.findings[0].message));
+  assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });

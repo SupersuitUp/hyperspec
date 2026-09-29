@@ -104,30 +104,40 @@ export function personaVerdict(edit = (v) => v) {
 
 const STORY = join(ROOT, "examples", "writing");
 
-// A short scene for the story example's two characters (ines, theo). Its dialogue lines, in order:
-//   L1 "Flour first. Then you can talk."          ines (the paragraph names only Ines)
-//   L2 "I can do the rye. I mean, ..."            theo
-//   L3 "Left side runs hot,"                      ines
-//   L4 "Turn them at eight minutes."              ines (same paragraph as L3)
-//   --  "You're late,"                             left out: the paragraph names no one
-//   --  "Is that a yes?"                           left out: the paragraph names both
-//   L5 "Sold means sold. Shape the rye,"          ines (curly quotes)
+// A short scene for the story example's two characters (ines, theo). The story's persona is
+// character:theo, so Theo narrates: "I said" is Theo, and with exactly two speaking characters
+// "she said" is Ines. Its dialogue lines, in order:
+//   L1 line 5  "Scale first,"                                 ines ("Ines said"; the action beat after it names nobody)
+//   L2 line 7  "Is it the big bowl or the small one, ..."     theo ("I asked": the narrator)
+//   L3 line 9  "Big bowl,"                                    ines ("she said"; "Theo nodded" is an action beat)
+//   L4 line 11 "Water at twenty-six degrees, then salt,"      ines ("said Ines")
+//   -- line 13 "You're late."                                 left out: an action beat, no speech tag
+//   L5 line 15 "Twenty minutes, then we fold it."             ines (one quote split by "Ines said,")
+//   L6 line 17 "The bus was late again, ..."                  theo (curly quotes, "I said")
+//   -- line 19 "Sold means sold,"                             left out: part of Ines's golden line
+//   -- line 21 "Weigh it twice,"                              left out: "said Ines's mother" is a possessive, not Ines
 export const STORY_DRAFT = [
   "# The Rye",
   "",
   "## 3:40",
   "",
-  "\"Flour first. Then you can talk.\" Ines did not look up from the bowl.",
+  "\"Scale first,\" Ines said, and did not look up.",
   "",
-  "Theo laughed. \"I can do the rye. I mean, I think I can do the rye.\"",
+  "\"Is it the big bowl or the small one, or does it matter?\" I asked.",
   "",
-  "\"Left side runs hot,\" Ines said. \"Turn them at eight minutes.\"",
+  "\"Big bowl,\" she said. Theo nodded and fetched it.",
   "",
-  "\"You're late,\" she said.",
+  "\"Water at twenty-six degrees, then salt,\" said Ines.",
   "",
-  "Ines watched Theo shape the loaf. \"Is that a yes?\"",
+  "\"You're late.\" Ines did not look round.",
   "",
-  "\u201CSold means sold. Shape the rye,\u201D said Ines, and the oven ticked.",
+  "\"Twenty minutes,\" Ines said, \"then we fold it.\"",
+  "",
+  "\u201CThe bus was late again, kind of, I mean it was on time but I wasn't?\u201D I said.",
+  "",
+  "\"Sold means sold,\" she said.",
+  "",
+  "\"Weigh it twice,\" said Ines's mother, every morning of my first year.",
   "",
 ].join("\n");
 

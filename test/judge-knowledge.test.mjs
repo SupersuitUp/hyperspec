@@ -21,7 +21,7 @@ function recordJson(w, verdict) {
   return { r, j: JSON.parse(r.stdout) };
 }
 const ids = (findings) => findings.map((f) => f.id);
-const leak = (character = "ines", evidence = "Sold means sold. Shape the rye", knows_too_early = "that the bakery is sold, before scene-1 ends") => ({ character, evidence, knows_too_early });
+const leak = (character = "ines", evidence = "Sold means sold", knows_too_early = "that the bakery is sold, before scene-1 ends") => ({ character, evidence, knows_too_early });
 
 test("the knowledge packet: the characters' rubric, fixed instructions, every timeline and the draft", () => {
   const w = ready();
@@ -81,25 +81,25 @@ test("no leak: pass with no findings", () => {
 
 test("each leak is a failure at its line, naming the character and what they know too early", () => {
   const w = ready();
-  const { r, j } = recordJson(w, { leaks: [leak(), leak("Theo", "I can do the rye", "that he can bake the rye alone")] });
+  const { r, j } = recordJson(w, { leaks: [leak(), leak("Theo", "Is it the big bowl", "that he can bake the rye alone")] });
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.equal(j.status, "fail");
-  assert.deepEqual(j.findings.map((f) => [f.id, f.severity, f.line]), [["judge-knowledge-leak", "fail", 15], ["judge-knowledge-leak", "fail", 7]]);
+  assert.deepEqual(j.findings.map((f) => [f.id, f.severity, f.line]), [["judge-knowledge-leak", "fail", 19], ["judge-knowledge-leak", "fail", 7]]);
   assert.equal(j.findings[0].message, "ines knows too early: that the bakery is sold, before scene-1 ends");
   assert.equal(j.findings[1].message, "theo knows too early: that he can bake the rye alone", "a name is normalized to the id");
   const human = record(w);
-  assert.match(human.stdout, /^ {2}fail \[judge-knowledge-leak\] ines knows too early: that the bakery is sold, before scene-1 ends \(line 15\)$/m);
+  assert.match(human.stdout, /^ {2}fail \[judge-knowledge-leak\] ines knows too early: that the bakery is sold, before scene-1 ends \(line 19\)$/m);
 });
 
 test("every leak names a character with a timeline, quotes the draft and says what is known too early", () => {
   const w = ready();
   const cases = [
     ["an unknown character", { leaks: [leak("mara")] }, ["judge-knowledge-character-unknown"]],
-    ["evidence not in the draft", { leaks: [leak("ines", "Sold means sold. Bake the rye")] }, ["judge-evidence-not-found"]],
-    ["evidence too short", { leaks: [leak("ines", "Sold means")] }, ["judge-evidence-too-short"]],
+    ["evidence not in the draft", { leaks: [leak("ines", "Sold means bought")] }, ["judge-evidence-not-found"]],
+    ["evidence too short", { leaks: [leak("ines", "means sold")] }, ["judge-evidence-too-short"]],
     ["evidence missing", { leaks: [{ character: "ines", knows_too_early: "the sale" }] }, ["judge-evidence-missing"]],
     ["knows_too_early empty", { leaks: [leak("ines", undefined, " ")] }, ["judge-verdict-shape"]],
-    ["knows_too_early missing", { leaks: [{ character: "ines", evidence: "Sold means sold. Shape the rye" }] }, ["judge-verdict-shape"]],
+    ["knows_too_early missing", { leaks: [{ character: "ines", evidence: "Sold means sold" }] }, ["judge-verdict-shape"]],
     ["character not a string", { leaks: [leak(3)] }, ["judge-verdict-shape"]],
     ["a leak not an object", { leaks: ["ines"] }, ["judge-verdict-shape"]],
     ["leaks not a list", { leaks: "none" }, ["judge-verdict-shape"]],
@@ -124,7 +124,7 @@ test("knowledge lines keep their own history: fail, then a revised draft passes 
   assert.equal(r.status, 1);
   assert.match(r.stdout, /^knowledge: fail$/m);
   assert.match(r.stdout, /verdict: not-improved \(failing stations: knowledge\)/);
-  writeFileSync(w.draft, STORY_DRAFT.replace("Sold means sold. Shape the rye,", "Shape the rye,"));
+  writeFileSync(w.draft, STORY_DRAFT.replace("\"Sold means sold,\" she said.", "\"Shape it,\" she said."));
   assert.equal(prepare(w, "--only", "knowledge", "--force").status, 0);
   writeVerdict(w.verdict, { leaks: [] });
   r = record(w);
