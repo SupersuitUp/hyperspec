@@ -15,13 +15,10 @@
 // elsewhere in this linter: relative to the spec file. That resolver (here) is supplied by
 // writing.mjs, which already has spec.dir in scope; this file never touches spec directly.
 //
-// One deliberate carve-out, added by Task 3: a character's narrative color (speech, wants,
-// fears, hides, relationships, arc_state) is free text with no closed set, no count, and no
-// mention anywhere in the test-mapping paragraph or the closed-set list, unlike
-// knowledge/golden_lines/rejected_lines which are named explicitly; task-3-brief's own scope for
-// this block is "characters' knowledge/golden/rejected lines", and a stub character with a
-// one-line arc has no principled bar to check narrative color against. They are left unvalidated
-// in build 3.
+// Ruling R5 (fix round 1, progress.md): a character's speech.uses, speech.never, wants, fears,
+// hides and arc_state are required (test 1) — the design names them as what makes dialogue
+// hyperspecified. relationships stays optional: a character may genuinely relate to no one yet,
+// and nothing in the schema gives it a closed set or a count to check.
 
 import { statSync } from "node:fs";
 
@@ -30,8 +27,21 @@ const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLA
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
-// A path "does not exist" whenever it cannot be stat'd as a file at all (missing, or a directory).
-const missing = (here, p) => { try { return !statSync(here(p)).isFile(); } catch { return true; } };
+// "file", "other" (a directory or a device), or null when nothing is there at all — the same
+// three-way classification the core examples rule uses (src/rules.mjs's kind()), so a real
+// directory is reported as "is not a file" rather than the misleading "does not exist".
+const pathKind = (here, p) => { try { return statSync(here(p)).isFile() ? "file" : "other"; } catch { return null; } };
+// The two-finding shape every path-bearing field in this file shares: idBase-missing when
+// nothing is there, idBase-not-file when something is there but it is not a file (a directory).
+// subject is the human-readable name used in the message ("material", "dna.rules", "golden",
+// "character ... entity"); fixHint is the same for both branches, since the fix is the same path
+// edit either way.
+function pathFindings(here, p, idBase, subject, fixHint) {
+  const k = pathKind(here, p);
+  if (!k) return [f(6, `${idBase}-missing`, "fail", `${subject} "${p}" does not exist`, fixHint)];
+  if (k !== "file") return [f(6, `${idBase}-not-file`, "fail", `${subject} "${p}" is not a file`, fixHint)];
+  return [];
+}
 
 const TRUST_VALUES = ["raw", "considered", "verified"];
 const READER_VALUES = ["person", "agent"];
@@ -45,11 +55,17 @@ function materialsFields(raw, d, here, idPrefix) {
   const out = [];
   const items = list(raw.items);
   const seen = new Set();
+  // A third (or later) item sharing an already-duplicated id must not produce a second,
+  // textually identical finding: report each duplicated id once, the first time it repeats.
+  const reportedDup = new Set();
   items.forEach((it, i) => {
     const id = str(it?.id);
     const tag = id || `#${i + 1}`;
     if (!id) out.push(f(1, `${idPrefix}-item-${i}-id`, "fail", `materials item ${tag} has no id`, "Give it a short id, e.g. m1."));
-    else if (seen.has(id)) out.push(f(1, `${idPrefix}-item-id`, "fail", `materials id "${id}" is used twice`, "Ids must be unique across materials.items; rename one."));
+    else if (seen.has(id)) {
+      if (!reportedDup.has(id)) out.push(f(1, `${idPrefix}-item-id`, "fail", `materials id "${id}" is used twice`, "Ids must be unique across materials.items; rename one."));
+      reportedDup.add(id);
+    }
     seen.add(id);
     if (!str(it?.produced_by)) out.push(f(1, `${idPrefix}-item-${i}-produced-by`, "fail", `material ${tag} does not say who produced it`, "Add produced_by:."));
     if (!str(it?.captured)) out.push(f(1, `${idPrefix}-item-${i}-captured`, "fail", `material ${tag} does not say when it was captured`, "Add captured:."));
@@ -58,7 +74,7 @@ function materialsFields(raw, d, here, idPrefix) {
     if (!TRUST_VALUES.includes(trust)) out.push(f(1, `${idPrefix}-item-${i}-trust`, "fail", `material ${tag} has trust "${trust || "(none)"}"`, "Set trust to raw, considered or verified."));
     const p = str(it?.path);
     if (!p) out.push(f(1, `${idPrefix}-item-${i}-path`, "fail", `material ${tag} has no path`, "Add path: to the material."));
-    else if (missing(here, p)) out.push(f(6, `${idPrefix}-item-${i}-path-missing`, "fail", `material "${p}" does not exist`, "Fix the path, or add the material file."));
+    else out.push(...pathFindings(here, p, `${idPrefix}-item-${i}-path`, "material", "Fix the path, or add the material file."));
   });
   return out;
 }
@@ -74,13 +90,13 @@ function dnaFields(raw, d, here, idPrefix) {
   if (!str(scope.purpose)) out.push(f(1, `${idPrefix}-scope-purpose`, "fail", "writing.dna.scope has no purpose", "Add scope.purpose:."));
   const rulesPath = str(raw.rules);
   if (!rulesPath) out.push(f(1, `${idPrefix}-rules`, "fail", "writing.dna has no rules", "Add rules: the path to the always-on writing style."));
-  else if (missing(here, rulesPath)) out.push(f(6, `${idPrefix}-rules-missing`, "fail", `dna.rules "${rulesPath}" does not exist`, "Fix the path, or add the file."));
+  else out.push(...pathFindings(here, rulesPath, `${idPrefix}-rules`, "dna.rules", "Fix the path, or add the file."));
   const goldens = list(raw.goldens);
   if (!goldens.length) out.push(f(1, `${idPrefix}-goldens`, "fail", "writing.dna has no goldens", "Add at least one golden under dna.goldens."));
   goldens.forEach((g, i) => {
     const p = str(g?.path);
     if (!p) out.push(f(1, `${idPrefix}-golden-${i}-path`, "fail", `dna.goldens[${i + 1}] has no path`, "Add path: to the golden."));
-    else if (missing(here, p)) out.push(f(6, `${idPrefix}-golden-${i}-missing`, "fail", `golden "${p}" does not exist`, "Fix the path, or add the golden file."));
+    else out.push(...pathFindings(here, p, `${idPrefix}-golden-${i}`, "golden", "Fix the path, or add the golden file."));
     if (!str(g?.why)) out.push(f(6, `${idPrefix}-golden-${i}-why`, "fail", `golden "${p || `#${i + 1}`}" has no why`, "Add why: what it shows that an adjective could not."));
   });
   return out;
@@ -228,9 +244,11 @@ function characterFields(c, here, idPrefix) {
   const tag = str(c?.id) || "?";
   if (!str(c?.id)) out.push(f(1, `${idPrefix}-id`, "fail", "character has no id", "Give it a short id."));
 
+  // Raw array length, matching dnaFields' goldens.length check: a present-but-malformed entry
+  // (missing by or knows) must not ALSO trigger "has no knowledge" — that's only true when the
+  // list is literally empty.
   const knowledge = list(c?.knowledge);
-  const validKnowledge = knowledge.filter((k) => str(k?.by) && str(k?.knows));
-  if (!validKnowledge.length) out.push(f(1, `${idPrefix}-knowledge`, "fail", `character "${tag}" has no knowledge`, "Add at least one { by, knows } entry under knowledge."));
+  if (!knowledge.length) out.push(f(1, `${idPrefix}-knowledge`, "fail", `character "${tag}" has no knowledge`, "Add at least one { by, knows } entry under knowledge."));
   knowledge.forEach((k, i) => {
     if (!str(k?.by)) out.push(f(1, `${idPrefix}-knowledge-${i}-by`, "fail", `character "${tag}" knowledge entry ${i + 1} has no by`, "Add by: to the knowledge entry."));
     if (!str(k?.knows)) out.push(f(1, `${idPrefix}-knowledge-${i}-knows`, "fail", `character "${tag}" knowledge entry ${i + 1} has no knows`, "Add knows: to the knowledge entry."));
@@ -239,8 +257,19 @@ function characterFields(c, here, idPrefix) {
   if (!list(c?.golden_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-golden-lines`, "fail", `character "${tag}" has no golden_lines`, "Add at least one golden line."));
   if (!list(c?.rejected_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-rejected-lines`, "fail", `character "${tag}" has no rejected_lines`, "Add at least one rejected line."));
 
+  // R5: speech.uses, speech.never, wants, fears, hides and arc_state are what make dialogue
+  // hyperspecified, per the design. relationships is deliberately not required here: a character
+  // may genuinely relate to no one yet.
+  const speech = isObj(c?.speech) ? c.speech : {};
+  if (!list(speech.uses).some((x) => str(x))) out.push(f(1, `${idPrefix}-speech-uses`, "fail", `character "${tag}" speech.uses is empty`, "List at least one thing the character says."));
+  if (!list(speech.never).some((x) => str(x))) out.push(f(1, `${idPrefix}-speech-never`, "fail", `character "${tag}" speech.never is empty`, "List at least one thing the character never says."));
+  if (!str(c?.wants)) out.push(f(1, `${idPrefix}-wants`, "fail", `character "${tag}" has no wants`, "Add wants:."));
+  if (!str(c?.fears)) out.push(f(1, `${idPrefix}-fears`, "fail", `character "${tag}" has no fears`, "Add fears:."));
+  if (!str(c?.hides)) out.push(f(1, `${idPrefix}-hides`, "fail", `character "${tag}" has no hides`, "Add hides:."));
+  if (!str(c?.arc_state)) out.push(f(1, `${idPrefix}-arc-state`, "fail", `character "${tag}" has no arc_state`, "Add arc_state:."));
+
   const entity = str(c?.entity);
-  if (entity && missing(here, entity)) out.push(f(6, `${idPrefix}-entity-missing`, "fail", `character "${tag}" entity "${entity}" does not exist`, "Fix the path, or remove entity."));
+  if (entity) out.push(...pathFindings(here, entity, `${idPrefix}-entity`, `character "${tag}" entity`, "Fix the path, or remove entity."));
 
   return out;
 }

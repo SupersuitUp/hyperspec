@@ -124,33 +124,51 @@ for (const block of ["materials", "dna", "persona", "audience", "goal", "form", 
   });
 }
 
+// Every field a complete, fully-valid character entry needs: check/source/author (generic
+// ownership, from writing.mjs), Task 3's knowledge/golden_lines/rejected_lines, and R5's
+// speech.uses/speech.never/wants/fears/hides/arc_state. relationships is deliberately absent —
+// it stays optional. Lines are pre-indented for a "    - id: <id>" list item under characters:.
+const CHAR_FIELD = Object.freeze({
+  check: ["      check:", "        rubric: blind attribution test against the timeline"],
+  source: ["      source: story bible"],
+  author: ["      author: gary-sheng"],
+  knowledge: ["      knowledge:", "        - by: chapter-1", "          knows: something"],
+  goldenLines: ["      golden_lines:", "        - a good line"],
+  rejectedLines: ["      rejected_lines:", "        - a rejected line"],
+  speech: ["      speech:", "        uses:", "          - short declaratives", "        never:", "          - swears"],
+  wants: ["      wants: to be believed"],
+  fears: ["      fears: being forgotten"],
+  hides: ["      hides: the year it lost"],
+  arcState: ["      arc_state: still deciding"],
+});
+const CHAR_FIELD_ORDER = ["check", "source", "author", "knowledge", "goldenLines", "rejectedLines", "speech", "wants", "fears", "hides", "arcState"];
+
+// Builds one character entry's YAML lines. `omit` drops named fields entirely (to produce a
+// "field missing" failing case); `id: null` drops the id line itself, moving the list marker
+// onto the next present field. `overrides.speech` / `overrides.knowledge` replace those two
+// fields' lines wholesale, for the sub-field cases (e.g. speech present but speech.uses empty)
+// that a plain omit can't express.
+function characterYaml(id, { omit = [], overrides = {} } = {}) {
+  const body = [];
+  for (const key of CHAR_FIELD_ORDER) {
+    if (omit.includes(key)) continue;
+    body.push(...(overrides[key] || CHAR_FIELD[key]));
+  }
+  if (id == null) {
+    const [first, ...rest] = body;
+    return [`    - ${first.trim()}`, ...rest];
+  }
+  return [`    - id: ${id}`, ...body];
+}
+
 test("characters: each character entry carries its own check, source and author, checked per entry", () => {
-  // Both entries carry valid knowledge/golden_lines/rejected_lines (Task 3's field rules for
-  // characters), so the only findings left are the ones this test is actually about: wisp's
-  // missing check and author.
+  // Both entries are otherwise fully valid (Task 3's knowledge/golden_lines/rejected_lines and
+  // R5's speech/wants/fears/hides/arc_state), so the only findings left are the ones this test is
+  // actually about: wisp's missing check and author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
-    "    - id: jerry",
-    "      check:",
-    "        rubric: blind attribution test against the timeline",
-    "      source: story bible",
-    "      author: gary-sheng",
-    "      knowledge:",
-    "        - by: chapter-1",
-    "          knows: the wisp is not what it first seems",
-    "      golden_lines:",
-    "        - I have been waiting longer than you have been afraid.",
-    "      rejected_lines:",
-    "        - I am the chosen one.",
-    "    - id: wisp",
-    "      source: story bible",
-    "      knowledge:",
-    "        - by: chapter-1",
-    "          knows: jerry has not yet said yes",
-    "      golden_lines:",
-    "        - Not yet. But soon.",
-    "      rejected_lines:",
-    "        - I promise this will not hurt.",
+    ...characterYaml("jerry"),
+    ...characterYaml("wisp", { omit: ["check", "author"] }),
     "fiction: true",
   ].join("\n") + "\n"));
   const f = fails(s);
@@ -164,18 +182,11 @@ test("characters: each character entry carries its own check, source and author,
 // `required()` gated the whole per-block loop body, so a written-but-broken characters block with
 // fiction: false produced zero findings and was credited complete.
 test("fix 1: a present characters block with fiction: false is still validated: missing check/source/author fails and is not counted complete", () => {
-  // knowledge/golden_lines/rejected_lines (Task 3's field rules) are supplied here so this
-  // regression test keeps isolating exactly what it always did: check/source/author.
+  // Every content rule (Task 3's + R5's) is satisfied here so this regression test keeps
+  // isolating exactly what it always did: check/source/author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
-    "    - id: jerry",
-    "      knowledge:",
-    "        - by: chapter-1",
-    "          knows: something",
-    "      golden_lines:",
-    "        - a good line",
-    "      rejected_lines:",
-    "        - a rejected line",
+    ...characterYaml("jerry", { omit: ["check", "source", "author"] }),
     "fiction: false",
   ].join("\n") + "\n"));
   const f = fails(s);
@@ -338,22 +349,7 @@ test("persona: identity naming a character not in writing.characters fails test 
 test("persona: identity naming a character that IS in writing.characters passes (fiction: true)", () => {
   const s = variant((t) => t
     .replace("identity: self", "identity: character:jerry")
-    .replace("fiction: false", [
-      "  characters:",
-      "    - id: jerry",
-      "      check:",
-      "        rubric: blind attribution test against the timeline",
-      "      source: story bible",
-      "      author: gary-sheng",
-      "      knowledge:",
-      "        - by: chapter-1",
-      "          knows: something",
-      "      golden_lines:",
-      "        - a good line",
-      "      rejected_lines:",
-      "        - a rejected line",
-      "fiction: true",
-    ].join("\n") + "\n"));
+    .replace("fiction: false", ["  characters:", ...characterYaml("jerry"), "fiction: true"].join("\n") + "\n"));
   assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-persona")), []);
 });
 
@@ -487,42 +483,311 @@ test("sources: unsourced_claim: warn is not a failure, but produces a lint warni
 });
 
 test("characters: an entity path that does not exist fails test 6", () => {
-  const s = variant((t) => t.replace("fiction: false", [
-    "  characters:",
-    "    - id: jerry",
-    "      entity: cast/jerry.json",
-    "      check:",
-    "        rubric: blind attribution test against the timeline",
-    "      source: story bible",
-    "      author: gary-sheng",
-    "      knowledge:",
-    "        - by: chapter-1",
-    "          knows: something",
-    "      golden_lines:",
-    "        - a good line",
-    "      rejected_lines:",
-    "        - a rejected line",
-    "fiction: true",
-  ].join("\n") + "\n"));
+  const s = variant((t) => {
+    const lines = characterYaml("jerry");
+    lines.splice(1, 0, "      entity: cast/jerry.json"); // right after the "- id: jerry" line
+    return t.replace("fiction: false", ["  characters:", ...lines, "fiction: true"].join("\n") + "\n");
+  });
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-characters-0-entity-missing"]]);
 });
 
-test("characters: a knowledge entry with no by or knows fails test 1", () => {
+test("characters: an entity path that is a directory, not a file, fails test 6 as not-file (distinct from missing)", () => {
+  const s = variant((t) => {
+    const lines = characterYaml("jerry");
+    lines.splice(1, 0, "      entity: materials"); // "materials" exists, but is a directory
+    return t.replace("fiction: false", ["  characters:", ...lines, "fiction: true"].join("\n") + "\n");
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-characters-0-entity-not-file"]]);
+  assert.match(f[0].message, /is not a file/);
+});
+
+// Fix round 1, Finding 2: a present-but-malformed knowledge entry (has by, missing knows) must
+// produce only its own entry-level finding, not ALSO the block-level "has no knowledge" (the
+// list is not empty, it has one broken entry) — matching dnaFields' goldens.length pattern.
+test("characters: a knowledge entry with no knows fails only test 1's entry-level finding, not the block-level one", () => {
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
-    "    - id: jerry",
-    "      check:",
-    "        rubric: blind attribution test against the timeline",
-    "      source: story bible",
-    "      author: gary-sheng",
-    "      knowledge:",
-    "        - by: chapter-1",
-    "      golden_lines:",
-    "        - a good line",
-    "      rejected_lines:",
-    "        - a rejected line",
+    ...characterYaml("jerry", { overrides: { knowledge: ["      knowledge:", "        - by: chapter-1"] } }),
     "fiction: true",
   ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-knowledge-0-knows"]]);
+});
+
+test("characters: a knowledge entry with no by fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { overrides: { knowledge: ["      knowledge:", "        - knows: something"] } }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-knowledge-0-by"]]);
+});
+
+test("characters: an empty knowledge list fails test 1, with no entry-level findings alongside it", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { overrides: { knowledge: ["      knowledge: []"] } }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-knowledge"]]);
+});
+
+test("characters: no id fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml(null),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-id"]]);
+});
+
+test("characters: empty golden_lines fails test 6", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["goldenLines"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-characters-0-golden-lines"]]);
+});
+
+test("characters: empty rejected_lines fails test 6", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["rejectedLines"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-characters-0-rejected-lines"]]);
+});
+
+// ---- R5: speech.uses, speech.never, wants, fears, hides, arc_state (each test 1); relationships
+// stays optional ------------------------------------------------------------------------------
+
+test("characters: empty speech.uses fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { overrides: { speech: ["      speech:", "        never:", "          - swears"] } }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-speech-uses"]]);
+});
+
+test("characters: empty speech.never fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { overrides: { speech: ["      speech:", "        uses:", "          - short declaratives"] } }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-speech-never"]]);
+});
+
+test("characters: no wants fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["wants"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-wants"]]);
+});
+
+test("characters: no fears fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["fears"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-fears"]]);
+});
+
+test("characters: no hides fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["hides"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-hides"]]);
+});
+
+test("characters: no arc_state fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry", { omit: ["arcState"] }),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-arc-state"]]);
+});
+
+test("characters: relationships stays optional (R5) — a fully valid character with none still passes clean", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    ...characterYaml("jerry"),
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-characters")), []);
+  assert.ok(!/relationships/i.test(JSON.stringify(fails(s))));
+});
+
+// =============================================================================================
+// Fix round 1, Finding 1: table-driven failing-case tests for the ~18 rules the review found
+// implemented but untested. Each row edits the valid fixture to break exactly one field and
+// asserts the exact [test, id] pair the rule is supposed to produce.
+// =============================================================================================
+
+const FIELD_RULE_CASES = [
+  {
+    name: "materials: an item with no path (the field itself absent) fails test 1",
+    edit: (t) => t.replace("        path: materials/call-2026-09-28.md\n", ""),
+    expect: [[1, "writing-materials-item-0-path"]],
+  },
+  {
+    name: "dna: scope with no form fails test 1",
+    edit: (t) => t.replace("      form: essay\n", ""),
+    expect: [[1, "writing-dna-scope-form"]],
+  },
+  {
+    name: "dna: no rules field at all (distinct from a rules path that does not exist) fails test 1",
+    edit: (t) => t.replace("    rules: WRITING-STYLE.md\n", ""),
+    expect: [[1, "writing-dna-rules"]],
+  },
+  {
+    name: "dna: a golden with no path at all (distinct from a path that does not exist) fails test 1",
+    edit: (t) => t.replace(
+      "      - path: goldens/opening.md\n        why:",
+      "      - why:",
+    ),
+    expect: [[1, "writing-dna-golden-0-path"]],
+  },
+  {
+    name: "persona: empty may_assert fails test 1",
+    edit: (t) => t.replace(
+      "    may_assert:\n      - what gary has shipped and measured himself\n",
+      "    may_assert: []\n",
+    ),
+    expect: [[1, "writing-persona-may-assert"]],
+  },
+  {
+    name: "audience: no funnel_now fails test 1",
+    edit: (t) => t.replace("    funnel_now: reading the standard's README\n", ""),
+    expect: [[1, "writing-audience-funnel-now"]],
+  },
+  {
+    name: "audience: no believes_now fails test 1",
+    edit: (t) => t.replace("    believes_now: a spec is a prompt someone wrote once\n", ""),
+    expect: [[1, "writing-audience-believes-now"]],
+  },
+  {
+    name: "audience: no wants fails test 1",
+    edit: (t) => t.replace("    wants: to know whether a writing spec is worth adopting\n", ""),
+    expect: [[1, "writing-audience-wants"]],
+  },
+  {
+    name: "audience: no reads_on fails test 1",
+    edit: (t) => t.replace("    reads_on: a phone, in ninety seconds\n", ""),
+    expect: [[1, "writing-audience-reads-on"]],
+  },
+  {
+    name: "goal: no from fails test 1",
+    edit: (t) => t.replace("    from: believes a spec is a prompt someone wrote once\n", ""),
+    expect: [[1, "writing-goal-from"]],
+  },
+  {
+    name: "goal: no to fails test 1",
+    edit: (t) => t.replace("    to: believes a spec is a contract a linter can check\n", ""),
+    expect: [[1, "writing-goal-to"]],
+  },
+  {
+    name: "goal: no next_if_worked fails test 1",
+    edit: (t) => t.replace("    next_if_worked: reads the schema section\n", ""),
+    expect: [[1, "writing-goal-next-if-worked"]],
+  },
+  {
+    name: "goal: change with no text fails test 1",
+    edit: (t) => t.replace("      text: a hyperspec is a contract, not a prompt\n", ""),
+    expect: [[1, "writing-goal-change-text"]],
+  },
+  {
+    name: "form: no name fails test 1",
+    edit: (t) => t.replace("    name: essay\n", ""),
+    expect: [[1, "writing-form-name"]],
+  },
+  {
+    name: "form: a non-numeric length.max specifically fails test 1 (min stays untouched)",
+    edit: (t) => t.replace("      max: 1200\n", "      max: a lot\n"),
+    expect: [[1, "writing-form-length-max"]],
+  },
+  {
+    name: "spine: no kind fails test 1",
+    edit: (t) => t.replace("    kind: thesis\n", ""),
+    expect: [[1, "writing-spine-kind"]],
+  },
+  {
+    name: "spine: a claim with no id (the field itself absent) fails test 1",
+    edit: (t) => t.replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n",
+      "      - text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n",
+    ),
+    expect: [[1, "writing-spine-claim-0-id"]],
+  },
+  {
+    name: "spine: a claim with no text fails test 1",
+    edit: (t) => t.replace(
+      "        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n",
+      "",
+    ),
+    expect: [[1, "writing-spine-claim-0-text"]],
+  },
+  {
+    name: "sources: no ledger fails test 1",
+    edit: (t) => t.replace("    ledger: essay.claims.jsonl\n", ""),
+    expect: [[1, "writing-sources-ledger"]],
+  },
+];
+
+for (const c of FIELD_RULE_CASES) {
+  test(c.name, () => {
+    const s = variant(c.edit);
+    assert.deepEqual(fails(s).map((x) => [x.test, x.id]), c.expect);
+  });
+}
+
+// ---- Fix round 1, Findings 3 and 4: path-vs-directory, and duplicate materials ids -----------
+
+test("materials: an item path that resolves to a directory, not a file, fails test 6 as not-file (distinct from missing)", () => {
+  const s = variant((t) => t.replace("materials/call-2026-09-28.md", "materials"));
   const f = fails(s);
-  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-characters-0-knowledge"], [1, "writing-characters-0-knowledge-0-knows"]]);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-materials-item-0-path-not-file"]]);
+  assert.match(f[0].message, /is not a file/);
+});
+
+test("dna: a rules path that resolves to a directory fails test 6 as not-file", () => {
+  const s = variant((t) => t.replace("rules: WRITING-STYLE.md", "rules: materials"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-rules-not-file"]]);
+});
+
+test("dna: a golden path that resolves to a directory fails test 6 as not-file", () => {
+  const s = variant((t) => t.replace("path: goldens/opening.md", "path: materials"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-not-file"]]);
+});
+
+test("materials: three items sharing an id produce exactly one duplicate finding, not one per extra occurrence", () => {
+  const s = variant((t) => t.replace(
+    "        trust: raw\n    check:",
+    [
+      "        trust: raw",
+      "      - id: m1",
+      "        path: materials/call-2026-09-28.md",
+      "        produced_by: gary-sheng",
+      '        captured: "2026-09-28"',
+      "        how: voice memo transcript",
+      "        trust: raw",
+      "      - id: m1",
+      "        path: materials/call-2026-09-28.md",
+      "        produced_by: gary-sheng",
+      '        captured: "2026-09-28"',
+      "        how: voice memo transcript",
+      "        trust: raw",
+      "    check:",
+    ].join("\n"),
+  ));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-materials-item-id"]]);
 });
