@@ -379,3 +379,76 @@ test("a missing doctor option is a usage error", () => {
   assert.equal(res.usage, true);
   assert.match(res.error, /doctor/);
 });
+
+// Fix round 1, finding 1 (Important): a root recipe (never regenerated, so its own `parent` and
+// `change` are both null) compared against an explicit, unrelated `--parent` must still produce a
+// non-empty ledger `change`/`reason` — never "after null" — in both the improved and not-improved
+// cases, and the spec must still pass lintSpec test 9 either way.
+test("a parentless child compared against an explicit parent gets a synthesized ledger change (both verdicts), and lintSpec test 9 still passes", () => {
+  const dir = project();
+  const child = buildParent(dir, { content: "0123456789" }); // 10 bytes; a root recipe
+  const rootData = readRecipe(child.recipePath).data;
+  assert.equal(rootData.parent, null);
+  assert.equal(rootData.change, null);
+
+  const lowDir = join(dir, "low");
+  mkdirSync(lowDir);
+  const low = buildParent(lowDir, { content: "ab" }); // 2 bytes: child (10) scores higher -> improved
+
+  const highDir = join(dir, "high");
+  mkdirSync(highDir);
+  const high = buildParent(highDir, { content: "x".repeat(33) }); // 33 bytes: child scores lower -> not-improved
+
+  const doctor = doctorCmd(dir);
+
+  const improvedRes = compare(child.recipePath, { doctor, parent: low.recipePath });
+  assert.equal(improvedRes.ok, true, improvedRes.error);
+  assert.equal(improvedRes.regressed, false);
+
+  const notImprovedRes = compare(child.recipePath, { doctor, parent: high.recipePath });
+  assert.equal(notImprovedRes.ok, true, notImprovedRes.error);
+  assert.equal(notImprovedRes.ledger, improvedRes.ledger); // same child spec, same ledger file
+
+  const lines = readFileSync(improvedRes.ledger, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(lines.length, 2);
+
+  assert.equal(lines[0].verdict, "improved");
+  assert.equal(typeof lines[0].change, "string");
+  assert.match(lines[0].change, /^compared against /);
+  assert.equal(lines[0].reason, undefined);
+
+  assert.equal(lines[1].verdict, "not-improved");
+  assert.equal(typeof lines[1].change, "string");
+  assert.match(lines[1].change, /^compared against /);
+  // child (10 bytes) scores lower than "high" (33 bytes): not-improved AND a genuine regression,
+  // so the reason carries the "regression: " prefix too.
+  assert.match(lines[1].reason, /^regression: compare: child scored \d+ vs parent \d+ after compared against /);
+  assert.ok(!/after null/.test(lines[1].reason), lines[1].reason);
+
+  const specLoaded = loadSpec(child.specPath);
+  assert.equal(specLoaded.error, undefined);
+  const findings = lintSpec(specLoaded);
+  assert.deepEqual(findings.filter((f) => f.test === 9 && f.severity === "fail"), []);
+});
+
+// Fix round 1, finding 2 (Minor): a score that is a real JS `number` but not finite (a JSON number
+// literal that overflows a double, e.g. 1e400) must be refused rather than silently accepted and
+// then corrupted to `null` by JSON.stringify when the ledger line is written.
+test("a doctor score that overflows to Infinity or -Infinity is a usage error naming which output", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" });
+  const childRecipe = buildChild(dir, parent, "ab");
+
+  const posInf = "cat >/dev/null; printf '{\"score\":1e400}\\n'";
+  const posRes = compare(childRecipe, { doctor: posInf });
+  assert.equal(posRes.ok, false);
+  assert.equal(posRes.usage, true);
+  assert.match(posRes.error, /^parent: /);
+  assert.match(posRes.error, /numeric score/);
+
+  const negInf = "cat >/dev/null; printf '{\"score\":-1e400}\\n'";
+  const negRes = compare(childRecipe, { doctor: negInf });
+  assert.equal(negRes.ok, false);
+  assert.equal(negRes.usage, true);
+  assert.match(negRes.error, /numeric score/);
+});

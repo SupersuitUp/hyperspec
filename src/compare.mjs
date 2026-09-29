@@ -102,7 +102,13 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
     } else {
       const ledgerAbs = resolve(specDir, ledgerDecl);
       const ledgerDir = dirname(ledgerAbs);
-      const childChange = child.change ?? null;
+      // The child's own `change` is null whenever it has no genealogical parent of its own (a root
+      // recipe compared against an explicit, unrelated --parent — compare's usage check allows
+      // this: it only requires *either* the child's recorded parent.path *or* an explicit
+      // override). Fall back to naming what was actually compared against, so `change` and the
+      // not-improved `reason` below are never "after null" — both a broken persisted record and,
+      // for the "improved" verdict, a lint failure (rules.mjs's verdict-change: `!str(v.change)`).
+      const childChange = child.change ?? `compared against ${relative(ledgerDir, parentRecipeAbs)}`;
       // R15: a compare line must satisfy test 9 ("it improves itself"), which only knows the
       // verdict vocabulary one-shot/improved/not-improved — never a new "compare" verdict. A
       // strictly higher child score is improved (and already carries change, which doubles as
@@ -165,7 +171,7 @@ function runDoctor(doctorCmd, outputAbs, specAbs) {
   const last = lines[lines.length - 1].trim();
   let value;
   try { value = JSON.parse(last); } catch (e) { return { error: `doctor's last line is not JSON: ${e.message}` }; }
-  if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.score !== "number" || Number.isNaN(value.score)) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.score !== "number" || !Number.isFinite(value.score)) {
     return { error: "doctor's last line must be an object with a numeric score" };
   }
   return { score: value.score, notes: typeof value.notes === "string" ? value.notes : "" };
