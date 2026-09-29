@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.0 (2026-09-28)
+
+Recipes. Every output a factory makes can now carry a recipe beside it: what made it, from
+what, and who approved it, with every input and every intermediate step kept as its exact
+bytes. From a recipe you can check that an output is still exactly what was made, make it
+again with one more ingredient while reusing every step that ingredient does not reach, and
+grade the new output against the old one, so "the new one is better" is a number. hyperspec
+calls no model to do any of this: the steps that need one are commands you supply.
+
+- `hyperspec recipe check <output-or-recipe>` reports what a recipe is missing: the factory
+  version, the spec hash and who wrote each of its fields, an input's hash, a stage's verdict,
+  the clicker, the approver. `hyperspec recipe approve <recipe> --by <slug>` records the
+  approver.
+- `hyperspec reproduce <recipe> [--restore]` re-checks every recorded hash and names the
+  first that fails. `--restore` rewrites the output from its stored bytes.
+- `hyperspec regenerate <recipe> --out <path> --clicker <slug>` takes one change,
+  `--add-input name=path [--reads stage]...`, `--swap-input name=path` or
+  `--factory-version v`, reruns only the stages it reaches through `--run <runner>`, reuses
+  the rest, and writes a child recipe naming its parent and the change. Without `--run` the
+  child is written with those stages pending, and the command exits 3.
+- `hyperspec compare <child-recipe> --doctor <command>` grades the child and its parent with
+  one doctor against one spec, exits 1 on a regression naming the change as the suspect, and
+  appends the result to the spec's improvement ledger.
+- `@supersuit/hyperspec/recipe` exports `startRecipe` and `approve`, which a factory calls as
+  it runs to record inputs and stages and write the recipe.
+- `examples/recipe/` is a worked factory, runner and doctor. The README walks the full loop,
+  and a test runs that walkthrough exactly as written, so the two cannot drift apart.
+- SPEC.md gains a Recipes section: the recipe file, the stage key, the blob store, each
+  command's contract, the runner and doctor contracts, and every exit code.
+- `lint` fails an id used twice across decisions and requirements (test 1), and an example
+  that is a folder or is the spec itself (test 6). It warns on a `hyperspec` version it does
+  not know (test 7) and on a declared ledger that does not exist yet (test 9).
+- `hyperspec init` quotes a title or kind that a YAML reader would read back differently.
+- The README's exit-code sentence names every case that exits 2, matching SPEC.md.
+
 ## 0.1.0 (2026-09-28)
 
 - The hyperspecification standard: a markdown file with a YAML frontmatter block, versioned

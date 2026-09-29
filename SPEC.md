@@ -91,7 +91,7 @@ examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
-  next_action: collect adopter issues on 0.1 and cut 0.2 from them
+  next_action: collect adopter issues on 0.2, recipes included, and cut 0.3 from them
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes and say so in your SPEC
@@ -103,7 +103,7 @@ improvement:
 
 A person writing for another person leaves most of the specification unsaid, because the other person fills the gaps from shared context. An agent has none of that context, so it fills every gap with the average, and the average is what reads as middling. Hyperspecification is writing down the gaps. It is a level of detail that would feel like overkill between two people and is exactly enough for an agent: every decision the agent would otherwise guess is either decided, delegated with the rule for deciding it, or marked open, so the work stops instead of guessing.
 
-**Version 0.1.0** (2026-09-28)
+**Version 0.2.0** (2026-09-28)
 
 ## What makes a spec a hyperspec
 
