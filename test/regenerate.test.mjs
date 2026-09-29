@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { blobPath, getBlob } from "../src/blobs.mjs";
-import { checkRecipe, readRecipe, writeRecipe } from "../src/recipe.mjs";
+import { checkRecipe, readRecipe, stageKey, writeRecipe } from "../src/recipe.mjs";
 import { approve, startRecipe } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
 import { regenerate } from "../src/regenerate.mjs";
@@ -47,32 +47,33 @@ requirements:
   return path;
 }
 
-// The fake runner: reads the stdin JSON, appends it to a log (so a test can see which stages ran
-// and what they were handed), and prints the upper-cased bytes of its first read. An optional
-// second argument names a stage to fail on, and an optional third a verdict line to print.
+// The fake runner, in plain sh so a stage costs a few milliseconds rather than a node start. It
+// still runs against the real stdin contract: it appends the job JSON to a log (so a test can see
+// which stages ran and what they were handed), pulls the stage id and the first read's temp-file
+// path out of that JSON with sed (JSON.stringify fixes the field order: stage, reads, model; ref,
+// sha256, path), and prints the upper-cased bytes of that file followed by " [<stage>]". The
+// second argument names a stage to fail on, the third a verdict line for stderr ("-" for neither).
 function writeRunner(dir) {
-  const path = join(dir, "runner.mjs");
+  const path = join(dir, "runner.sh");
   writeFileSync(
     path,
-    `import { appendFileSync, readFileSync } from "node:fs";
-const [log, failOn, verdict] = process.argv.slice(2);
-let s = "";
-process.stdin.on("data", (d) => (s += d)).on("end", () => {
-  const job = JSON.parse(s);
-  const firstBytes = readFileSync(job.reads[0].path, "utf8");
-  appendFileSync(log, JSON.stringify({ ...job, firstBytes }) + "\\n");
-  if (failOn === job.stage) { process.stderr.write("runner blew up on " + job.stage + "\\n"); process.exit(4); }
-  process.stdout.write(firstBytes.toUpperCase() + " [" + job.stage + "]");
-  if (verdict && verdict !== "-") process.stderr.write("some noise\\n" + verdict.replaceAll("\\\\n", "\\n") + "\\n");
-});
+    `input=$(cat)
+printf '%s\\n' "$input" >> "$1"
+stage=$(printf '%s' "$input" | sed 's/^{"stage":"\\([^"]*\\)".*/\\1/')
+first=$(printf '%s' "$input" | sed 's/.*"reads":\\[{"ref":"[^"]*","sha256":"[^"]*","path":"\\([^"]*\\)".*/\\1/')
+if [ "$stage" = "$2" ]; then echo "runner blew up on $stage" >&2; exit 4; fi
+tr a-z A-Z < "$first"
+printf ' [%s]' "$stage"
+if [ "$3" != "-" ]; then printf 'some noise\\n%s\\n' "$3" >&2; fi
 `,
   );
   return path;
 }
 
-const q = (s) => JSON.stringify(s);
-function runCmd(dir, { failOn = "-", verdict = "-" } = {}) {
-  return `node ${q(join(dir, "runner.mjs"))} ${q(join(dir, "run.log"))} ${q(failOn)} ${q(verdict)}`;
+// Single-quoted for sh, so a verdict argument may carry a real newline.
+const sq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+function runCmd(dir, { failOn = "-", verdict = "-", before = "" } = {}) {
+  return `${before}/bin/sh ${sq(join(dir, "runner.sh"))} ${sq(join(dir, "run.log"))} ${sq(failOn)} ${sq(verdict)}`;
 }
 function runLog(dir) {
   const p = join(dir, "run.log");
@@ -152,8 +153,8 @@ test("add-input with reads [draft] reruns only draft and reuses outline and note
   assert.equal(child.approver, null);
   assert.notEqual(child.created, parent.created);
 
-  // The draft was handed the reused outline's bytes, and the output file is the last stage's blob.
-  assert.equal(runLog(dir)[0].firstBytes, "the outline");
+  // The draft was handed the reused outline's bytes (upper-cased by the runner), and the output
+  // file is the last stage's blob.
   assert.equal(readFileSync(out, "utf8"), "THE OUTLINE [draft]");
   assert.equal(child.output.sha256, sha256(readFileSync(out)));
   assert.equal(child.output.path, "essay-v2.md");
@@ -208,6 +209,7 @@ test("factory-version reruns every stage", () => {
   const res = regenerate(recipePath, { out: join(dir, "essay-v2.md"), clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir) });
   assert.equal(res.ok, true, res.error);
   assert.deepEqual(actions(res.plan), { outline: "rerun", notes: "rerun", draft: "rerun" });
+  assert.deepEqual(res.failedVerdicts, []);
   const child = readRecipe(res.childRecipe).data;
   assert.equal(child.factory.version, "0.4.0");
   assert.equal(child.factory.name, "compose-a-piece");
@@ -343,8 +345,55 @@ test("reuse is proven by a key match, not by the stage's name", () => {
     run: runCmd(dir),
   });
   assert.equal(res.ok, true, res.error);
-  // outline reruns (key mismatch), notes reruns (the change), draft reruns (reads outline).
+  // outline reruns (its parent key does not match its own record), notes reruns (the change).
+  // outline's rerun reproduces nothing the parent recorded, so draft (reads outline) reruns too.
   assert.deepEqual(actions(res.plan), { outline: "rerun", notes: "rerun", draft: "rerun" });
+  assert.deepEqual(res.plan[0], { id: "outline", action: "rerun", reason: "parent key does not match its record" });
+  assert.equal(res.plan[1].reason, undefined);
+});
+
+test("a parent key forged to match the child's key is not trusted: the parent must be self-consistent", () => {
+  const dir = project();
+  const { recipePath } = buildParent(dir);
+  // Set outline's recorded key to what it WOULD be under factory 0.4.0, then bump the factory to
+  // 0.4.0. The child's key now equals the recorded key, but the record does not match itself.
+  const loaded = readRecipe(recipePath);
+  const forged = structuredClone(loaded.data);
+  forged.factory.version = "0.4.0";
+  loaded.data.stages[0].key = stageKey(forged, 0);
+  writeRecipe(recipePath, loaded.data);
+
+  const res = regenerate(recipePath, { out: join(dir, "essay-v2.md"), clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir) });
+  assert.equal(res.ok, true, res.error);
+  assert.deepEqual(res.plan[0], { id: "outline", action: "rerun", reason: "parent key does not match its record" });
+  assert.equal(runLog(dir)[0].stage, "outline");
+});
+
+test("with a runner, a reader of a rerun stage that reproduced its parent bytes is reused (key match at run time)", () => {
+  const dir = project();
+  const specPath = writeSpec(dir);
+  writeRunner(dir);
+  writeFileSync(join(dir, "t.md"), "hello");
+  writeFileSync(join(dir, "t-upper.md"), "HELLO");
+  const r = startRecipe({ output: join(dir, "out.md"), factory: { name: "f", version: "1" }, spec: specPath, clicker: "gary-sheng" });
+  r.input("t", join(dir, "t.md"));
+  // What the runner would have produced: stage one upper-cases t, so "hello" and "HELLO" give the same bytes.
+  r.stage({ id: "one", reads: ["input:t"], output: "HELLO [one]", verdict: { station: "s", pass: true, note: "" } });
+  r.stage({ id: "two", reads: ["stage:one"], output: "the second", verdict: { station: "s2", pass: true, note: "kept" } });
+  const { path } = r.finish({ approver: "gary-sheng" });
+  const parent = readRecipe(path).data;
+
+  const res = regenerate(path, { out: join(dir, "out-2.md"), clicker: "gary-sheng", change: { swapInput: { name: "t", path: join(dir, "t-upper.md") } }, run: runCmd(dir) });
+  assert.equal(res.ok, true, res.error);
+  assert.deepEqual(actions(res.plan), { one: "rerun", two: "reuse" });
+  assert.deepEqual(runLog(dir).map((j) => j.stage), ["one"]);
+  const child = readRecipe(res.childRecipe).data;
+  assert.equal(child.stages[0].output.sha256, parent.stages[0].output.sha256);
+  assert.equal(child.stages[1].key, parent.stages[1].key);
+  assert.deepEqual(child.stages[1].output, parent.stages[1].output);
+  assert.deepEqual(child.stages[1].verdict, parent.stages[1].verdict);
+  assert.equal(readFileSync(join(dir, "out-2.md"), "utf8"), "the second");
+  assert.deepEqual(checkRecipe(child).filter((f) => f.severity === "fail").map((f) => f.field), ["approver"]);
 });
 
 test("an unchanged key is reused even when the stage is not what the change named", () => {
@@ -371,6 +420,8 @@ test("the runner's last VERDICT line is recorded; invalid JSON there fails the s
   assert.equal(res.ok, true, res.error);
   const child = readRecipe(res.childRecipe).data;
   assert.deepEqual(child.stages[0].verdict, { station: "caps", pass: false, note: "shouting" });
+  // A failing verdict is recorded (the record is the evidence) and surfaced, never hidden behind ok.
+  assert.deepEqual(res.failedVerdicts, ["outline", "notes", "draft"]);
 
   const bad = regenerate(recipePath, { out: join(dir, "b.md"), clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir, { verdict: "VERDICT {not json" }) });
   assert.equal(bad.ok, false);
@@ -461,6 +512,7 @@ test("usage errors refuse before writing anything", () => {
     ["add-input reads an unknown stage", { ...base, change: { addInput: { name: "t3", path: call2, reads: ["nope"] } } }],
     ["add-input path unreadable", { ...base, change: { addInput: { name: "t3", path: join(dir, "missing.md") } } }],
     ["swap an unknown input", { ...base, change: { swapInput: { name: "nope", path: call2 } } }],
+    ["swap to the same bytes", { ...base, change: { swapInput: { name: "transcript-1", path: join(dir, "materials", "call.md") } } }],
   ];
   for (const [label, opts] of cases) {
     const res = regenerate(recipePath, opts);
@@ -481,4 +533,17 @@ test("changeText overrides the generated change line", () => {
   const res = regenerate(recipePath, { out: join(dir, "a.md"), clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, changeText: "new model factory" });
   assert.equal(res.ok, true, res.error);
   assert.equal(readRecipe(res.childRecipe).data.change, "new model factory");
+});
+
+test("an out file that appears while the runner runs is refused, not overwritten, and nothing is written", () => {
+  const dir = project();
+  const { recipePath } = buildParent(dir);
+  const blobsBefore = snapshotTree(join(dir, ".hyperspec"));
+  const out = join(dir, "essay-v2.md");
+  const res = regenerate(recipePath, { out, clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir, { before: `printf mine > ${sq(out)}; ` }) });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /already exists/);
+  assert.equal(readFileSync(out, "utf8"), "mine");
+  assert.equal(existsSync(`${out}.recipe.json`), false);
+  assert.deepEqual(snapshotTree(join(dir, ".hyperspec")), blobsBefore);
 });

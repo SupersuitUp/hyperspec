@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { canonical, sha256 } from "./hash.mjs";
+import { writeFileAtomic } from "./fsutil.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
 
@@ -14,8 +15,9 @@ export function readRecipe(path) {
 }
 
 // Pretty-printed (2-space indent) with a trailing newline, per the recipe file convention.
+// Atomic (temp file + rename), so a crash mid-write never leaves a half-written recipe.
 export function writeRecipe(path, data) {
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
+  writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 // A stage with a declared, non-empty `reads` resolves exactly those refs. An empty (or missing)

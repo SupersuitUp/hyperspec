@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -17,9 +17,11 @@ const RUNNER_MAX_BUFFER = 512 * 1024 * 1024;
 //
 // Reuse is PROVEN, never assumed: a stage is reused only when its key, recomputed from the
 // child's hashes, equals the key the parent recorded for it, and only once its recorded output
-// blob re-hashes to what the parent claims. A stage whose key differs reruns, and so does every
-// stage that reads a rerun stage (explicitly or through an empty `reads`), because a rerun
-// stage's output is unknown until it runs (R5: transitive readers, not every later stage).
+// blob re-hashes to what the parent claims, and only if the parent's recorded key matches the
+// parent's own record. A stage whose key differs reruns. With a runner that is decided per stage
+// at run time, after upstream reruns have produced their real bytes, so a reader whose key is
+// unchanged is reused (R11). Without one, every transitive reader of a rerun stage is pending,
+// since its reads are unknown (R5: transitive readers, not every later stage).
 //
 // hyperspec never calls a model. Rerun stages are run by `run`, a shell command the caller
 // supplies; without one the child is written with those stages pending.
@@ -29,8 +31,8 @@ const RUNNER_MAX_BUFFER = 512 * 1024 * 1024;
 // stage has run, or, with no runner, once the pending plan is settled. The parent recipe, its
 // output and its blobs are only ever read.
 export function regenerate(parentRecipePath, { out, clicker, change, run, changeText, store } = {}) {
-  const usage = (error) => ({ ok: false, usage: true, error, childRecipe: null, plan: [], pending: false });
-  const failed = (error, extra = {}) => ({ ok: false, error, childRecipe: null, plan: [], pending: false, ...extra });
+  const usage = (error) => ({ ok: false, usage: true, error, childRecipe: null, plan: [], pending: false, failedVerdicts: [] });
+  const failed = (error, extra = {}) => ({ ok: false, error, childRecipe: null, plan: [], pending: false, failedVerdicts: [], ...extra });
 
   // ---- Options -------------------------------------------------------------------------------
   const changeKeys = change && typeof change === "object" ? Object.keys(change).filter((k) => change[k] !== undefined) : [];
@@ -122,6 +124,7 @@ export function regenerate(parentRecipePath, { out, clicker, change, run, change
     const abs = resolve(process.cwd(), path);
     const bytes = readBytes(abs);
     if (!bytes) return usage(`cannot read ${path}`);
+    if (sha256(bytes) === input.sha256) return usage(`swap does not change input ${name}: ${path} has the same bytes`);
     input.sha256 = hold(held, bytes);
     input.path = rel(abs);
     defaultChange = `swapped input ${name} to ${rel(abs)}`;
@@ -153,71 +156,99 @@ export function regenerate(parentRecipePath, { out, clicker, change, run, change
   }
   if (!fetch(child.spec.sha256)) return failed("spec: blob missing or does not match its recorded hash");
 
-  // ---- Plan ------------------------------------------------------------------------------------
+  // ---- Plan and run ----------------------------------------------------------------------------
+  // Each stage is decided in order, once everything it reads is known. With a runner, an upstream
+  // rerun has already produced its real bytes by the time its readers are decided, so a reader is
+  // reused whenever its key still matches (a deterministic upstream that reproduced its parent
+  // bytes changes nothing downstream). Without a runner, a reader of a pending stage cannot be
+  // keyed, so it is pending too.
   const plan = [];
-  const rerun = new Set();
+  const pendingIds = new Set();
+  const failedVerdicts = [];
   for (let i = 0; i < child.stages.length; i++) {
     const stage = child.stages[i];
-    const parentStage = parentStages[i];
     let refs;
     try {
       refs = resolveReads(child, i).map(([ref]) => ref);
     } catch (e) {
-      return failed(`stage ${stage.id}: ${e.message}`);
+      return failed(`stage ${stage.id}: ${e.message}`, { plan });
     }
-    const readsRerun = refs.some((ref) => ref.startsWith("stage:") && rerun.has(ref.slice("stage:".length)));
-    let reuse = false;
-    if (!readsRerun) {
-      const key = stageKey(child, i);
-      const recorded = parentStage?.output?.sha256;
-      reuse = parentStage?.pending !== true && present(recorded) && present(parentStage?.key) && key === parentStage.key;
-      if (reuse && !fetch(recorded)) {
-        return failed(`stage ${stage.id}: recorded output blob missing or does not match its hash; cannot reuse an unverifiable stage`);
-      }
-      stage.key = key;
-    }
-    if (reuse) {
-      plan.push({ id: stage.id, action: "reuse" });
-    } else {
-      rerun.add(stage.id);
+    if (refs.some((ref) => ref.startsWith("stage:") && pendingIds.has(ref.slice("stage:".length)))) {
+      markPending(stage, null); // reads a stage not yet run, so its key cannot be known
+      pendingIds.add(stage.id);
       plan.push({ id: stage.id, action: "rerun" });
-      if (readsRerun) stage.key = null; // reads a stage not yet run, so its key cannot be known
-      stage.output = null;
-      stage.verdict = null;
-      stage.pending = true;
+      continue;
     }
-  }
 
-  // ---- Run -------------------------------------------------------------------------------------
-  if (present(run)) {
-    for (let i = 0; i < child.stages.length; i++) {
-      const stage = child.stages[i];
-      if (!rerun.has(stage.id)) continue;
-      const result = runStage(run, child, i, fetch);
-      if (result.error) return failed(`stage ${stage.id}: ${result.error}`, { failedStage: stage.id, plan });
-      const hex = hold(held, result.output);
-      delete stage.pending;
-      stage.output = { sha256: hex };
-      stage.verdict = result.verdict;
-      stage.key = stageKey(child, i);
+    const key = stageKey(child, i);
+    const decision = reusable(parent, i, key);
+    if (decision.reuse) {
+      if (!fetch(parentStages[i].output.sha256)) {
+        return failed(`stage ${stage.id}: recorded output blob missing or does not match its hash; cannot reuse an unverifiable stage`, { plan });
+      }
+      // The clone already carries the parent's output, verdict and (equal) key.
+      plan.push({ id: stage.id, action: "reuse" });
+      continue;
     }
+
+    const entry = { id: stage.id, action: "rerun" };
+    if (decision.reason) entry.reason = decision.reason;
+    plan.push(entry);
+    if (!present(run)) {
+      markPending(stage, key);
+      pendingIds.add(stage.id);
+      continue;
+    }
+    const result = runStage(run, child, i, fetch);
+    if (result.error) return failed(`stage ${stage.id}: ${result.error}`, { failedStage: stage.id, plan });
+    delete stage.pending;
+    stage.output = { sha256: hold(held, result.output) };
+    stage.verdict = result.verdict;
+    stage.key = stageKey(child, i);
+    if (result.verdict.pass === false) failedVerdicts.push(stage.id);
   }
 
   // ---- Write -----------------------------------------------------------------------------------
   const last = child.stages[child.stages.length - 1];
   child.output.sha256 = last.output?.sha256 ?? null;
-  const pending = child.stages.some((s) => s.pending === true);
+  const pending = pendingIds.size > 0;
+
+  // A runner may take minutes, and anything may have appeared at out meanwhile (the runner itself
+  // included). Check again right before the first write, and refuse with nothing written.
+  if (existsSync(outAbs)) return usage(`${out} already exists; refusing to overwrite it`);
+  if (existsSync(childRecipePath)) return usage(`${childRecipePath} already exists; refusing to overwrite it`);
 
   for (const bytes of held.values()) putBlob(childRoot, bytes);
   if (!pending) {
     // R3: the child's output is the last stage's blob, written atomically and read back.
     writeFileAtomic(outAbs, fetch(child.output.sha256));
     if (sha256(readFileSync(outAbs)) !== child.output.sha256) {
+      try { unlinkSync(outAbs); } catch { /* nothing to remove */ }
       return failed(`${out} does not hash to the child's output.sha256`, { plan });
     }
   }
   writeRecipe(childRecipePath, child);
-  return { ok: true, childRecipe: childRecipePath, output: pending ? null : outAbs, plan, pending };
+  return { ok: true, childRecipe: childRecipePath, output: pending ? null : outAbs, plan, pending, failedVerdicts };
+}
+
+// Reuse is proven twice over: the key recomputed from the child's hashes equals the key the parent
+// recorded, AND the parent's recorded key equals the key recomputed from the parent's own recorded
+// hashes. Without the second check, a parent key edited to match the child would pass an old
+// output off as made under conditions it never was, and a reproduce of the child could not tell.
+function reusable(parent, index, childKey) {
+  const ps = parent.stages[index];
+  if (!ps || ps.pending === true || !present(ps.output?.sha256) || !present(ps.key)) return { reuse: false };
+  let selfKey;
+  try { selfKey = stageKey(parent, index); } catch { selfKey = null; }
+  if (selfKey !== ps.key) return { reuse: false, reason: "parent key does not match its record" };
+  return { reuse: childKey === ps.key };
+}
+
+function markPending(stage, key) {
+  stage.key = key;
+  stage.output = null;
+  stage.verdict = null;
+  stage.pending = true;
 }
 
 // Runs one stage through the caller's runner. The runner gets, on stdin, the stage id, its
