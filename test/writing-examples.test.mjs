@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync, cpSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
 import { loadSpec } from "../src/load.mjs";
 import { readSegments, splitSegments } from "../src/segments.mjs";
+import { readScope } from "../src/dna.mjs";
 import { MATERIAL_LABELS } from "../src/labels.mjs";
 
 // The two worked examples WRITING.md points at. They are the documentation's proof: each one has
@@ -91,6 +92,74 @@ test("a writing spec written with inline maps and a commented inline list lints 
 });
 
 // ---------------------------------------------------------------------------------------------
+// Scoped writer DNA: the essay reads its voice from a scope folder (writing.dna.scope_dir), the
+// story keeps its goldens inline, so between them the two examples show both paths.
+
+const essayDna = () => loadSpec(join(BASE, "essay.hyperspec.md")).data.writing.dna;
+
+test("the essay names a scope folder whose scope.md matches the spec, with at least three complete goldens", () => {
+  const dna = essayDna();
+  assert.equal(dna.scope_dir, "dna/essay-new-managers-teach");
+  const { scope, goldens, findings } = readScope(join(BASE, dna.scope_dir), { displayDir: dna.scope_dir });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(
+    { writer: scope.writer, form: scope.form, audience: scope.audience, purpose: scope.purpose },
+    { writer: dna.writer, ...dna.scope },
+  );
+  assert.ok(goldens.length >= 3, `${goldens.length} goldens`);
+  for (const g of goldens) {
+    for (const field of ["why", "approved_by", "source"]) assert.ok(g[field]?.trim(), `${g.path} has ${field}`);
+    assert.doesNotMatch(g.approved_by, /^agent:/i, `${g.path} is approved by a person`);
+  }
+});
+
+test("every golden the essay names lies inside its scope's goldens/, lists the whole scope, and carries the scope file's own why", () => {
+  const dna = essayDna();
+  const root = resolve(BASE, dna.scope_dir, "goldens") + sep;
+  const { goldens } = readScope(join(BASE, dna.scope_dir));
+  const byPath = new Map(goldens.map((g) => [join(dna.scope_dir, g.path).split(sep).join("/"), g]));
+  for (const g of dna.goldens) {
+    assert.ok(resolve(BASE, g.path).startsWith(root), `${g.path} is inside ${dna.scope_dir}/goldens/`);
+    assert.equal(g.why, byPath.get(g.path)?.why, `${g.path}: the spec's why is the golden file's why`);
+  }
+  assert.deepEqual(dna.goldens.map((g) => g.path).sort(), [...byPath.keys()].sort(), "the spec lists every golden in the scope");
+  // The top-level examples entry points into the scope too, never at a golden that no longer exists.
+  const top = loadSpec(join(BASE, "essay.hyperspec.md")).data.examples;
+  for (const e of top) assert.ok(resolve(BASE, e.path).startsWith(root), e.path);
+});
+
+test("the essay's features.json is current and is exactly what dna measure writes, so it was measured, not hand-written", () => {
+  const dir = essayDna().scope_dir;
+  const shipped = readFileSync(join(BASE, dir, "features.json"), "utf8");
+  const recorded = JSON.parse(shipped).goldens;
+  const current = readScope(join(BASE, dir)).goldens.map((g) => ({ path: g.path, sha256: g.sha256 }));
+  assert.deepEqual(recorded, current);
+  const d = tempDir("hs-writing-dna-measure-");
+  cpSync(join(BASE, dir), d, { recursive: true });
+  const r = spawnSync(process.execPath, [BIN, "dna", "measure", d], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(readFileSync(join(d, "features.json"), "utf8"), shipped);
+});
+
+test("the essay's scope_dir path is live: an edited golden makes lint fail on a stale features.json", () => {
+  const d = tempDir("hs-writing-dna-stale-");
+  cpSync(BASE, d, { recursive: true });
+  const dir = essayDna().scope_dir;
+  appendFileSync(join(d, dir, "goldens", "status.md"), "One more sentence nobody approved.\n");
+  const r = lint([join(d, "essay.hyperspec.md"), "--json"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const ids = JSON.parse(r.stdout).files[0].findings.map((f) => f.id);
+  assert.deepEqual(ids, ["writing-dna-features-stale"]);
+});
+
+test("the story keeps its goldens inline: no scope_dir, and no golden inside a scope folder", () => {
+  const dna = loadSpec(join(BASE, "story.hyperspec.md")).data.writing.dna;
+  assert.equal(dna.scope_dir, undefined);
+  assert.ok(dna.goldens.length >= 1);
+  for (const g of dna.goldens) assert.ok(!g.path.startsWith("dna/"), g.path);
+});
+
+// ---------------------------------------------------------------------------------------------
 // Materials marking: both examples are marked the way an adopter would mark them, so between them
 // they show every label in use, and every spine claim cites the segments that support it.
 
@@ -163,7 +232,7 @@ test("every spine claim in both examples cites segments, never a private or ques
   }
 });
 
-test("npm pack ships every file under examples/, segments files included", () => {
+test("npm pack ships every file under examples/, segments files and the essay's DNA scope included", () => {
   const r = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const packed = new Set(JSON.parse(r.stdout)[0].files.map((f) => f.path));
@@ -171,5 +240,9 @@ test("npm pack ships every file under examples/, segments files included", () =>
     .filter((f) => statSync(join(ROOT, "examples", f)).isFile())
     .map((f) => join("examples", f).split("\\").join("/"));
   assert.ok(shipped.filter((f) => f.endsWith(".segments.jsonl")).length === 6, "six segments files exist");
+  const scope = "examples/writing/dna/essay-new-managers-teach";
+  for (const f of ["scope.md", "features.json", "goldens/README.md", "goldens/opening.md", "goldens/status.md", "goldens/close.md"]) {
+    assert.ok(packed.has(`${scope}/${f}`), `${scope}/${f} ships`);
+  }
   assert.deepEqual(shipped.filter((f) => !packed.has(f)), []);
 });

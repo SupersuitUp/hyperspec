@@ -28,7 +28,7 @@ requirements:
     fails_when: a reader shown only the first two sentences cannot say who should set the agenda
     check:
       rubric: show the simulated reader the first two sentences and ask who sets the agenda; pass only on "the report"
-    source: essay/goldens/opening.md
+    source: dna/essay-new-managers-teach/goldens/opening.md
     author: example-author
   - id: r2
     text: the three questions appear word for word as the voice memo states them
@@ -71,8 +71,8 @@ rejects:
   - any claim about what most managers do that the survey does not support
   - the walking one-on-one aside from the voice memo
 examples:
-  - path: essay/goldens/opening.md
-    why: the claim lands in the first sentence, and the second sentence turns it into an instruction
+  - path: dna/essay-new-managers-teach/goldens/opening.md
+    why: the claim lands in the first sentence, and the two short sentences after it turn it into an instruction
 resume:
   next_action: outline the four spine claims against the form's required parts, citing the segments each claim points at
 feedback:
@@ -110,18 +110,21 @@ writing:
     author: agent:claude
   dna:
     writer: example-author
+    scope_dir: dna/essay-new-managers-teach
     scope:
       form: essay
       audience: new managers
       purpose: teach
     rules: style-rules.md
     goldens:
-      - path: essay/goldens/opening.md
-        why: one plain claim, then a second sentence that turns it into something to do
-      - path: essay/goldens/close.md
+      - path: dna/essay-new-managers-teach/goldens/opening.md
+        why: one plain claim in the first sentence, then two short sentences that turn it into something to do
+      - path: dna/essay-new-managers-teach/goldens/status.md
+        why: states what to stop doing, then where that thing already lives, then what the freed half hour is for, one sentence each
+      - path: dna/essay-new-managers-teach/goldens/close.md
         why: ends on an instruction and gives the reason for it in the same sentence
     check:
-      rubric: blind lineup within this scope; a judge shown the generated opening beside the two goldens cannot pick it out
+      rubric: blind lineup within this scope; a judge shown a generated passage beside the scope's three goldens cannot pick it out
     source: goldens marked on the review page
     author: example-author
   persona:
@@ -218,3 +221,8 @@ fiction: false
 A worked example of the writing profile: an essay for new managers, specified before a word of
 it is drafted. Every file this spec names ships beside it. `essay/claims.jsonl` does not exist
 yet, because the claims ledger is written during drafting.
+
+The writer's voice for this piece comes from a scope folder, `dna/essay-new-managers-teach/`:
+the goldens this writer approved for essays that teach new managers, and the features measured
+from them. Another essay by the same writer, for the same readers and the same purpose, would
+point at the same folder.

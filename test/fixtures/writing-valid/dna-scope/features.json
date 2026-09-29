@@ -1,0 +1,52 @@
+{
+  "dna": "0.1",
+  "scope": {
+    "writer": "example-author",
+    "form": "essay",
+    "audience": "builders",
+    "purpose": "persuade"
+  },
+  "goldens": [
+    {
+      "path": "goldens/closing.md",
+      "sha256": "a0a63d572e2e9c2ac6810e903f2464be9b1b861947e559bb0b7da7f9e6bbabdb"
+    },
+    {
+      "path": "goldens/opening.md",
+      "sha256": "294cff2876a90cf7a29386fcb4cb88dcabf07e78f4fd2a0c52e02854226e06ab"
+    }
+  ],
+  "features": {
+    "word_count": 31,
+    "sentence_length": {
+      "mean": 15.5,
+      "median": 15.5,
+      "p90": 16
+    },
+    "paragraph_length": {
+      "mean_sentences": 1,
+      "mean_words": 15.5
+    },
+    "rates_per_1000_words": {
+      "comma": 64.516,
+      "semicolon": 0,
+      "colon": 0,
+      "em_dash": 0,
+      "en_dash": 0,
+      "exclamation": 0,
+      "question_mark": 0,
+      "parentheses": 0,
+      "quotation_marks": 0
+    },
+    "contraction_rate": 0,
+    "first_person_singular_rate": 0,
+    "first_person_plural_rate": 0,
+    "second_person_rate": 96.774,
+    "mean_word_length": 4.032,
+    "signature_words": [
+      "contract",
+      "check",
+      "hyperspec"
+    ]
+  }
+}

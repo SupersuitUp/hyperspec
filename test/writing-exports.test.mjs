@@ -51,11 +51,27 @@ test("src/segments.mjs imported first, in a fresh process, loads without error a
   assert.deepEqual(JSON.parse(r.stdout), [`Set label to one of: ${LABELS.join(", ")}.`]);
 });
 
-test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes MATERIAL_LABELS and readSegments", async () => {
+test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes the marking and DNA readers", async () => {
   const mod = await import("@supersuit/hyperspec/writing");
-  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "readSegments"]);
+  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "measureFeatures", "readScope", "readSegments"]);
   assert.equal(mod.MATERIAL_LABELS, (await import("../src/labels.mjs")).MATERIAL_LABELS);
   assert.equal(mod.readSegments, (await import("../src/segments.mjs")).readSegments);
+  const dna = await import("../src/dna.mjs");
+  assert.equal(mod.readScope, dna.readScope);
+  assert.equal(mod.measureFeatures, dna.measureFeatures);
+});
+
+test("through the package, readScope and measureFeatures reproduce the essay example's features.json", async () => {
+  // What an outside tool does with the two exports: read a scope folder, then measure its goldens.
+  // The result has to be the features the shipped example records, or the export and the CLI disagree.
+  const { readScope, measureFeatures } = await import("@supersuit/hyperspec/writing");
+  const dir = join(ROOT, "examples", "writing", "dna", "essay-new-managers-teach");
+  const { scope, goldens, findings } = readScope(dir);
+  assert.deepEqual(findings, []);
+  assert.equal(scope.writer, "example-author");
+  const recorded = JSON.parse(readFileSync(join(dir, "features.json"), "utf8"));
+  assert.deepEqual(goldens.map((g) => ({ path: g.path, sha256: g.sha256 })), recorded.goldens);
+  assert.deepEqual(measureFeatures(goldens.map((g) => g.text)), recorded.features);
 });
 
 test("package.json exports ./writing beside ./recipe and ./package.json", () => {

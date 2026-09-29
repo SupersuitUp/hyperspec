@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -11,9 +11,10 @@ import { MATERIAL_LABELS, BLOCKS, lintWriting, blockStatus } from "../src/writin
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VALID = join(HERE, "fixtures", "writing-valid");
+const NO_SCOPE_DIR = join(HERE, "fixtures", "writing-valid-no-scope-dir");
 const valid = () => loadSpec(join(VALID, "spec.md"));
 // A copy of the writing-valid fixture folder, so each test breaks exactly one thing without
-// touching the shared fixture other tests (and Tasks 2-3) read.
+// touching the shared fixture other tests read.
 function variant(edit) {
   const d = tempDir("hs-writing-");
   cpSync(VALID, d, { recursive: true });
@@ -21,10 +22,23 @@ function variant(edit) {
   writeFileSync(p, edit(readFileSync(p, "utf8")));
   return loadSpec(p);
 }
+// Like variant(), but against the NO_SCOPE_DIR fixture (writing.dna has no scope_dir at all,
+// the shape writing specs had before scope_dir existed), and it also lets a file
+// under dna-scope/ be rewritten or removed, for the scope_dir tests below that need to break
+// something other than spec.md's own text (a mismatched scope.md field, a missing features.json,
+// a golden edited without re-measuring).
+function dnaScopeVariant(specEdit, mutateDir) {
+  const d = tempDir("hs-writing-dna-scope-");
+  cpSync(VALID, d, { recursive: true });
+  const p = join(d, "spec.md");
+  if (specEdit) writeFileSync(p, specEdit(readFileSync(p, "utf8")));
+  if (mutateDir) mutateDir(d);
+  return loadSpec(p);
+}
 const fails = (spec) => lintSpec(spec).filter((x) => x.severity === "fail");
 const failIds = (spec) => fails(spec).map((x) => x.id).sort();
 
-test("MATERIAL_LABELS is the closed vocabulary, exported for build 4", () => {
+test("MATERIAL_LABELS is the closed vocabulary, exported", () => {
   assert.deepEqual(MATERIAL_LABELS, ["claim", "story", "quote", "stance", "question", "aside", "private"]);
   assert.ok(Object.isFrozen(MATERIAL_LABELS));
 });
@@ -43,7 +57,21 @@ test("the writing-valid fixture lints with zero findings, and writing 9/9 blocks
   assert.deepEqual(sc.profile, { name: "writing", complete: 9, total: 9 });
 });
 
-test("R1: profile writing with no writing: map fails test 1 once per required block, 8 when fiction is false", () => {
+// writing.dna.scope_dir is optional, and absent means 0.4 behavior exactly.
+// writing-valid-no-scope-dir is a copy of the fixture as it stood before scope_dir existed (no
+// scope_dir, a flat goldens/ folder). It lints exactly as it did in 0.4: zero findings, byte-identical to the
+// assertion above, because every new check in dnaFields is gated behind scope_dir being present.
+test("dna: with no scope_dir at all, the fixture lints byte-identically to before this change (zero findings, writing 9/9)", () => {
+  const s = loadSpec(join(NO_SCOPE_DIR, "spec.md"));
+  assert.equal(s.data.writing.dna.scope_dir, undefined, "this fixture must never gain scope_dir");
+  const findings = lintSpec(s);
+  assert.deepEqual(findings, []);
+  const sc = score(findings, s.data);
+  assert.equal(sc.status, "pass");
+  assert.deepEqual(sc.profile, { name: "writing", complete: 9, total: 9 });
+});
+
+test("profile writing with no writing: map fails test 1 once per required block, 8 when fiction is false", () => {
   const s = variant((t) => t.replace(/writing:\n([ \t].*\n)+fiction: false\n/, "fiction: false\n"));
   const f = fails(s);
   assert.deepEqual(f.map((x) => x.test), Array(8).fill(1));
@@ -53,7 +81,7 @@ test("R1: profile writing with no writing: map fails test 1 once per required bl
   ]);
 });
 
-test("R1: the same, with fiction: true, fails once per required block including characters: 9 findings", () => {
+test("the same, with fiction: true, fails once per required block including characters: 9 findings", () => {
   const s = variant((t) => t.replace(/writing:\n([ \t].*\n)+fiction: false\n/, "fiction: true\n"));
   const f = fails(s);
   assert.deepEqual(f.map((x) => x.test), Array(9).fill(1));
@@ -90,12 +118,12 @@ test("deferring a block with a delegated decision (and a rule) is not blocked an
   assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
 });
 
-// R3: "delegated (with a rule)" is a precondition on the exemption, not a description of
+// "delegated (with a rule)" is a precondition on the exemption, not a description of
 // delegated's normal shape. A rule-less delegated decision has deferred to nothing, so it does
 // not stand in for the block: writing-<block>-missing still fires, alongside the ordinary
 // decision-level delegated-rule finding (test 1) the ordinary decision rules already produce for
 // any delegated decision with no rule.
-test("R3: a delegated decision with no rule does NOT exempt the block: writing-<block>-missing fires alongside delegated-rule", () => {
+test("a delegated decision with no rule does NOT exempt the block: writing-<block>-missing fires alongside delegated-rule", () => {
   const s = variant((t) => t
     .replace(/  goal:\n(    .*\n|      .*\n)+  form:/, "  form:")
     .replace("decisions:\n", 'decisions:\n  - id: writing-goal\n    state: delegated\n    source: goal interview\n    author: gary-sheng\n    chosen_by: human\n'));
@@ -125,8 +153,8 @@ for (const block of ["materials", "dna", "persona", "audience", "goal", "form", 
 }
 
 // Every field a complete, fully-valid character entry needs: check/source/author (generic
-// ownership, from writing.mjs), Task 3's knowledge/golden_lines/rejected_lines, and R5's
-// speech.uses/speech.never/wants/fears/hides/arc_state. relationships is deliberately absent —
+// ownership, from writing.mjs), knowledge/golden_lines/rejected_lines, and
+// speech.uses/speech.never/wants/fears/hides/arc_state. relationships is deliberately absent:
 // it stays optional. Lines are pre-indented for a "    - id: <id>" list item under characters:.
 const CHAR_FIELD = Object.freeze({
   check: ["      check:", "        rubric: blind attribution test against the timeline"],
@@ -162,8 +190,8 @@ function characterYaml(id, { omit = [], overrides = {} } = {}) {
 }
 
 test("characters: each character entry carries its own check, source and author, checked per entry", () => {
-  // Both entries are otherwise fully valid (Task 3's knowledge/golden_lines/rejected_lines and
-  // R5's speech/wants/fears/hides/arc_state), so the only findings left are the ones this test is
+  // Both entries are otherwise fully valid (knowledge/golden_lines/rejected_lines and
+  // speech/wants/fears/hides/arc_state), so the only findings left are the ones this test is
   // actually about: wisp's missing check and author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
@@ -177,12 +205,12 @@ test("characters: each character entry carries its own check, source and author,
   assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
 });
 
-// Fix round 1, Finding 1: a PRESENT but unrequired block (characters, with fiction: false) still
+// A PRESENT but unrequired block (characters, with fiction: false) still
 // gets its content validated and still counts against completeness when broken. Before the fix,
 // `required()` gated the whole per-block loop body, so a written-but-broken characters block with
 // fiction: false produced zero findings and was credited complete.
-test("fix 1: a present characters block with fiction: false is still validated: missing check/source/author fails and is not counted complete", () => {
-  // Every content rule (Task 3's + R5's) is satisfied here so this regression test keeps
+test("a present characters block with fiction: false is still validated: missing check/source/author fails and is not counted complete", () => {
+  // Every content rule is satisfied here so this regression test keeps
   // isolating exactly what it always did: check/source/author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
@@ -237,16 +265,16 @@ test("a spec with no writing: at all and no profile: still lints clean (the core
 });
 
 // =============================================================================================
-// Tasks 2 and 3: field rules for each block's own schema (writing-fields.mjs), on top of the
+// Field rules for each block's own schema (writing-fields.mjs), on top of the
 // generic presence/check/source/author rules above. Each test edits a copy of the valid fixture
 // so it breaks exactly one thing, per the fixture's own discipline.
 // =============================================================================================
 
-// ---- Task 2: materials, dna, persona, audience, goal ------------------------------------------
+// ---- materials, dna, persona, audience, goal -------------------------------------------------
 
 test("materials: an item with no id fails test 1", () => {
   // Also cascades into spine's own materials-ref check (its claims point at "m1", which no
-  // longer exists once the item's id is gone) — a real, correct consequence, not the thing this
+  // longer exists once the item's id is gone), a real, correct consequence, not the thing this
   // test is about, so it checks membership rather than the exact set.
   const s = variant((t) => t.replace(
     "      - id: m1\n        path: materials/call-2026-09-28.md",
@@ -297,7 +325,7 @@ test("materials: an item path that does not exist fails test 6", () => {
 });
 
 test("dna: no writer fails test 1", () => {
-  const s = variant((t) => t.replace("    writer: gary-sheng\n", ""));
+  const s = variant((t) => t.replace("    writer: example-author\n", ""));
   assert.deepEqual(failIds(s), ["writing-dna-writer"]);
 });
 
@@ -318,23 +346,219 @@ test("dna: a rules path that does not exist fails test 6", () => {
 
 test("dna: no goldens fails test 1", () => {
   const s = variant((t) => t.replace(
-    "    goldens:\n      - path: goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
+    "    goldens:\n      - path: dna-scope/goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
     "    goldens: []\n",
   ));
   assert.deepEqual(failIds(s), ["writing-dna-goldens"]);
 });
 
 test("dna: a golden path that does not exist fails test 6", () => {
-  const s = variant((t) => t.replace("path: goldens/opening.md", "path: goldens/does-not-exist.md"));
+  const s = variant((t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/does-not-exist.md"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-missing"]]);
 });
 
 test("dna: a golden with no why fails test 6", () => {
   const s = variant((t) => t.replace(
-    "      - path: goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
-    "      - path: goldens/opening.md\n",
+    "      - path: dna-scope/goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
+    "      - path: dna-scope/goldens/opening.md\n",
   ));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-why"]]);
+});
+
+// =============================================================================================
+// writing.dna.scope_dir lint wiring. The valid fixture's dna-scope/ folder
+// (scope.md, two goldens, a measured features.json) is the passing case, already proven above
+// (zero findings). Everything below breaks exactly one thing under dna-scope/ via
+// dnaScopeVariant, the same "copy, then mutate a file besides spec.md" shape segmentsVariant
+// already uses for materials.
+// =============================================================================================
+
+test("dna: scope_dir present, scope.md's writer disagreeing with writing.dna.writer fails test 1, naming both values", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("writer: example-author", "writer: someone-else"));
+  });
+  // features.json recorded the scope as it was, so editing scope.md also leaves it stale.
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-mismatch-writer"], [6, "writing-dna-features-stale"]]);
+  assert.match(f[1].message, /scope changed: writer/);
+  assert.match(f[0].message, /example-author/);
+  assert.match(f[0].message, /someone-else/);
+});
+
+const SCOPE_MISMATCH_CASES = [
+  { field: "form", from: "form: essay", to: "form: novella", id: "writing-dna-scope-mismatch-form" },
+  { field: "audience", from: "audience: builders", to: "audience: skeptics", id: "writing-dna-scope-mismatch-audience" },
+  { field: "purpose", from: "purpose: persuade", to: "purpose: entertain", id: "writing-dna-scope-mismatch-purpose" },
+];
+for (const c of SCOPE_MISMATCH_CASES) {
+  test(`dna: scope_dir present, scope.md's ${c.field} disagreeing with writing.dna.scope.${c.field} fails test 1`, () => {
+    const s = dnaScopeVariant(null, (d) => {
+      const p = join(d, "dna-scope", "scope.md");
+      writeFileSync(p, readFileSync(p, "utf8").replace(c.from, c.to));
+    });
+    assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, c.id], [6, "writing-dna-features-stale"]]);
+  });
+}
+
+test("dna: scope_dir comparison is case-insensitive: a case-only difference is never a mismatch", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("writer: example-author", "writer: Example-Author"));
+  });
+  assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-dna-scope-mismatch")), []);
+});
+
+test("dna: a golden from outside the scope's goldens/ folder fails test 5, golden-leak, naming the golden and the scope", () => {
+  const s = variant((t) => t.replace("path: dna-scope/goldens/opening.md", "path: WRITING-STYLE.md"));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-golden-leak"]]);
+  assert.match(f[0].message, /WRITING-STYLE\.md/);
+  assert.match(f[0].message, /dna-scope/);
+});
+
+// The leak check once compared LEXICAL paths, so a golden reached
+// through a symlink placed inside the scope's own goldens/ folder passed cleanly no matter where
+// the symlink actually pointed, and was simultaneously invisible to readGoldens (a symlink dirent
+// is never isFile()), so it was never measured into features.json either. Both cases below prove
+// the fix resolves the REAL path before judging it.
+test("dna: a golden reached through a symlink inside goldens/, pointing at a file OUTSIDE the scope, fails test 5, golden-leak", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "WRITING-STYLE.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-golden-leak"]]);
+});
+
+test("dna: a golden reached through a symlink inside goldens/, pointing at a file INSIDE the scope, lints clean", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "dna-scope", "goldens", "opening.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  assert.deepEqual(fails(s), []);
+});
+
+test("dna: scope_dir present, features.json missing fails test 6, features-missing, naming hyperspec dna measure <scope_dir>", () => {
+  const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "features.json")));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-missing"]]);
+  assert.match(f[0].fix, /hyperspec dna measure dna-scope/);
+});
+
+test("dna: features.json stale after a golden is added without re-measuring fails test 6, features-stale, naming what was added", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    writeFileSync(join(d, "dna-scope", "goldens", "extra.md"),
+      "---\nwhy: a third example of the same restraint\napproved_by: example-author\nsource: essay draft, 2026-09-28\n---\n\nA third passage, just as short as the other two.\n");
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /added/);
+  assert.match(f[0].message, /goldens\/extra\.md/);
+});
+
+test("dna: features.json stale after a golden is removed without re-measuring fails test 6, features-stale, naming what was removed", () => {
+  const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "goldens", "closing.md")));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /removed/);
+  assert.match(f[0].message, /goldens\/closing\.md/);
+});
+
+test("dna: features.json stale after a golden's text changes without re-measuring fails test 6, features-stale, naming what changed", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "goldens", "closing.md");
+    writeFileSync(p, `${readFileSync(p, "utf8")}\nA line added after measuring.\n`);
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /changed/);
+  assert.match(f[0].message, /goldens\/closing\.md/);
+});
+
+test("dna: a broken golden inside the scope surfaces the golden's own finding, displayed as the spec wrote scope_dir (never an absolute path, in message or fix)", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "goldens", "closing.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("why: the close returns to the claim without repeating the opening sentence verbatim\n", ""));
+  });
+  const f = fails(s);
+  const found = f.find((x) => x.id === "writing-dna-golden-why");
+  assert.ok(found && found.test === 6, JSON.stringify(f));
+  assert.match(found.message, /scope "dna-scope"/);
+  assert.doesNotMatch(found.message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(found.fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
+});
+
+// writing-dna-scope-missing and writing-dna-goldens-missing (both from readScope/readGoldens in
+// src/dna.mjs) once built their fix TEXT from the resolved dir rather than the displayDir/shown
+// string their own message already used correctly. It stayed hidden from the CLI (which always
+// calls readScope with dir === shown) and only fires once a caller passes
+// a displayDir that differs from the resolved path, which is exactly what this file's dnaFields
+// does. Both tests below check .fix explicitly, not just .message, which is what let the bug ship.
+test("dna: scope_dir present but scope.md is unreadable/missing fails test 1, writing-dna-scope-missing (readScope's own finding), fix names the scope_dir string, never an absolute path", () => {
+  const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "scope.md")));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-missing"]]);
+  assert.match(f[0].fix, /dna-scope/);
+  assert.doesNotMatch(f[0].message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(f[0].fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
+});
+
+test("dna: scope_dir present but its goldens/ folder is missing fails test 1, writing-dna-goldens-missing (readScope's own finding), fix names the scope_dir string, never an absolute path", () => {
+  const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "goldens"), { recursive: true }));
+  const f = fails(s);
+  const found = f.find((x) => x.id === "writing-dna-goldens-missing");
+  assert.ok(found && found.test === 1, JSON.stringify(f));
+  assert.match(found.fix, /dna-scope/);
+  assert.doesNotMatch(found.message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(found.fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
+});
+
+test("dna: every scope_dir finding is path-clean in BOTH message and fix, never an absolute path, across every kind of break", () => {
+  const absPathMarker = /\/private\/|\/tmp\/|\/Users\//;
+  const scenarios = [
+    (d) => rmSync(join(d, "dna-scope", "scope.md")),
+    (d) => rmSync(join(d, "dna-scope", "goldens"), { recursive: true }),
+    (d) => rmSync(join(d, "dna-scope", "features.json")),
+    (d) => {
+      const p = join(d, "dna-scope", "goldens", "closing.md");
+      writeFileSync(p, readFileSync(p, "utf8").replace("why: the close returns to the claim without repeating the opening sentence verbatim\n", ""));
+    },
+  ];
+  for (const mutate of scenarios) {
+    const s = dnaScopeVariant(null, mutate);
+    for (const finding of fails(s).filter((x) => x.id.startsWith("writing-dna-"))) {
+      assert.doesNotMatch(finding.message, absPathMarker, `${finding.id}.message: ${finding.message}`);
+      assert.doesNotMatch(finding.fix, absPathMarker, `${finding.id}.fix: ${finding.fix}`);
+    }
+  }
+});
+
+test("dna: any scope_dir finding (e.g. features.json missing) drops the dna block out of writing k/9 complete", () => {
+  const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "features.json")));
+  const findings = lintSpec(s);
+  const sc = score(findings, s.data);
+  assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
+});
+
+// writing.dna.scope_dir is optional, so the KEY being absent is never a finding
+// (proven by the no-scope_dir fixture test at the top of this file). But a key that IS present
+// with a placeholder-ish value is a different situation: the operator wrote something, and it
+// needs its own finding rather than silently reading as "absent" the way every other scope_dir
+// check already does via str().
+const SCOPE_DIR_PLACEHOLDER_CASES = ["TODO", "tbd", "TBD", "...", "???", "-"];
+for (const placeholder of SCOPE_DIR_PLACEHOLDER_CASES) {
+  test(`dna: scope_dir set to the placeholder value "${placeholder}" fails test 1 as writing-dna-scope-dir, naming the value`, () => {
+    const s = variant((t) => t.replace("scope_dir: dna-scope", `scope_dir: ${placeholder}`));
+    const f = fails(s);
+    assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-dir"]]);
+    assert.match(f[0].message, new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+}
+
+test("dna: scope_dir set to an empty string is the same placeholder finding, writing-dna-scope-dir", () => {
+  const s = variant((t) => t.replace("scope_dir: dna-scope", 'scope_dir: ""'));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-dna-scope-dir"]]);
 });
 
 test("persona: identity that is not self, role:<name> or character:<id> fails test 1", () => {
@@ -375,7 +599,7 @@ test("persona: empty will_not_say fails test 5", () => {
 });
 
 test("persona: facts_from not exactly sources fails test 5", () => {
-  const s = variant((t) => t.replace("facts_from: sources", "facts_from: gary's memory"));
+  const s = variant((t) => t.replace("facts_from: sources", "facts_from: the author's memory"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[5, "writing-persona-facts-from"]]);
 });
 
@@ -412,7 +636,7 @@ test("goal: conditions naming a requirement id that does not exist fails test 2"
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[2, "writing-goal-conditions-unknown"]]);
 });
 
-// ---- Task 3: form, spine, sources, characters --------------------------------------------------
+// ---- form, spine, sources, characters ---------------------------------------------------------
 
 test("form: a non-numeric length.min or length.max fails test 1", () => {
   const s = variant((t) => t.replace("      min: 600\n", "      min: about six hundred\n"));
@@ -470,7 +694,7 @@ test("spine: a claim materials ref with a #segment still resolves against the ma
 });
 
 // =============================================================================================
-// Task 2: readSegments wired into lint (src/writing-fields.mjs). The valid fixture's m1 material
+// readSegments wired into lint (src/writing-fields.mjs). The valid fixture's m1 material
 // now carries a real, fully labeled segments file (materials/call-2026-09-28.md.segments.jsonl:
 // s1 "aside", claim-2 "claim" with own: true). These tests break exactly the item's segments:
 // field, the segments file itself, or a spine ref, the same way the rest of this suite breaks
@@ -678,9 +902,9 @@ test("characters: an entity path that is a directory, not a file, fails test 6 a
   assert.match(f[0].message, /is not a file/);
 });
 
-// Fix round 1, Finding 2: a present-but-malformed knowledge entry (has by, missing knows) must
+// A present-but-malformed knowledge entry (has by, missing knows) must
 // produce only its own entry-level finding, not ALSO the block-level "has no knowledge" (the
-// list is not empty, it has one broken entry) — matching dnaFields' goldens.length pattern.
+// list is not empty, it has one broken entry), matching dnaFields' goldens.length pattern.
 test("characters: a knowledge entry with no knows fails only test 1's entry-level finding, not the block-level one", () => {
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
@@ -735,7 +959,7 @@ test("characters: empty rejected_lines fails test 6", () => {
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-characters-0-rejected-lines"]]);
 });
 
-// ---- R5: speech.uses, speech.never, wants, fears, hides, arc_state (each test 1); relationships
+// ---- speech.uses, speech.never, wants, fears, hides, arc_state (each test 1); relationships
 // stays optional ------------------------------------------------------------------------------
 
 test("characters: empty speech.uses fails test 1", () => {
@@ -792,7 +1016,7 @@ test("characters: no arc_state fails test 1", () => {
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-characters-0-arc-state"]]);
 });
 
-test("characters: relationships stays optional (R5) — a fully valid character with none still passes clean", () => {
+test("characters: relationships stays optional: a fully valid character with none still passes clean", () => {
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
     ...characterYaml("jerry"),
@@ -803,8 +1027,8 @@ test("characters: relationships stays optional (R5) — a fully valid character 
 });
 
 // =============================================================================================
-// Fix round 1, Finding 1: table-driven failing-case tests for the ~18 rules the review found
-// implemented but untested. Each row edits the valid fixture to break exactly one field and
+// Table-driven failing-case tests for rules that are implemented and would otherwise go
+// untested. Each row edits the valid fixture to break exactly one field and
 // asserts the exact [test, id] pair the rule is supposed to produce.
 // =============================================================================================
 
@@ -814,17 +1038,16 @@ const FIELD_RULE_CASES = [
     edit: (t) => t.replace("        path: materials/call-2026-09-28.md\n", ""),
     expect: [[1, "writing-materials-item-0-path"]],
   },
-  // R6 (fix round 1, Task 4): a writing field set to the bare placeholder word "tbd" fails the
-  // same as the field being absent — str() in src/placeholder.mjs blanks it before writing-fields
-  // ever sees a non-empty string. dna.writer never had a closed set to violate, so before R6 this
-  // passed silently.
+  // A writing field set to the bare placeholder word "tbd" fails the same as the field being
+  // absent: str() in src/placeholder.mjs blanks it before writing-fields ever sees a non-empty
+  // string. dna.writer has no closed set to violate, so without that it would pass silently.
   {
     name: "dna: writer set to the placeholder word \"tbd\" fails test 1, same as writer being absent",
-    edit: (t) => t.replace("    writer: gary-sheng\n", "    writer: tbd\n"),
+    edit: (t) => t.replace("    writer: example-author\n", "    writer: tbd\n"),
     expect: [[1, "writing-dna-writer"]],
   },
   {
-    name: "dna: scope with no form fails test 1",
+    name: "dna: scope with no form fails test 1 as writing-dna-scope-form, the id 0.4.0 shipped",
     edit: (t) => t.replace("      form: essay\n", ""),
     expect: [[1, "writing-dna-scope-form"]],
   },
@@ -836,7 +1059,7 @@ const FIELD_RULE_CASES = [
   {
     name: "dna: a golden with no path at all (distinct from a path that does not exist) fails test 1",
     edit: (t) => t.replace(
-      "      - path: goldens/opening.md\n        why:",
+      "      - path: dna-scope/goldens/opening.md\n        why:",
       "      - why:",
     ),
     expect: [[1, "writing-dna-golden-0-path"]],
@@ -844,7 +1067,7 @@ const FIELD_RULE_CASES = [
   {
     name: "persona: empty may_assert fails test 1",
     edit: (t) => t.replace(
-      "    may_assert:\n      - what gary has shipped and measured himself\n",
+      "    may_assert:\n      - what the author has shipped and measured themselves\n",
       "    may_assert: []\n",
     ),
     expect: [[1, "writing-persona-may-assert"]],
@@ -934,7 +1157,7 @@ for (const c of FIELD_RULE_CASES) {
   });
 }
 
-// ---- Fix round 1, Findings 3 and 4: path-vs-directory, and duplicate materials ids -----------
+// ---- path-vs-directory, and duplicate materials ids -------------------------------------------
 
 test("materials: an item path that resolves to a directory, not a file, fails test 6 as not-file (distinct from missing)", () => {
   const s = variant((t) => t.replace("materials/call-2026-09-28.md", "materials"));
@@ -949,7 +1172,7 @@ test("dna: a rules path that resolves to a directory fails test 6 as not-file", 
 });
 
 test("dna: a golden path that resolves to a directory fails test 6 as not-file", () => {
-  const s = variant((t) => t.replace("path: goldens/opening.md", "path: materials"));
+  const s = variant((t) => t.replace("path: dna-scope/goldens/opening.md", "path: materials"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-not-file"]]);
 });
 
@@ -977,4 +1200,120 @@ test("materials: three items sharing an id produce exactly one duplicate finding
   ));
   const f = fails(s);
   assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-materials-item-id"]]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A golden the spec lists must be one of the goldens the scope reader actually reads: a regular
+// .md file directly in the scope's goldens/ folder, other than README.md. Anything else inside
+// goldens/ (a subfolder, the README, another extension) is never checked for why, approved_by or
+// source and never measured, so it fails test 5 like a golden from another scope.
+
+const onlyIds = (s) => fails(s).map((x) => [x.test, x.id]);
+
+for (const c of [
+  { name: "a file in a subfolder of goldens/", path: "dna-scope/goldens/drafts/hollow.md", make: (d) => { mkdirSync(join(d, "dna-scope", "goldens", "drafts")); writeFileSync(join(d, "dna-scope", "goldens", "drafts", "hollow.md"), "A passage with no frontmatter at all.\n"); } },
+  { name: "goldens/README.md", path: "dna-scope/goldens/README.md", make: (d) => writeFileSync(join(d, "dna-scope", "goldens", "README.md"), "# Goldens\n\nNotes for people.\n") },
+  { name: "a golden with another extension", path: "dna-scope/goldens/raw.txt", make: (d) => writeFileSync(join(d, "dna-scope", "goldens", "raw.txt"), "A passage in a text file.\n") },
+]) {
+  test(`dna: a listed golden that is ${c.name} is not one of the scope's goldens, and fails test 5, golden-leak, naming it`, () => {
+    const s = dnaScopeVariant((t) => t.replace("path: dna-scope/goldens/opening.md", `path: ${c.path}`), c.make);
+    assert.deepEqual(onlyIds(s), [[5, "writing-dna-golden-leak"]]);
+    const f = fails(s)[0];
+    assert.match(f.message, /is not one of the scope's goldens/);
+    assert.ok(f.message.includes(c.path), f.message);
+    assert.ok(f.message.includes("dna-scope"), f.message);
+  });
+}
+
+test("dna: a listed golden reached through a symlink that resolves outside the scope says so, and never tells you to move it where it already is", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "WRITING-STYLE.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-golden-leak"]]);
+  assert.match(f[0].message, /is a symlink that resolves outside/);
+  assert.doesNotMatch(f[0].message, /does not live under/);
+  assert.doesNotMatch(f[0].fix, /^Move /);
+  assert.match(f[0].fix, /Replace the link/);
+  assert.doesNotMatch(`${f[0].message} ${f[0].fix}`, /\/private\/|\/tmp\/|\/Users\//);
+});
+
+test("dna: a goldens/ folder that is a symlink to another scope's goldens fails test 5, goldens-outside, naming the real target relative to the scope", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    // The other scope holds the same passages byte for byte, so nothing else (features.json
+    // included) can notice the swap.
+    mkdirSync(join(d, "other-scope"));
+    cpSync(join(d, "dna-scope", "goldens"), join(d, "other-scope", "goldens"), { recursive: true });
+    rmSync(join(d, "dna-scope", "goldens"), { recursive: true });
+    symlinkSync(join(d, "other-scope", "goldens"), join(d, "dna-scope", "goldens"));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-goldens-outside"]]);
+  assert.match(f[0].message, /\.\.\/other-scope\/goldens/);
+  assert.doesNotMatch(`${f[0].message} ${f[0].fix}`, /\/private\/|\/tmp\/|\/Users\//);
+});
+
+test("dna: a whole scope folder reached through a symlink is fine, since scope.md travels with it", () => {
+  const s = dnaScopeVariant((t) => t.replace("scope_dir: dna-scope", "scope_dir: linked-scope").replace("path: dna-scope/goldens/opening.md", "path: linked-scope/goldens/opening.md"),
+    (d) => symlinkSync(join(d, "dna-scope"), join(d, "linked-scope")));
+  assert.deepEqual(fails(s), []);
+});
+
+// features.json is current only when it is exactly what dna measure would write now: the same
+// goldens by hash, the same scope fields, the known dna version, and the same numbers.
+
+test("dna: features.json whose scope differs from scope.md is stale, test 6, naming the field", () => {
+  const s = dnaScopeVariant((t) => t.replace("      audience: builders\n", "      audience: board members\n"), (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("audience: builders", "audience: board members"));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /scope changed: audience/);
+});
+
+test("dna: features.json with an unknown dna version is stale, test 6, naming the version", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    writeFileSync(p, readFileSync(p, "utf8").replace('"dna": "0.1"', '"dna": "0.2"'));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /dna version "0\.2"/);
+});
+
+test("dna: features.json with hand-edited numbers is stale, test 6, naming the features that differ from a fresh measurement", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    const data = JSON.parse(readFileSync(p, "utf8"));
+    data.features.word_count = 5000;
+    data.features.signature_words = ["synergy"];
+    writeFileSync(p, `${JSON.stringify(data, null, 2)}\n`);
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /features differ from a fresh measurement: word_count, signature_words/);
+});
+
+test("dna: features.json with the right content in a shape dna measure never writes is stale, test 6", () => {
+  const s = dnaScopeVariant(null, (d) => {
+    const p = join(d, "dna-scope", "features.json");
+    writeFileSync(p, JSON.stringify(JSON.parse(readFileSync(p, "utf8"))));
+  });
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
+  assert.match(f[0].message, /not byte for byte what `hyperspec dna measure` writes/);
+});
+
+test("dna: the spec's own missing scope field and scope.md's missing field carry different ids", () => {
+  const s = dnaScopeVariant((t) => t.replace("      form: essay\n", ""), (d) => {
+    const p = join(d, "dna-scope", "scope.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("form: essay\n", ""));
+  });
+  const ids = fails(s).map((x) => x.id);
+  // The spec's own field keeps the id 0.4.0 shipped; scope.md's is new in 0.5.
+  assert.equal(ids.filter((x) => x === "writing-dna-scope-form").length, 1, "one finding per file, never two under one id");
+  assert.equal(ids.filter((x) => x === "writing-dna-scope-file-form").length, 1, ids.join(", "));
+  assert.ok(!ids.includes("writing-dna-spec-scope-form"), ids.join(", "));
 });

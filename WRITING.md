@@ -61,10 +61,14 @@ whole design of this block.
   email.
 - **Every golden carries a note on why it is golden.** A golden without its reason teaches the
   surface; the reason teaches the move.
+- **Features** are measured per scope from its goldens: sentence and paragraph length,
+  punctuation habits, pronouns, signature words. Two scopes of one writer measure differently,
+  and each keeps its own numbers.
 
-DNA is proven by a blind lineup within its scope: a judge sees a generated passage beside real
-goldens of the same kind and tries to pick it out. Every writer has their own DNA, and nobody's
-scope feeds anybody else's.
+A scope is a folder on disk, and [Scoped DNA](#scoped-dna) covers it: its shape, the golden file,
+what is measured, and how a spec names it. A later release proves DNA with a blind lineup within
+its scope: a judge sees a generated passage beside real goldens of the same kind and tries to
+pick it out. Every writer has their own DNA, and nobody's scope feeds anybody else's.
 
 ### 3. Persona: who the piece speaks as
 
@@ -170,14 +174,15 @@ writing:
     author: agent:claude
   dna:
     writer: example-author
+    scope_dir: dna/essay-new-managers-teach   # optional; a scope folder (see Scoped DNA), and every golden below then lives in its goldens/
     scope:
       form: essay
       audience: new managers
       purpose: teach
     rules: style-rules.md            # your style rules file, the always-on layer
     goldens:                         # at least one
-      - path: goldens/opening.md
-        why: one plain claim, then a second sentence that turns it into something to do
+      - path: dna/essay-new-managers-teach/goldens/opening.md
+        why: one plain claim in the first sentence, then two short sentences that turn it into something to do
     check:
       rubric: blind lineup within this scope
     source: goldens marked on the review page
@@ -319,12 +324,12 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
-| 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker` |
-| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment |
-| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded) |
+| 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
+| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment; with `dna.scope_dir`, a golden the spec lists is not one of the scope's goldens (it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file), or the scope's `goldens/` folder resolves outside the scope |
+| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
 | 9 it improves itself | nothing further; the core rule applies |
@@ -527,6 +532,260 @@ Two more options, `displayPath` and `materialDisplayPath`, set how the two files
 messages (lint passes the paths as the spec wrote them); by default the paths are printed as
 given. `MATERIAL_LABELS` is the seven labels, in the order of the table above.
 
+## Scoped DNA
+
+A writer does not have one voice, so hyperspec does not keep one. A writer's DNA is kept per
+**scope**, a form, an audience and a purpose together, and each scope is a folder holding its own
+goldens and its own measurements.
+
+The reason is a leak. A passage can be exactly right for one kind of writing and wrong for
+another. The short, warm sentences that make a text message land read as thin in a theology
+essay, and the long, qualified sentences that make the essay careful read as evasive on a landing
+page. Pool every golden a writer has into one set and an agent learns the moves of each kind of
+writing and carries them into the others. Filed by scope, a golden feeds only work that shares
+its scope, so the moves it teaches stay where they are right. Retrieval is by scope, never by
+"best writing overall".
+
+Scoped DNA is optional in this release. A spec that names no scope folder lints exactly as it did
+in 0.4.
+
+### The scope folder
+
+```text
+dna/essay-new-managers-teach/
+  scope.md             writer, form, audience, purpose, optional notes
+  goldens/
+    README.md          the golden file shape; never read as a golden
+    close.md           one golden per file
+    opening.md
+    status.md
+  features.json        written by dna measure, never by hand
+```
+
+`scope.md` carries the scope in its frontmatter; its body is free text for people:
+
+```markdown
+---
+writer: example-author
+form: essay
+audience: new managers
+purpose: teach
+---
+```
+
+`writer`, `form`, `audience` and `purpose` are required, and `notes` is optional. Name the folder
+after its scope so a person can tell scopes apart at a glance. hyperspec reads the scope from
+`scope.md`, never from the folder's name.
+
+`goldens/` must be a real folder inside the scope. A `goldens/` that resolves somewhere else, such
+as a symlink to another scope's goldens, would carry that scope's passages into this one under
+this scope's name, so `dna measure` refuses it and lint fails it under test 5, both naming where it
+leads. A whole scope folder reached through a symlink is fine, because `scope.md` travels with
+it.
+
+### A golden
+
+A golden is a real passage the writer marked as right, one per file in `goldens/`. Every `.md`
+file directly in `goldens/` is a golden except `README.md`, which is for notes to people and is
+never read as a golden. A subfolder, a file with another extension, and a symlink sitting in the
+folder are not read either. This is the essay example's opening:
+
+```markdown
+---
+why: one plain claim in the first sentence, then two short sentences that turn it into something to do
+approved_by: example-author
+source: first draft of this essay's opening paragraph, marked golden on the review page
+approved_on: "2026-09-18"
+---
+
+Your first one-on-one with a new report is the only meeting on your calendar where they should
+set the agenda. Everything else you run. This one you hand over.
+```
+
+- **`why`** (required) names the move the passage teaches. A golden without its reason teaches
+  the surface: an agent copies its length, its words and its rhythm. The reason teaches the move,
+  which carries over to a passage that shares none of those.
+- **`approved_by`** (required) is the person who approved it, as a slug. Golden means a human
+  approved it, so an approver that starts `agent:` is refused. An agent may propose a golden;
+  only a person makes one.
+- **`source`** (required) says where the passage came from: a draft, an earlier piece, a review
+  page. It lets someone check that the passage is real and find the context it was written in.
+- **`approved_on`** (optional) is the date it was approved.
+- **The body** is the passage, verbatim. Whitespace before and after it is dropped, and nothing
+  inside it is changed.
+
+A placeholder counts as missing in every one of these fields, as it does everywhere in a
+hyperspec (see [The schema](#the-schema)).
+
+### Starting a scope
+
+```bash
+mkdir -p dna
+npx @supersuit/hyperspec dna init dna/essay-new-managers-teach --writer example-author --form essay --audience "new managers" --purpose teach
+```
+
+`hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` writes `scope.md`
+and a `goldens/` folder holding only a README on the golden file shape. All four flags are
+required. It refuses to overwrite an existing `scope.md`, never replaces a `goldens/README.md`
+that is already there, and exits 2 with a plain message on a missing flag, a flag whose value is a
+placeholder, or a scope folder whose parent folder does not exist. Then add one file per golden.
+
+### Measuring a scope
+
+```bash
+npx @supersuit/hyperspec dna measure dna/essay-new-managers-teach
+```
+
+```
+dna/essay-new-managers-teach: measured 3 goldens
+  word_count 118, sentence length mean 13.111 median 15 p90 25
+  signature words: first, report, tracker
+wrote dna/essay-new-managers-teach/features.json
+```
+
+`hyperspec dna measure <scope-dir> [--json]` reads every golden, checks each one's own fields, and
+writes `<scope-dir>/features.json`. If the scope or any golden fails a check (no `why`, an agent
+approver, no passage, a `goldens/` folder that resolves outside the scope), it prints the findings,
+writes nothing and exits 1, so a hollow or borrowed golden is never measured into the DNA. It exits 0 when it wrote the file and 2 on a usage error. `--json`
+prints the same result as JSON. The same goldens always produce the same bytes.
+
+`features.json` holds `dna` (the version of this format, `"0.1"`), `scope` (the four fields from
+`scope.md`), `goldens` (each golden's path inside the folder and the SHA-256 of its file, sorted
+by path) and `features`.
+
+### What is measured
+
+Every feature is a count or a ratio computed from the goldens' text. None of them is a judgment:
+a number says how the writer writes in this scope, never whether the writing is good, and
+hyperspec calls no model to get it. Words are pooled across every golden in the scope, so their
+order changes nothing. Paragraphs and sentences are split exactly as `segments init` splits them,
+so the two never disagree about where a boundary falls. A word is a run of letters, digits and
+apostrophes, lowercased. Every number is rounded to three decimal places, and a rate is per 1000
+words.
+
+| Feature | What it counts | What it is for |
+|---|---|---|
+| `word_count` | words across every golden | how much text the other numbers rest on; a scope of a few dozen words measures loosely |
+| `sentence_length` | words per sentence: `mean`, `median` and `p90` (nearest rank) | the writer's usual sentence, and how long their long ones run, which a mean hides |
+| `paragraph_length` | per paragraph, the mean number of sentences (`mean_sentences`) and of words (`mean_words`) | how much the writer puts in one block before a break |
+| `rates_per_1000_words` | commas, semicolons, colons, em dashes, en dashes, exclamation marks, question marks, parentheses (each one counted) and double quotation marks, straight or curly | punctuation habits, which carry much of how a voice sounds |
+| `contraction_rate` | words with an apostrophe between two letters | how conversational the writer is in this scope |
+| `first_person_singular_rate` | I, me, my, mine, myself | how much the writer speaks as themselves |
+| `first_person_plural_rate` | we, us, our, ours, ourselves | how much the writer speaks as a group, or alongside the reader |
+| `second_person_rate` | you, your, yours, yourself, yourselves | how directly the writer addresses the reader |
+| `mean_word_length` | characters per word | plain words or long ones |
+| `signature_words` | up to 15 words of four or more letters that are not common function words and appear at least twice, most frequent first, ties in alphabetical order | the vocabulary the writer returns to in this scope |
+
+### When the scope changes
+
+`features.json` is current only when it is exactly what `dna measure` would write from the scope
+as it reads now: the same goldens, pinned by the SHA-256 of each file; the same four fields as
+`scope.md`; the format version `"0.1"`; and the same numbers. Add a golden, remove one, change any
+byte of one (its passage or its frontmatter), edit `scope.md`, or edit a number by hand, and lint
+fails the scope as stale under test 6. The finding names what differs: each golden added, removed
+or changed, each scope field that changed, an unknown version, or each feature whose number no
+longer matches a fresh measurement. Run `dna measure` again. The hash is over bytes, so a
+line-ending conversion counts as a change, as it does for a segments file (see
+[When a material changes](#when-a-material-changes)).
+
+### Naming the scope in a spec
+
+`writing.dna.scope_dir` points a writing spec at its scope folder, relative to the spec like every
+other path. The essay example's `dna` block:
+
+```yaml
+  dna:
+    writer: example-author
+    scope_dir: dna/essay-new-managers-teach
+    scope:
+      form: essay
+      audience: new managers
+      purpose: teach
+    rules: style-rules.md
+    goldens:
+      - path: dna/essay-new-managers-teach/goldens/opening.md
+        why: one plain claim in the first sentence, then two short sentences that turn it into something to do
+```
+
+`scope_dir` is optional. Without it, `dna` lints exactly as it did in 0.4: each golden the spec
+lists needs a path to a file and a `why`, and no scope folder is read. With it, lint also checks
+that:
+
+- `scope.md`'s writer equals `dna.writer`, and its form, audience and purpose equal `dna.scope`,
+  compared trimmed and ignoring case (test 1);
+- every golden the spec lists is one of the scope's goldens: after following any symlink, a `.md`
+  file directly in the scope's own `goldens/` folder, other than `README.md` (test 5). A golden
+  from another scope is a leak, the exact thing a scope exists to prevent, and so is a passage in
+  a subfolder, in `README.md` or in another kind of file, which would feed the spec without ever
+  being checked or measured;
+- every golden in the folder, listed in the spec or not, has a `why` (test 6), an `approved_by`
+  that names a person and a `source` (test 4), and a passage (test 1);
+- `features.json` exists and is current, as [When the scope changes](#when-the-scope-changes)
+  defines it (test 6).
+
+The spec still gives each golden it lists a `why`, as in 0.4; the essay example keeps it the same
+as the golden file's own. A `scope_dir` that is present but a placeholder, such as `TODO`, fails
+test 1 on its own, so a skeleton cannot pass by leaving it unfilled.
+
+### Findings
+
+Every scoped-DNA finding id starts `writing-dna-` and fails the test in its row. Messages name the
+scope folder as the spec wrote it (or as it was given to `dna measure`) and each golden by its
+path inside the folder, so the output is the same on every machine. `<field>` is `writer`,
+`form`, `audience` or `purpose`.
+
+| Id | Test | Fails when |
+|---|---|---|
+| `writing-dna-scope-dir` | 1 | `writing.dna.scope_dir` is present and is a placeholder |
+| `writing-dna-scope-<field>` | 1 | the spec's own `writing.dna.scope` has no `form`, `audience` or `purpose` (this check runs with or without `scope_dir`, and is the id 0.4 used) |
+| `writing-dna-scope-missing` | 1 | `scope.md` does not exist, cannot be read, or its frontmatter does not parse |
+| `writing-dna-scope-file-<field>` | 1 | `scope.md` has no such field |
+| `writing-dna-scope-mismatch-<field>` | 1 | `scope.md` and the spec disagree on that field |
+| `writing-dna-goldens-missing` | 1 | the `goldens/` folder does not exist or cannot be read |
+| `writing-dna-goldens-empty` | 1 | `goldens/` holds no golden |
+| `writing-dna-goldens-outside` | 5 | `goldens/` resolves to a folder outside the scope, such as a symlink to another scope's goldens |
+| `writing-dna-golden-unreadable` | 1 | a golden file cannot be read |
+| `writing-dna-golden-frontmatter` | 1 | a golden's frontmatter opens with `---` and never closes |
+| `writing-dna-golden-empty` | 1 | a golden has no passage |
+| `writing-dna-golden-approved-by` | 4 | a golden has no `approved_by` |
+| `writing-dna-golden-approved-by-agent` | 4 | a golden's `approved_by` starts `agent:`, in any case |
+| `writing-dna-golden-source` | 4 | a golden has no `source` |
+| `writing-dna-golden-leak` | 5 | a golden the spec lists is not one of the scope's goldens: it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file |
+| `writing-dna-golden-why` | 6 | a golden has no `why` |
+| `writing-dna-features-missing` | 6 | the scope has no `features.json`, or it is not valid JSON |
+| `writing-dna-features-stale` | 6 | `features.json` is not what `dna measure` would write now: a golden was added, removed or changed, `scope.md` changed, the version is unknown, or a number differs from a fresh measurement |
+
+`dna measure` raises the ids that come from the folder alone: every row except `scope-dir`,
+`scope-<field>`, `scope-mismatch-<field>`, `golden-leak` and the two `features-` rows, which
+need a spec to compare against. Lint raises all of them.
+
+### Reading a scope from your own tool
+
+A tool of your own, such as a review page that files goldens, can read a scope and measure it the
+way `dna measure` does:
+
+```js
+import { readScope, measureFeatures } from "@supersuit/hyperspec/writing";
+
+const { scope, goldens, findings } = readScope("dna/essay-new-managers-teach");
+const features = measureFeatures(goldens.map((g) => g.text));
+```
+
+`readScope` never throws for a folder path, whatever is or is not in the folder. It returns the scope's four fields and `notes` (or `null` when
+`scope.md` cannot be read at all), every golden it could read, with its `path`, `why`,
+`approved_by`, `source`, `approved_on`, `text` and `sha256`, and findings in the shape lint
+reports. `displayDir` sets how the folder is named in messages. `measureFeatures` takes an array
+of passages and returns the `features` object `dna measure` writes. It reads no file and returns
+the same object for the same passages.
+
+### The worked example
+
+The essay in [`examples/writing/`](examples/writing/) takes its voice from
+`dna/essay-new-managers-teach/`: three goldens, each with its `why`, a person's approval and its
+source, and a `features.json` that `dna measure` wrote. A test measures the folder again on every
+release and requires the same bytes, so the example cannot drift from the tool. The short story
+beside it lists its goldens in the spec with no scope folder, the 0.4 shape, which still passes.
+
 ## Deferring a block
 
 A block can be deferred, never silently missing. A required block that is absent fails test 1
@@ -561,8 +820,10 @@ placeholder. `dna`, `persona`, `audience` and `goal` also carry an open decision
 says what you have to answer before the placeholder means anything. `--form` sets both `kind:`
 and `writing.form.name`, and defaults to `essay`. The material item names
 `materials/TODO.md.segments.jsonl`, the file `segments init` writes for `materials/TODO.md`, so
-materials keeps failing until a real material is marked. `--fiction` sets `fiction: true` and adds one
-character with the same treatment. The skeleton never passes: it lints `fail`, with
+materials keeps failing until a real material is marked. `dna` shows `scope_dir: TODO`, which
+fails until it names a scope folder (see [Scoped DNA](#scoped-dna)) or is deleted, since the
+field is optional. `--fiction` sets `fiction: true` and adds one character with the same
+treatment. The skeleton never passes: it lints `fail`, with
 `writing: 1/9 blocks complete` (or `0/9` with `--fiction`), until the placeholders and the open
 decisions are replaced with real content.
 
@@ -577,7 +838,8 @@ Two complete specs ship in [`examples/writing/`](examples/writing/), each with e
 names:
 
 - `essay.hyperspec.md`: an essay for new managers on running a first one-on-one. Three materials
-  at three trust levels, scoped DNA with two annotated goldens, a four-claim spine.
+  at three trust levels, its voice from the scope folder `dna/essay-new-managers-teach/` with three
+  annotated goldens and their measured features, a four-claim spine.
 - `story.hyperspec.md`: a short story, `fiction: true`, narrated by one of its two characters.
   Each character has speech rules, a knowledge timeline by scene, and golden and rejected lines
   in a voice you can tell apart from the other's.
@@ -592,6 +854,8 @@ every release, so they cannot drift from the linter.
 
 ## What later versions add
 
-This release is the schema, its lint, and marked materials. Later versions build on it in order:
-scoped DNA with annotated goldens filed by form, audience and purpose, and the stations
-themselves, running the checks each block names and grading drafts against the goal.
+This release is the schema, its lint, marked materials, and scoped DNA with measured features.
+Later versions build on it in order. The first compares a draft against its scope: its features
+beside the scope's features, and a blind lineup in which a judge sees a generated passage among
+the scope's goldens and tries to pick it out. Then the stations themselves, running the checks
+each block names and grading drafts against the goal.

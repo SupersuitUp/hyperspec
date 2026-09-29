@@ -20,6 +20,13 @@
 // materials check.station is the marking station itself, since that check is the same for every
 // writing spec: the linter enforces it, and there is nothing for the operator to decide there.
 //
+// dna.scope_dir is the one optional field shown, and it is a real `scope_dir: TODO` like every
+// other placeholder here. scope_dir is optional, so str() blanking a bare TODO would read as
+// "absent", and a spec filled in everywhere else would pass with the placeholder still sitting
+// there. Its own check closes that hole (writing-dna-scope-dir, src/writing-fields.mjs): a
+// scope_dir key that is PRESENT with a placeholder-ish value fails on its own, the same as every
+// other field here, so the skeleton can show it the same way as every other field.
+//
 // init with no --profile never imports or calls this file: template.mjs's own template() is
 // untouched, so a bare init is still byte-for-byte what it always was.
 import { scalar } from "./template.mjs";
@@ -110,6 +117,7 @@ writing:
     author: TODO
   dna:
     writer: TODO
+    scope_dir: TODO
     scope:
       form: TODO
       audience: TODO

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { existsSync, statSync, writeFileSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, statSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve, join } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
 import { score, exitCode } from "../src/score.mjs";
@@ -14,6 +14,8 @@ import { regenerate } from "../src/regenerate.mjs";
 import { compare } from "../src/compare.mjs";
 import { splitSegments } from "../src/segments.mjs";
 import { sha256 } from "../src/hash.mjs";
+import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
+import { str } from "../src/placeholder.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -42,6 +44,23 @@ const HELP = `hyperspec <command> [options]
                                existing file (exit 2); exit 2 for a missing material, a material
                                with nothing in it, an --out folder that does not exist, or a --by
                                outside paragraph/sentence
+
+  dna init <scope-dir> --writer W --form F --audience A --purpose P
+                               write a new writer-DNA scope: scope.md (writer, form, audience,
+                               purpose) and an empty goldens/ folder holding a README on the
+                               golden file shape (why, approved_by, source, optional approved_on;
+                               the body is the passage, verbatim); refuses to overwrite an
+                               existing scope.md; exit 2 on a missing parent folder, a missing
+                               flag, or a flag value that looks like a placeholder (todo, ..., a
+                               bare -), never a stack trace
+  dna measure <scope-dir> [--json]
+                               read every golden in <scope-dir>/goldens/, check its required
+                               fields, and write <scope-dir>/features.json: deterministic style
+                               features measured from the goldens' text, never judged and never
+                               run through a model
+                               exit 0 wrote features.json, 1 a golden (or the scope itself) fails
+                               a required-field check, so a hollow golden is never measured into
+                               the DNA, 2 usage
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json
@@ -143,6 +162,93 @@ if (cmd === "segments") {
   }
 
   console.error(`unknown segments subcommand: ${sub}\n\n${HELP}`);
+  process.exit(2);
+}
+
+if (cmd === "dna") {
+  const sub = argv[1];
+
+  if (sub === "init") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--writer", "--form", "--audience", "--purpose"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [scopeDir] = parsed.positionals;
+    if (!scopeDir) { console.error("dna init needs a scope-dir path"); process.exit(2); }
+    for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
+      if (!parsed.values[flagName]) { console.error(`dna init needs ${flagName} <value>`); process.exit(2); }
+    }
+    // A placeholder-looking value (todo, tbd, ..., ???, ...) is caught here rather than left
+    // for the next `dna measure` to catch on scope.md's own fields; str() is the one place that
+    // pattern is defined (src/placeholder.mjs), reused rather than re-checked.
+    for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
+      if (!str(parsed.values[flagName])) {
+        console.error(`dna init ${flagName} "${parsed.values[flagName]}" looks like a placeholder; give it real content`);
+        process.exit(2);
+      }
+    }
+    const writer = parsed.values["--writer"];
+    const form = parsed.values["--form"];
+    const audience = parsed.values["--audience"];
+    const purpose = parsed.values["--purpose"];
+
+    const scopeAbs = resolve(scopeDir);
+    const parent = dirname(scopeAbs);
+    if (!existsSync(parent) || !statSync(parent).isDirectory()) {
+      console.error(`the folder ${dirname(scopeDir)} does not exist; create it first`);
+      process.exit(2);
+    }
+    if (existsSync(scopeAbs) && !statSync(scopeAbs).isDirectory()) {
+      console.error(`${scopeDir} is not a directory`);
+      process.exit(2);
+    }
+    // scopeMdPath (absolute, resolved from the cwd) is for filesystem operations only. Every
+    // message uses scopeMdDisplay, built from scopeDir exactly as given (relative, if that is how
+    // the operator typed it): a path the operator did not resolve themselves must never appear
+    // resolved in output, the same rule every other finding in this linter already follows.
+    const scopeMdPath = join(scopeAbs, "scope.md");
+    const scopeMdDisplay = join(scopeDir, "scope.md");
+    if (existsSync(scopeMdPath)) { console.error(`refusing to overwrite ${scopeMdDisplay}`); process.exit(2); }
+
+    mkdirSync(join(scopeAbs, "goldens"), { recursive: true });
+    writeFileSync(scopeMdPath, scopeTemplate({ writer, form, audience, purpose }));
+    // An operator's own goldens/README.md is theirs: write the guidance only where none exists.
+    try {
+      writeFileSync(join(scopeAbs, "goldens", "README.md"), GOLDENS_README, { flag: "wx" });
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
+    console.log(`wrote ${scopeMdDisplay} and ${scopeDir}/goldens/. Add goldens, then run: hyperspec dna measure ${scopeDir}`);
+    process.exit(0);
+  }
+
+  if (sub === "measure") {
+    const parsed = parseArgs(argv.slice(2), { boolFlags: ["--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [scopeDir] = parsed.positionals;
+    if (!scopeDir) { console.error("dna measure needs a scope-dir path"); process.exit(2); }
+    const json = parsed.values["--json"];
+
+    const { scope, goldens, findings } = readScope(scopeDir);
+    const hasFail = findings.some((x) => x.severity === "fail");
+    if (hasFail) {
+      if (json) console.log(JSON.stringify({ scope: scopeDir, findings }, null, 2));
+      else for (const x of findings) console.log(`fail [${x.test}] ${x.message}\n  fix: ${x.fix}`);
+      process.exit(1);
+    }
+
+    const features = measureFeatures(goldens.map((g) => g.text));
+    const { path: featuresPath } = writeFeatures(scopeDir, { scope, goldens, features });
+    if (json) {
+      console.log(JSON.stringify({ scope: scopeDir, goldens: goldens.length, features, wrote: featuresPath }, null, 2));
+    } else {
+      console.log(`${scopeDir}: measured ${goldens.length} golden${goldens.length === 1 ? "" : "s"}`);
+      console.log(`  word_count ${features.word_count}, sentence length mean ${features.sentence_length.mean} median ${features.sentence_length.median} p90 ${features.sentence_length.p90}`);
+      console.log(`  signature words: ${features.signature_words.join(", ") || "(none)"}`);
+      console.log(`wrote ${featuresPath}`);
+    }
+    process.exit(0);
+  }
+
+  console.error(`unknown dna subcommand: ${sub}\n\n${HELP}`);
   process.exit(2);
 }
 
