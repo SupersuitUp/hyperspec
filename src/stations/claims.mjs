@@ -1,4 +1,4 @@
-// Station "claims" (hyperspec 0.6, build 6a task 2). Reads writing.sources.ledger, a JSONL file
+// Station "claims" (hyperspec 0.6). Reads writing.sources.ledger, a JSONL file
 // where each line is one claim: { "text": <claim as it appears in the draft>, "source":
 // <non-empty>, "span"?: <quote or locator> }. Two things are checked per line, and whether a
 // sentence in the draft even IS a factual claim is never attempted here: that is judgment, and
@@ -26,7 +26,7 @@ export const name = "claims";
 
 // Quote characters normalized to their straight ASCII form, then whitespace runs collapsed to a
 // single space and the ends trimmed. "text matching is exact after normalizing whitespace and
-// quote characters" (the build's own ruling): case is NOT normalized, so a claim's text must
+// quote characters": case is NOT normalized, so a claim's text must
 // still match the draft's actual capitalization.
 function normalize(text) {
   return String(text)

@@ -1,8 +1,8 @@
-// Station "links" (hyperspec 0.6, build 6a task 2, fix round 1). Checks every Markdown link and
+// Station "links" (hyperspec 0.6). Checks every Markdown link and
 // every bare http(s):// URL in the draft: an absolute http/https URL must be well-formed (a real
 // host), a mailto: link must carry an address, any other scheme fails outright, a link rooted at
-// "/" is site-root-relative and warns rather than resolving locally (fix round 1, R3 -- this repo
-// has no site root to resolve it against), and any other relative link must resolve to a file
+// "/" is site-root-relative and warns rather than resolving locally (there is
+// no site root here to resolve it against), and any other relative link must resolve to a file
 // that actually exists, relative to the DRAFT's own directory (never the spec's). No network
 // access, ever: well-formed means "the URL parses and names a host", not "the host answers".
 //
@@ -10,7 +10,7 @@
 //   - inline: [text](url)
 //   - reference, full or collapsed: [text][ref] / [ref][], resolved against a [ref]: url
 //     definition elsewhere in the draft (label matching is case-insensitive and whitespace-
-//     collapsed, per the build's ruling); a reference with no matching definition is its own
+//     collapsed); a reference with no matching definition is its own
 //     finding, station-links-undefined-reference, naming the label -- this is a MECHANICAL match
 //     on bracket syntax, not CommonMark's true link-vs-plain-text disambiguation, so an ordinary
 //     "[bracketed note]" with no definition anywhere reads as an undefined reference too. Narrow
@@ -167,7 +167,7 @@ function checkUrl(url, draftDirAbs) {
   // resolves, since it points at the draft's own file, which exists by construction (check.mjs
   // only ever builds a draft object after successfully reading it).
   if (!c.path) return null;
-  // R3: a link rooted at "/" names a path from some site's root, which this station has no way to
+  // A link rooted at "/" names a path from some site's root, which this station has no way to
   // resolve (there is no "site" here, only the draft's own folder), so it is neither a pass nor a
   // fail -- a warning, naming the fact that it cannot be checked locally.
   if (c.path.startsWith("/")) return "root-relative";

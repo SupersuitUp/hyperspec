@@ -3,10 +3,10 @@
 // CLI's argv parsing and printing (bin/hyperspec.mjs owns those), the same split rules.mjs and
 // score.mjs already keep for `lint`.
 //
-// A draft is checked against a spec that is not ready to check anything against: the spec is
-// linted first, and a spec that fails or is blocked runs no station at all, exiting with lint's
+// A draft is never checked against a spec that is not ready to check anything against: the spec
+// is linted first, and a spec that fails or is blocked runs no station at all, exiting with lint's
 // own code (1 fail, 3 blocked) rather than a check-specific one. Passing lint's test 9 requires
-// writing.improvement... no, requires improvement.ledger to be a non-empty path (see
+// improvement.ledger to be a non-empty path (see
 // src/rules.mjs), so by the time any station runs, the spec is guaranteed to declare one; the
 // presence check and escape check below exist anyway, for the same reason compare.mjs (the other
 // ledger writer) keeps its own copy: defense in depth costs one branch and this file should never

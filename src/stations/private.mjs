@@ -1,4 +1,4 @@
-// Station "private" (hyperspec 0.6, build 6a task 3). No run of 8 or more consecutive words from
+// Station "private" (hyperspec 0.6). No run of 8 or more consecutive words from
 // any `private` segment of a marked material may appear in the draft. Pure and deterministic: a
 // word-level match over normalized text, no model call and no judgment about what would count as
 // a paraphrase (a paraphrase is not caught, by design; a verbatim run is).
@@ -11,7 +11,7 @@
 //
 // A private segment of 8 or more words fails when any 8-word window of it appears in the draft. One
 // of 4 to 7 words is checked as a whole: all of its words, in order, anywhere in the draft. One
-// under 4 words is not checked at all (ruling R6): two or three words ("Yes, Tuesday.") match
+// under 4 words is not checked at all: two or three words ("Yes, Tuesday.") match
 // ordinary prose, so checking them would fail drafts that leak nothing. Skipping silently would
 // hide that a private passage went unchecked, so the station reports how many it skipped as ONE
 // warning, station-private-short-skipped, carrying the count and never the text (the text is

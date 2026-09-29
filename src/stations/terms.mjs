@@ -1,4 +1,4 @@
-// Station "terms" (hyperspec 0.6, build 6a task 2). Checks that every term in
+// Station "terms" (hyperspec 0.6). Checks that every term in
 // writing.audience.terms (the new optional list: terms the piece uses that the reader may not
 // know) is defined the first time it appears in the draft. Pure and deterministic like every
 // station: no model call, no judgment about which words are jargon, just the closed rule below.
@@ -8,7 +8,7 @@
 // definition uses, so "AI" does not match inside "said" and a multi-word term like "context
 // window" matches only as that exact phrase).
 //
-// "Defined at its first appearance" is read, per the build's ruling, as: the sentence containing
+// "Defined at its first appearance" is read as: the sentence containing
 // the term's first appearance, OR the sentence right after it, contains an occurrence of the term
 // followed (within the next 6 words of that same sentence, or by a colon among them) by one of
 // "is", "means", "refers to"; OR the term is immediately followed by a parenthetical ("term

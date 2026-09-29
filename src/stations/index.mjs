@@ -3,9 +3,7 @@
 // src/check.mjs calls; adding a station is adding one file plus one line here, which is the whole
 // point of the registry existing rather than check.mjs importing each station by name itself.
 //
-// Build 6a shipped this in three passes (form; terms, claims, links; quotes, private, dna), and the
-// order below is the final one (progress.md ruling R4), the constraints numbering:
-// form, terms, claims, quotes, private, dna, links. quotes and private share ctx (util.mjs's
+// The order: form, terms, claims, quotes, private, dna, links. quotes and private share ctx (util.mjs's
 // markedSegments caches the spec's marked materials there), so a check run reads them once.
 
 import * as form from "./form.mjs";

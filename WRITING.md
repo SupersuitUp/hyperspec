@@ -322,7 +322,7 @@ with one of those, such as `TODO: write the opening`, counts as present, and so 
 `audience.terms` is checked by the `terms` station in `hyperspec check`, and that check is a
 **mechanical proxy, not an understanding of meaning**: it looks for a definition-SHAPED phrase
 near the term's first appearance (the word `is`, `means`, `refers to`, a colon within a few words,
-or an immediate parenthetical), not for whether that phrase actually defines the term. A sentence
+or an immediate parenthetical), not for whether that phrase defines the term. A sentence
 like "A hyperspec is mentioned here" reads as a definition of "hyperspec" by this rule, because
 `is` immediately follows the word, even though nothing about the term is explained. This is
 deliberate and known, not a bug to fix later in this station: reading for meaning is a judgment
@@ -799,6 +799,192 @@ source, and a `features.json` that `dna measure` wrote. A test measures the fold
 release and requires the same bytes, so the example cannot drift from the tool. The short story
 beside it lists its goldens in the spec with no scope folder, the 0.4 shape, which still passes.
 
+## Checking a draft
+
+Once a spec lints clean and a draft exists, `check` runs the spec's deterministic stations
+against the draft:
+
+```bash
+npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
+```
+
+It lints the spec first. A spec that fails lint, or is blocked on an open decision, runs no
+station and exits with lint's own code, because a draft cannot be checked against a spec that is
+not ready. Then it runs seven stations in a fixed order and prints one line for each: `pass`,
+`fail` with its findings, or `skip` with the reason. A warning prints under its station and never
+fails it. This is the essay example's draft:
+
+```
+form: pass
+terms: pass
+claims: pass
+quotes: pass
+private: pass
+dna: pass
+  warn [station-dna-drift] first_person_singular_rate is 23.03 in the draft; the scope's goldens measure 0, band 0 to 5
+    fix: Bring first_person_singular_rate back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.
+links: pass
+verdict: one-shot
+```
+
+`--only form,terms` runs just those stations, still in the fixed order. `--json` prints the whole
+result, every finding included. A finding names the draft line it points at where there is one,
+quotes at most 80 characters of the draft, and never prints an absolute path.
+
+Exit codes: **0** every station that ran passed (a skip or a warning does not fail it); **1** a
+station failed; **2** usage: no spec path, no `--draft`, a draft that cannot be read, or an
+unknown station name after `--only`; and lint's own **1** or **3** when the spec is not ready.
+
+Every station is a plain function of the spec and the draft. None of them calls a model, and none
+of them touches the network. What each one checks, and what it cannot:
+
+### form
+
+Counts the draft's words, by the same word definition `dna measure` uses, against
+`form.length`. Only `unit: words` is measured; any other unit skips the whole station rather than
+checking half of it. Every `required_parts` entry must appear as a Markdown heading of any level
+whose text equals the part, ignoring case, or as a line that starts with the part and a colon, for
+the fields a form fills in place (`To:`, `Subject:`). It cannot tell whether the section under a
+heading does what the part is for, so write `required_parts` as the headings the piece will carry,
+as both examples do.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-form-length` | fail | the word count is outside `form.length`; the message gives the count and the range |
+| `station-form-required-part-<part>` | fail | a required part appears as neither a heading nor a `part:` line |
+
+### terms
+
+Reads the optional `audience.terms`: the words the piece uses that its reader may not know. For
+each term not also in `audience.knows`, it finds the term's first appearance (whole word, ignoring
+case) and looks for a definition in that sentence or the next: the term followed within six words
+by `is`, `means` or `refers to`, a colon among those words, or a parenthesis right after the term.
+This is a mechanical proxy for a definition, not a reading of one: "A hyperspec is mentioned here"
+passes. A term the draft never uses is not flagged, code blocks and inline code are ignored, and
+with no `terms` list the station skips.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-terms-undefined-<term>` | fail | the term's first appearance has no definition in that sentence or the next |
+
+### claims
+
+Reads the claims ledger at `sources.ledger`: JSONL, one claim per line, each with the claim's
+`text` exactly as the draft says it, a `source`, and optionally a `span`, the words in the source
+that support it. The examples cite a segment as the source, the same `material#segment` form the
+spine uses:
+
+```jsonl
+{"text":"11 of 41 said at least one of their one-on-ones in the last quarter was mostly project status.","source":"survey#s4","span":"11 of 41 said at least one of their one-on-ones in the last quarter was mostly project status."}
+```
+
+Every claim's text must still appear in the draft word for word, with whitespace and quote
+characters normalized and case kept; otherwise the ledger is stale. Every claim needs a real
+source; one without fails, or warns under `unsourced_claim: warn`. A missing ledger fails. The
+station does not decide what counts as a factual claim: the ledger is the list of claims, so a
+factual sentence left out of it passes unseen. Nor does it read the source to see whether it says
+what the claim says.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-claims-ledger-missing` | fail | the ledger file does not exist or cannot be read |
+| `station-claims-json-line-<n>` | fail | ledger line n is not JSON, not an object, or has no `text` |
+| `station-claims-stale` | fail | a claim's text no longer appears in the draft |
+| `station-claims-unsourced` | fail, or warn under `unsourced_claim: warn` | a claim has no source, or only a placeholder |
+
+### quotes
+
+Every span in double quotation marks, straight or curly, of four words or more must appear word
+for word in a `quote` or `story` segment of a marked material. Quote characters and whitespace
+are normalized, case is kept, and a comma or period just inside the closing mark is dropped,
+because that punctuation is the writer's; a `?` or `!` is kept, because adding one changes what
+was said. Shorter spans are not checked, since two or three quoted words are as often a title as
+a quotation. A private segment is never a source for a quote. When the sentence around a quote
+names a speaker, the quote must come from a quote segment with that `speaker`. A speaker is named
+by the full `speaker` value, hyphens read as spaces, or by its first word, so `maria-lopez` is
+named by "Maria Lopez" and by "Maria". Attribution needs a declared speaker: a name that is no
+segment's `speaker` attributes nothing. Start a `speaker` with a name rather than a common word,
+since its first word alone names it. Invented dialogue is held to the same rule, which is why
+the story example sets its dialogue without quotation marks.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-quotes-unmatched` | fail | a quoted span is in no quote or story segment |
+| `station-quotes-misattributed` | fail | the sentence names a speaker, and the span is in no quote segment by that speaker |
+
+### private
+
+No run of eight or more consecutive words from any `private` segment may appear in the draft,
+compared by words with case and punctuation ignored. A private segment of four to seven words is
+checked whole. One under four words is not checked, because two or three words match ordinary
+prose; the station reports how many it skipped, as one warning that never quotes them. It cannot
+catch a paraphrase, or a leak shorter than the run.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-private-leak` | fail | the draft repeats a run from a private segment; names the material, the segment and the run |
+| `station-private-short-skipped` | warn | private segments under four words were not checked; gives the count |
+
+### dna
+
+Runs when `dna.scope_dir` is set and its `features.json` is current. It measures the draft the
+way `dna measure` measures goldens and compares the sentence length mean, both paragraph length
+means, every per-1000-word punctuation rate, and the contraction and person rates with the
+scope's. For a scope value v, a draft value outside v ÷ 1.5 to the larger of v × 1.5 and v + 5 is
+reported with both values. An em dash in a draft whose scope has none is its own finding. Both
+are warnings and the station never fails: it measures, and whether a draft sounds like its writer
+is a judgment. The essay's warning is an example of what to read: its goldens are instructions in
+the second person, and the essay tells the author's own story in the first. With no `scope_dir`,
+or a `features.json` that is missing or stale, the station skips and says which.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-dna-drift` | warn | a feature is outside its band; gives the draft's value, the scope's and the band |
+| `station-dna-em-dash` | warn | the draft uses em dashes and the scope's goldens use none |
+
+### links
+
+Every Markdown link (inline, reference, collapsed and shortcut) and every bare URL. An `http` or
+`https` URL must parse and name a host, a `mailto:` link must carry an address, and any other
+scheme fails. A relative link must resolve to a file, relative to the draft's own folder; the
+part after `#` is not checked. A link that starts with `/` is relative to a site root the station
+cannot see, so it warns. A reference link needs its definition. Code blocks and inline code are
+ignored. It never touches the network, so it cannot tell you a URL is live.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-links-malformed` | fail | an http or https URL with no host, or a `mailto:` with no address |
+| `station-links-bad-scheme` | fail | a scheme other than http, https or mailto |
+| `station-links-broken-relative` | fail | a relative link names no file beside the draft |
+| `station-links-root-relative` | warn | a link starting with `/`, which cannot be resolved without the site |
+| `station-links-undefined-reference` | fail | a reference link whose label has no definition |
+
+### Any station
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-<name>-crashed` | fail | the station threw; the other stations and the ledger line still run |
+
+### The runs ledger
+
+Each `check` appends one line to the spec's `improvement.ledger`, the same file lint's test 9
+reads:
+
+```json
+{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass"},"verdict":"one-shot"}
+```
+
+`draft` is the path as you gave it and `stations` holds each run station's status. The verdict:
+
+- **one-shot**: every station passed, this exact draft has not been checked before, and no
+  earlier check of the same draft path failed.
+- **improved**: every station passed on a draft not checked before, after an earlier check of the
+  same path failed; `change` names the stations that now pass.
+- **not-improved**: a station failed, and `reason` lists which; or the exact draft was already
+  checked, and `reason` says so.
+
+A ledger path that leads outside the spec's folder is not written, and `check` prints a warning.
+
 ## Deferring a block
 
 A block can be deferred, never silently missing. A required block that is absent fails test 1
@@ -862,13 +1048,18 @@ the field it needs, and every spine claim cites the segments that support it. Ea
 keeps the boundaries `segments init` wrote, in paragraph mode for prose and sentence mode for
 bulleted notes, so you can re-run it and compare.
 
-Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. A test runs them on
-every release, so they cannot drift from the linter.
+Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. Each also ships a
+draft written to it, `essay/draft.md` and `story/draft.md`, with its claims ledger beside it, and
+both drafts pass every station of `check`: the essay with one dna warning, described under
+[dna](#dna), and the story with dna skipped, since it names no scope folder. A test lints both
+specs and checks both drafts on every release, so they cannot drift from the tool.
 
 ## What later versions add
 
-This release is the schema, its lint, marked materials, and scoped DNA with measured features.
-Later versions build on it in order. The first compares a draft against its scope: its features
-beside the scope's features, and a blind lineup in which a judge sees a generated passage among
-the scope's goldens and tries to pick it out. Then the stations themselves, running the checks
-each block names and grading drafts against the goal.
+This release is the schema, its lint, marked materials, scoped DNA, and `check` with seven
+deterministic stations. Next come the judgment stations: the simulated reader, the blind lineup,
+the persona judge and the doctor. hyperspec calls no model, so `check` will write each one as a
+packet, the draft and the rubric and the materials the judge needs, for an outside judge to fill
+in, and read the filled packet back as a station result. After that, a learn step that reads the
+runs ledger for the stations that keep failing and the changes that made them pass, so a fix
+lands in the spec or the skill that wrote the draft rather than in one draft.

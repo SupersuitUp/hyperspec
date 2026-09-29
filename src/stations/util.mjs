@@ -2,13 +2,10 @@ import { resolve } from "node:path";
 import { str } from "../placeholder.mjs";
 import { readSegments } from "../segments.mjs";
 
-// Shared helpers for the deterministic stations (hyperspec 0.6, build 6a). "One place this
-// pattern is defined" (src/placeholder.mjs's own header comment), so a helper more than one
-// station needs lives here rather than being copied station to station. Fix round 1 promoted
-// lineAt and truncate here after they had drifted to two near-identical copies each
-// (terms.mjs/links.mjs, claims.mjs/links.mjs); maskCode and maskRanges are new in this round,
-// for terms and links, and are written to be reused by quotes/private/dna (task 3) too, since all
-// three read draft text the same way links and terms do.
+// Shared helpers for the deterministic stations (hyperspec 0.6). "One place this pattern is
+// defined" (src/placeholder.mjs's own header comment), so a helper more than one station needs
+// lives here rather than being copied station to station: lineAt, truncate, maskCode, maskRanges
+// and markedSegments.
 
 // The 1-based line containing character offset `pos` of `text`. Counts "\n" characters directly
 // rather than reading draft.lines: draft.lines' own CRLF handling ("\r" left attached to the

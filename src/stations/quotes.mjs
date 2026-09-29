@@ -1,4 +1,4 @@
-// Station "quotes" (hyperspec 0.6, build 6a task 3). Every double-quoted span in the draft of 4 or
+// Station "quotes" (hyperspec 0.6). Every double-quoted span in the draft of 4 or
 // more words must appear in a `quote` or `story` segment of a marked material; a quote the draft
 // attributes to someone by name must appear in a `quote` segment whose speaker is that someone.
 // Pure and deterministic: no model call, no judgment about what counts as quoting, just the closed
@@ -20,10 +20,10 @@
 // a substring of some quote or story segment's text, in any marked material of the spec.
 //
 // Attribution: a speaker is any `speaker` value on a quote segment. It is named in the draft
-// (ruling R8) when the sentence that holds the quote contains, case-insensitively and as whole
+// when the sentence that holds the quote contains, case-insensitively and as whole
 // words, EITHER the full value (split on anything that is not a letter, digit or apostrophe, so the
-// slug "gary-sheng" reads as "gary sheng", its words joined in the draft by whitespace, hyphens or
-// underscores) OR the value's first word alone ("Gary said" names gary-sheng; "Garyson" does not),
+// slug "maria-lopez" reads as "maria lopez", its words joined in the draft by whitespace, hyphens or
+// underscores) OR the value's first word alone ("Maria said" names maria-lopez; "Mariana" does not),
 // with the quote itself blanked out (a name inside the quoted words is what was said, not who said it). A named speaker
 // means the span must be in a quote segment with that speaker; matching only some other speaker's
 // quote, or only a story, is `station-quotes-misattributed`. With no speaker named, any quote or
@@ -48,8 +48,8 @@ function normalize(text) {
     .trim();
 }
 
-// What a quoted span is matched on: normalized, then trailing commas and periods dropped (ruling
-// R5). Typographic convention puts the writer's own comma or period inside the closing quote
+// What a quoted span is matched on: normalized, then trailing commas and periods dropped.
+// Typographic convention puts the writer's own comma or period inside the closing quote
 // ("...at a time," he said) whether or not the speaker's sentence ended there, so keeping them
 // would fail nearly every quotation used mid-sentence. "?" and "!" are kept: adding either changes
 // what was said.
@@ -72,7 +72,7 @@ function quotedSpans(text) {
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // A speaker value as a whole-word, case-insensitive pattern matching its full words or its first
-// word alone (R8), or null when it has no words at all.
+// word alone, or null when it has no words at all.
 function speakerPattern(value) {
   const words = value.split(new RegExp(`[^${WORD_CLASS}]+`, "u")).filter(Boolean);
   if (!words.length) return null;

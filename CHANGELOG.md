@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.6.0 (2026-09-29)
+
+A spec can now check a draft. Until this release hyperspec could tell you whether a writing spec
+was ready; it could not tell you whether the piece written from it met the spec. `hyperspec
+check` runs seven deterministic stations against a draft: the length and required parts, the
+terms the reader needs defined, the claims ledger, quotations, private material, the writer's
+measured style, and links. None of them calls a model or touches the network, so the same draft
+and spec always give the same answer. Each run leaves one line in the spec's runs ledger saying
+whether the draft passed first time, improved, or did not, and why.
+
+**No behavior change for lint.** Every spec that passed or failed in 0.5.0 does the same now, and
+no lint finding id changed. The one schema addition is optional.
+
+- `hyperspec check <spec> --draft <file> [--json] [--only a,b]` lints the spec first: a spec that
+  fails lint, or is blocked on an open decision, runs no station and exits with lint's code. Then
+  it runs every station in a fixed order, `form, terms, claims, quotes, private, dna, links`, and
+  prints each one's `pass`, `fail` with findings, or `skip` with the reason. Warnings print under
+  their station and never fail it. Exit 0 when every station that ran passed, 1 when one failed,
+  2 on usage (no spec, no `--draft`, an unreadable draft, an unknown `--only` name). `--only`
+  runs a subset, still in the fixed order. A finding names the draft line it points at, quotes at
+  most 80 characters of the draft, and never prints an absolute path. A station that throws
+  becomes one failing finding, `station-<name>-crashed`, and the rest still run.
+- `form`: word count against `writing.form.length` (only `unit: words` is measured; another unit
+  skips the station), and every `required_parts` entry present as a heading of that text, or as a
+  line starting `part:`.
+- `terms`: every term in the new optional `writing.audience.terms`, other than those in `knows`,
+  is defined at its first appearance: in that sentence or the next, the term followed within six
+  words by `is`, `means`, `refers to` or a colon, or by a parenthesis. A mechanical proxy for a
+  definition, and documented as one. No `terms` list: skip.
+- `claims`: every claim in the JSONL ledger at `writing.sources.ledger` (`text`, `source`,
+  optional `span`) still appears in the draft word for word, and has a real source; unsourced
+  claims warn instead under `unsourced_claim: warn`. A missing ledger fails. The ledger is the
+  list of claims: the station does not decide what counts as one.
+- `quotes`: every double-quoted span of four words or more appears word for word in a `quote` or
+  `story` segment of a marked material, never a private one; when the sentence names a quote
+  segment's speaker, by the full name or its first word, the span must come from that speaker.
+- `private`: no run of eight words from a `private` segment appears in the draft. Segments of four
+  to seven words are checked whole; shorter ones are counted in one warning and never quoted.
+- `dna`: with a current `writing.dna.scope_dir`, the draft is measured the way goldens are and
+  each feature compared with the scope's, from v ÷ 1.5 to the larger of v × 1.5 and v + 5; drift,
+  and an em dash where the scope has none, are warnings. No scope folder: skip.
+- `links`: inline, reference and bare links are well-formed http, https or mailto; relative links
+  resolve to a file beside the draft; a `/` link warns, since there is no site root to resolve it
+  against; a reference needs its definition. No network access.
+- The runs ledger: each check appends `{ at, kind: "check", draft, draft_sha256, stations,
+  verdict }` to `improvement.ledger`. `one-shot` when every station passed on a draft never
+  checked before, with no earlier failure for the same path; `improved`, with `change`, when a new
+  draft passes after an earlier failure; otherwise `not-improved`, with `reason`. The lines keep
+  lint's test 9 passing.
+- New optional field `writing.audience.terms`: a list of real strings when present (test 1,
+  `writing-audience-terms`). Absent, nothing changes.
+- The worked examples each ship a draft that passes every station, with its claims ledger:
+  `examples/writing/essay/draft.md` and `examples/writing/story/draft.md`. Both specs now list
+  `audience.terms`, and their `required_parts` are the drafts' headings. A test runs `check` on
+  both. WRITING.md gains "Checking a draft": each station, what it cannot check, a findings table
+  per station held by a test to the ids the stations raise, and the ledger line.
+
 ## 0.5.0 (2026-09-29)
 
 Scoped writer DNA. A writer does not have one voice: the same person writes differently for a

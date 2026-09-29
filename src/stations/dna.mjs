@@ -1,4 +1,4 @@
-// Station "dna" (hyperspec 0.6, build 6a task 3). Measures the draft the way `hyperspec dna measure`
+// Station "dna" (hyperspec 0.6). Measures the draft the way `hyperspec dna measure`
 // measures a scope's goldens (dna.mjs's measureFeatures, the same function, never a second copy)
 // and compares it with the scope's recorded features.json. Pure and deterministic: arithmetic on
 // two features objects, no model call and no judgment about whether a difference matters beyond the
@@ -25,9 +25,9 @@
 // same defect, and the stricter rule already names it). Fenced and inline code are masked out of
 // the draft before it is measured, like every station that reads prose.
 //
-// Severity (ruling R7): both findings are WARNINGS, never failures, so the station's status is pass
+// Severity: both findings are WARNINGS, never failures, so the station's status is pass
 // whenever it runs. This station measures; judging whether the draft is in the writer's voice
-// belongs to the lineup judge in the next build, and a band over a handful of goldens is evidence
+// belongs to the lineup judge of a later release, and a band over a handful of goldens is evidence
 // for that judge, not a verdict.
 
 import { readFileSync } from "node:fs";
@@ -119,6 +119,6 @@ export function run(spec, draft) {
     });
   }
 
-  // Every finding here is a warning (ruling R7), so the station passes whenever it runs.
+  // Every finding here is a warning, so the station passes whenever it runs.
   return { station: name, status: findings.some((x) => x.severity === "fail") ? "fail" : "pass", findings };
 }

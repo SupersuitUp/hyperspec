@@ -1,4 +1,4 @@
-// Station "form" (hyperspec 0.6, build 6a task 1). The first of hyperspec check's deterministic
+// Station "form" (hyperspec 0.6). The first of hyperspec check's deterministic
 // stations: it checks a draft's word count against writing.form.length, and checks that every
 // writing.form.required_parts entry actually shows up in the draft. Pure and deterministic, like
 // every station: (spec, draft) in, a result out, no filesystem access beyond what the caller
@@ -52,8 +52,8 @@ function partPresent(lines, part) {
 
 // run(spec, draft): spec is a loadSpec()-shaped object (spec.data.writing.form is what this
 // station reads); draft is { path, text, lines, sha256 } as src/check.mjs builds it. ctx (a
-// third argument every station receives) is unused here; task 1 has only this one station, so
-// there is nothing yet for stations to share through it.
+// third argument every station receives) is unused here: form shares nothing with the other
+// stations.
 export function run(spec, draft) {
   const form = spec?.data?.writing?.form ?? {};
   const length = form.length && typeof form.length === "object" ? form.length : {};
