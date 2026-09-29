@@ -463,6 +463,17 @@ test("regenerate: a runner that reports no verdict is a failing verdict, exit 1"
   assert.deepEqual(child.stages[0].verdict, { station: "runner", pass: false, note: "runner reported no verdict" });
 });
 
+test("regenerate: --add-input that no stage reads is a usage error, exit 2", () => {
+  const dir = project();
+  const { recipePath } = buildThreeStageParent(dir);
+  writeFileSync(join(dir, "materials", "extra.txt"), "an extra input");
+  const out = join(dir, "essay-v2.md");
+  const r = run("regenerate", recipePath, "--out", out, "--clicker", "gary-sheng", "--add-input", `extra=${join(dir, "materials", "extra.txt")}`, "--run", passThroughRunner(dir));
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /no stage reads input extra; add --reads <stage>/);
+  assert.ok(!existsSync(`${out}.recipe.json`));
+});
+
 test("regenerate: no change flag is a usage error, exit 2", () => {
   const dir = project();
   const { recipePath } = buildSimpleParent(dir);

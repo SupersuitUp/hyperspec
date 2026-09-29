@@ -574,3 +574,21 @@ test("a parent whose input hash climbs out of the store fails cleanly and writes
   assert.equal(existsSync(out), false);
   assert.equal(existsSync(`${out}.recipe.json`), false);
 });
+
+test("an added input that no stage reads is refused, and nothing is written", () => {
+  const dir = project();
+  const { recipePath } = buildParent(dir); // every stage declares its reads, so none reads everything
+  const out = join(dir, "essay-v2.md");
+  const res = regenerate(recipePath, {
+    out,
+    clicker: "gary-sheng",
+    change: { addInput: { name: "unused", path: join(dir, "materials", "call-2.md") } },
+    run: runCmd(dir),
+  });
+  assert.equal(res.ok, false);
+  assert.equal(res.usage, true);
+  assert.equal(res.error, "no stage reads input unused; add --reads <stage>");
+  assert.equal(existsSync(out), false);
+  assert.equal(existsSync(`${out}.recipe.json`), false);
+  assert.deepEqual(runLog(dir), []);
+});

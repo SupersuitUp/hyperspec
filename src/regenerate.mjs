@@ -115,6 +115,11 @@ export function regenerate(parentRecipePath, { out, clicker, change, run, change
       // would silently stop it reading everything else, so it is left as it is.
       if (Array.isArray(stage.reads) && stage.reads.length && !stage.reads.includes(ref)) stage.reads = [...stage.reads, ref];
     }
+    // An input no stage reads changes nothing: every stage would be reused, the child's output
+    // would be the parent's bytes, and the recipe would claim an input was used that nothing read.
+    // A regeneration must change something, so this is refused the way a no-op swap is.
+    const read = child.stages.some((s) => !Array.isArray(s.reads) || s.reads.length === 0 || s.reads.includes(ref));
+    if (!read) return usage(`no stage reads input ${name}; add --reads <stage>`);
     defaultChange = `added input ${name} (${rel(abs)})`;
   } else if (kind === "swapInput") {
     const { name, path } = change.swapInput ?? {};
