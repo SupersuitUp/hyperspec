@@ -67,3 +67,20 @@ export function ledgerLines(path) {
 
 export const prepare = (w, ...extra) => cli(["judge", "prepare", w.spec, "--draft", w.draft, "--out", w.out, ...extra]);
 export const record = (w, ...extra) => cli(["judge", "record", w.packet, "--verdict", w.verdict, ...extra]);
+
+// The same workspace, pointed at another station's files: its packet and key in judge/, and a
+// verdict file of its own beside the spec, so prepare() and record() work for that station.
+export function forStation(w, station) {
+  return { ...w, packet: join(w.out, `${station}.packet.json`), key: join(w.out, `${station}.key.json`), verdict: join(w.dir, `${station}.verdict.json`) };
+}
+
+// A reader verdict on DRAFT that passes: read to the end, nothing lost, would take the next step.
+export function readerVerdict(edit = (v) => v) {
+  const v = {
+    lost_at: [],
+    stopped_at: null,
+    would_take_next_step: true,
+    next_step: "open the schema section",
+  };
+  return edit(v) ?? v;
+}

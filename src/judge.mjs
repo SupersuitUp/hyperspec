@@ -170,7 +170,7 @@ export function prepareJudges(specPathArg, draftPathArg, outDirArg, { only, forc
   const skipped = [];
   const crashed = [];
   for (const judge of judges) {
-    const reason = judge.skipReason(spec);
+    const reason = judge.skipReason(spec, draft);
     if (reason) { skipped.push({ station: judge.name, reason }); continue; }
     let built;
     try { built = buildPacket(judge, specPathArg, spec, draft, specSha); }
@@ -247,7 +247,7 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // and draft on disk, requires the file to be those exact bytes, and validates the verdict against
   // the rebuilt copy only. A packet edited after prepare (its conditions, its inputs, a hash made to
   // match a changed draft) is refused here.
-  const skip = judge.skipReason(spec);
+  const skip = judge.skipReason(spec, draft);
   let rebuilt = null;
   if (!skip) {
     try { rebuilt = buildPacket(judge, packet.spec, spec, draft, specSha); }

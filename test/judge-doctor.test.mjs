@@ -77,7 +77,7 @@ test("doctor is skipped, and no packet written, when the goal's check has no rub
   const r = prepare(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /doctor: skip \(writing\.goal\.check has no rubric\)/);
-  assert.deepEqual(readdirSync(w.out), []);
+  assert.ok(!readdirSync(w.out).includes("doctor.packet.json"), "no doctor packet; the other stations still apply");
 });
 
 // ---- validation ----------------------------------------------------------------------------------

@@ -42,6 +42,9 @@ const HELP = `hyperspec <command> [options]
                                judgment station (or the --only subset) into <dir>: the rubric from
                                the spec, fixed instructions, the inputs and the exact verdict
                                shape, for an outside judge to fill; hyperspec never calls a model;
+                               stations: doctor, lineup (a blind voice lineup against the DNA
+                               scope's goldens, whose answer goes to lineup.key.json for a person
+                               to read; record rebuilds it and never reads the file), reader;
                                the same spec and draft give byte-identical packets; refuses to
                                overwrite an existing packet without --force
                                exit 0 written, 2 usage (a missing or non-folder --out, an existing

@@ -12,13 +12,18 @@ import { ROOT, cli, workspace, doctorVerdict, writeVerdict, ledgerLines, prepare
 
 // ---- prepare -------------------------------------------------------------------------------------
 
-test("prepare writes one packet per applicable station and prints its path", () => {
+test("prepare writes one packet per applicable station, plus lineup's key, and prints each path", () => {
   const w = workspace();
   const r = prepare(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(existsSync(w.packet));
-  assert.match(r.stdout, /doctor\.packet\.json/);
-  assert.deepEqual(readdirSync(w.out), ["doctor.packet.json"]);
+  assert.deepEqual(r.stdout.trim().split("\n").map((l) => l.replace(w.out, "<out>")), [
+    "<out>/doctor.packet.json",
+    "<out>/lineup.packet.json",
+    "<out>/lineup.key.json",
+    "<out>/reader.packet.json",
+  ]);
+  assert.deepEqual(readdirSync(w.out).sort(), ["doctor.packet.json", "lineup.key.json", "lineup.packet.json", "reader.packet.json"]);
 });
 
 test("the packet is 2-space JSON with a trailing newline and its keys in the fixed order", () => {
