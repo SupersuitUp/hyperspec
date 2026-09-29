@@ -12,9 +12,8 @@
 
 import { resolve } from "node:path";
 import { BLOCK_FIELD_RULES, characterFields } from "./writing-fields.mjs";
+import { str } from "./placeholder.mjs";
 
-const PLACEHOLDER = /^(null|~)$/is;
-const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);

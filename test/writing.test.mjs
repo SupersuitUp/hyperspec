@@ -638,6 +638,15 @@ const FIELD_RULE_CASES = [
     edit: (t) => t.replace("        path: materials/call-2026-09-28.md\n", ""),
     expect: [[1, "writing-materials-item-0-path"]],
   },
+  // R6 (fix round 1, Task 4): a writing field set to the bare placeholder word "tbd" fails the
+  // same as the field being absent — str() in src/placeholder.mjs blanks it before writing-fields
+  // ever sees a non-empty string. dna.writer never had a closed set to violate, so before R6 this
+  // passed silently.
+  {
+    name: "dna: writer set to the placeholder word \"tbd\" fails test 1, same as writer being absent",
+    edit: (t) => t.replace("    writer: gary-sheng\n", "    writer: tbd\n"),
+    expect: [[1, "writing-dna-writer"]],
+  },
   {
     name: "dna: scope with no form fails test 1",
     edit: (t) => t.replace("      form: essay\n", ""),

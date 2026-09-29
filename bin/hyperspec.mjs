@@ -18,11 +18,13 @@ const HELP = `hyperspec <command> [options]
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
   init <file> --profile writing [--title T] [--form F] [--fiction]
-                               write a writing-profile skeleton: materials, form, spine and
-                               sources scaffolded with placeholders that fail lint, dna, persona,
-                               audience and goal deferred to open decisions naming the question
-                               only the operator can answer; --fiction adds one character
-                               skeleton; exit 2 for a --profile this linter does not know
+                               write a writing-profile skeleton: every required block (materials,
+                               dna, persona, audience, goal, form, spine, sources) shown in full
+                               with placeholder values, dna/persona/audience/goal also carrying an
+                               open decision naming the question only the operator can answer;
+                               --fiction adds one character, same treatment; the skeleton never
+                               passes until its placeholders and open decisions are replaced with
+                               real content; exit 2 for a --profile this linter does not know
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json

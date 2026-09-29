@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { lintProfile } from "./profiles.mjs";
+import { str } from "./placeholder.mjs";
 
 export const TESTS = Object.freeze([
   { n: 1, name: "every decision is accounted for" },
@@ -26,15 +27,13 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[`~]*[ \t]*$|(?![
 const INLINE_CODE = /(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
 const prose = (body) => String(body || "").replace(FENCE, "").replace(INLINE_CODE, "");
 const list = (v) => (Array.isArray(v) ? v : []);
-// A value that is only null or ~ is a placeholder: the reader (@supersuit/superskill/yaml) keeps
-// these as the literal strings "null" and "~" rather than resolving them to YAML's own null, so
-// they must never count as present. A value that is only a YAML comment (source: # TODO) is
-// handled upstream since superskill 0.2.1: the reader returns "" for it, same as any other blank
-// scalar, so it already fails str()'s own emptiness check and needs no rule here. A QUOTED value
-// that happens to start with "#" (source: "# literal") is real text and must count as present.
-// Every presence check goes through str().
-const PLACEHOLDER = /^(null|~)$/is;
-const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
+// str() (a value that is null/~/todo/tbd/fixme/xxx/placeholder never counts as present) is
+// shared, from src/placeholder.mjs: writing.mjs and writing-fields.mjs import the same function,
+// so a placeholder word closes every presence check in the linter at once. A value that is only a
+// YAML comment (source: # TODO) is handled upstream since superskill 0.2.1: the reader returns ""
+// for it, same as any other blank scalar, so it already fails str()'s own emptiness check and
+// needs no rule here. A QUOTED value that happens to start with "#" (source: "# literal") is real
+// text and must count as present.
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 // The versions of the format this linter knows. A spec naming any other may follow rules it
 // cannot check, so it is warned about rather than failed.
@@ -125,10 +124,17 @@ export function lintSpec(spec) {
   });
 
   // 7
-  const next = str(d.resume?.next_action);
-  if (!next) out.push(f(7, "next-action", "fail", "no resume.next_action", "Write the single concrete step that starts the next session."));
-  else if (NO_ACTION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" names no action`, "Name the concrete step."));
-  else if (CONVERSATION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" points into a conversation the next reader cannot see`, "State the step itself."));
+  // NO_ACTION is checked against the RAW trimmed value, ahead of str()'s placeholder-blanking:
+  // two of its own words (tbd, todo) are now also placeholder words str() treats as blank, and
+  // "next action names no action" is the more specific, more correct message for those than "no
+  // resume.next_action" would be (something WAS written; it just names no action).
+  const rawNext = typeof d.resume?.next_action === "string" ? d.resume.next_action.trim() : "";
+  if (rawNext && NO_ACTION.test(rawNext)) out.push(f(7, "next-action-vague", "fail", `next action "${rawNext}" names no action`, "Name the concrete step."));
+  else {
+    const next = str(d.resume?.next_action);
+    if (!next) out.push(f(7, "next-action", "fail", "no resume.next_action", "Write the single concrete step that starts the next session."));
+    else if (CONVERSATION.test(next)) out.push(f(7, "next-action-vague", "fail", `next action "${next}" points into a conversation the next reader cannot see`, "State the step itself."));
+  }
   if (CONVERSATION.test(prose(spec.body))) out.push(f(7, "conversation-pointer", "warn", "the body points into a conversation the next reader cannot see", "State the thing itself."));
 
   // 8

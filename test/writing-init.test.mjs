@@ -38,15 +38,23 @@ test("init --profile <unknown> is a usage error (exit 2) naming the known profil
 // ---------------------------------------------------------------------------------------------
 // The skeleton itself: never lints as pass, and the test says exactly which result and why.
 //
+// Every required writing block (materials, dna, persona, audience, goal, form, spine, sources)
+// appears inline, in schema order, with every field present as a placeholder — the bare word
+// "TODO". str() in src/placeholder.mjs (fix round 1, R6) treats a value that IS the whole word
+// todo/tbd/fixme/xxx/placeholder as blank, so every one of those fields fails its own presence
+// check on its own; dna/persona/audience/goal additionally each carry an open decision naming the
+// real judgment call the operator has to make, but that decision is not what makes the spec fail
+// — the placeholder content already does, the same as materials/form/spine/sources.
+//
 // The skeleton always exits 1 (fail), never 3 (blocked): resume/feedback/rejects/examples/
-// requirements are left exactly as template.mjs's own base skeleton leaves them (empty, or
-// blank feedback strings), which already fails tests 2, 5, 6 and 8 regardless of the writing
-// profile. score.mjs's own precedence (`failed.size ? "fail" : open.length ? "blocked" : "pass"`)
-// means any fail finding anywhere wins over "blocked", so the four open decisions this skeleton
-// adds (writing-dna, writing-persona, writing-audience, writing-goal) show up in the `open:` list
-// on every run, but they never change the exit code by themselves.
+// requirements are left exactly as template.mjs's own base skeleton leaves them (empty, or blank
+// feedback strings), which already fails tests 2, 5, 6 and 8 regardless of the writing profile.
+// score.mjs's own precedence (`failed.size ? "fail" : open.length ? "blocked" : "pass"`) means any
+// fail finding anywhere wins over "blocked", so the four open decisions this skeleton adds
+// (writing-dna, writing-persona, writing-audience, writing-goal) show up in the `open:` list on
+// every run, but they never change the exit code by themselves.
 
-test("init --profile writing writes a skeleton that lints fail (exit 1), never pass, with the four writing blocks deferred to open decisions", () => {
+test("init --profile writing writes a skeleton that lints fail (exit 1), never pass, with every block shown and four also carrying an open decision", () => {
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   assert.equal(run("init", p, "--profile", "writing").status, 0);
 
@@ -61,16 +69,21 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
   assert.deepEqual(file.open, ["writing-dna", "writing-persona", "writing-audience", "writing-goal"]);
   assert.deepEqual(file.profile, { name: "writing", complete: 1, total: 9 });
 
-  // Materials, form, spine and sources are present and visibly broken (not silently missing);
-  // dna, persona, audience and goal are deferred, so neither produces a writing-<block>-missing
-  // finding at all (the deferral working as designed, not merely an open decision sitting unused
-  // beside a block that failed anyway).
-  const ids = file.findings.filter((f) => f.severity === "fail").map((f) => f.id);
-  for (const b of ["dna", "persona", "audience", "goal"]) {
-    assert.ok(!ids.includes(`writing-${b}-missing`), `writing-${b}-missing must not fire: the block is deferred`);
+  // All eight required blocks are present (none produces a writing-<block>-missing finding),
+  // and every one of them is genuinely broken (each produces at least one real, specific fail
+  // finding), which is what makes writing: 1/9 correct: only characters (absent, not required
+  // with no --fiction) is credited complete.
+  const ids = out.files[0].findings.filter((f) => f.severity === "fail").map((f) => f.id);
+  for (const b of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
+    assert.ok(!ids.includes(`writing-${b}-missing`), `writing-${b}-missing must not fire: the block is present`);
+    assert.ok(ids.some((id) => id.startsWith(`writing-${b}-`)), `writing-${b}- must have at least one real finding`);
   }
-  assert.ok(ids.includes("writing-materials-item-0-trust"), "materials.trust placeholder must fail closed-set");
+  // A sample of the specific, real rules each placeholder trips (not merely "something failed"):
   assert.ok(ids.includes("writing-materials-item-0-path-missing"), "materials path placeholder must not exist");
+  assert.ok(ids.includes("writing-dna-writer"), "dna.writer placeholder must be blank");
+  assert.ok(ids.includes("writing-persona-facts-from"), "persona.facts_from placeholder must fail closed-set");
+  assert.ok(ids.includes("writing-audience-reader"), "audience.reader placeholder must fail closed-set");
+  assert.ok(ids.includes("writing-goal-conditions-count"), "goal.conditions placeholder must be short of 5");
   assert.ok(ids.includes("writing-form-length-min") && ids.includes("writing-form-length-max"), "form.length placeholders must fail as non-numeric");
   assert.ok(ids.includes("writing-spine-claims-count"), "spine must have fewer than 3 claims");
   assert.ok(ids.includes("writing-sources-unsourced-claim"), "sources.unsourced_claim placeholder must fail closed-set");
@@ -94,9 +107,15 @@ test("--form sets both kind: and writing.form.name; the default is essay", () =>
 });
 
 // ---------------------------------------------------------------------------------------------
-// --fiction: fiction: true, plus one character skeleton with every required field present.
+// --fiction: fiction: true, plus one character with every required field's shape shown — and,
+// like every other block, genuinely broken (fix round 1, finding 1: an earlier draft filled every
+// character field with the bare string "TODO" and it linted completely clean, since every check
+// on a character is presence-only with no closed set to violate — the same "placeholder counts as
+// present" defect class this repo had already fixed once for null/~. R6 closed it at the root,
+// in str() itself, rather than special-casing this one block, so this is the design's own
+// reading of the brief ("adds one character skeleton"), not a quotation of it.
 
-test("--fiction sets fiction: true and adds one character with every required field present as a placeholder", () => {
+test("--fiction sets fiction: true and adds one character whose placeholder shape is shown but genuinely fails, like every other block", () => {
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   run("init", p, "--profile", "writing", "--fiction");
   const s = loadSpec(p);
@@ -116,25 +135,37 @@ test("--fiction sets fiction: true and adds one character with every required fi
   assert.equal(c.source, "TODO");
   assert.equal(c.author, "TODO");
 
-  // Present and structurally complete: no writing-characters-0-* finding fires at all, matching
-  // the brief's own phrasing ("every required character field present as a placeholder" — present,
-  // not broken). Everything else in the skeleton still fails, so the spec is still fail overall.
+  // Present, but not clean: every required character field is a placeholder that str() now
+  // treats as blank, so every one of characterFields()'s own checks fires, and the block is not
+  // counted toward writing: k/9.
   const out = JSON.parse(run("lint", p, "--json").stdout);
-  const ids = out.files[0].findings.map((f) => f.id);
-  assert.ok(!ids.some((id) => id.startsWith("writing-characters-0-")), ids.join(", "));
+  const ids = out.files[0].findings.filter((f) => f.severity === "fail").map((f) => f.id);
+  const expectedCharIds = [
+    "writing-characters-0-check", "writing-characters-0-source", "writing-characters-0-author",
+    "writing-characters-0-knowledge-0-by", "writing-characters-0-knowledge-0-knows",
+    "writing-characters-0-golden-lines", "writing-characters-0-rejected-lines",
+    "writing-characters-0-speech-uses", "writing-characters-0-speech-never",
+    "writing-characters-0-wants", "writing-characters-0-fears", "writing-characters-0-hides",
+    "writing-characters-0-arc-state",
+  ];
+  for (const id of expectedCharIds) assert.ok(ids.includes(id), `${id} must fire`);
+  assert.ok(!ids.includes("writing-characters-missing"), "the block is present, not missing");
   assert.equal(out.files[0].status, "fail");
-  assert.deepEqual(out.files[0].profile, { name: "writing", complete: 1, total: 9 });
+  // Every one of the nine blocks is now present and broken: 0/9, not the 1/9 characters used to
+  // get credited for free.
+  assert.deepEqual(out.files[0].profile, { name: "writing", complete: 0, total: 9 });
 });
 
 // ---------------------------------------------------------------------------------------------
 // Filling the skeleton's placeholders with the valid fixture's values lints 9/9: proof the
-// skeleton has the right shape, no extra or missing keys.
+// skeleton has the right shape, no extra or missing keys, for EVERY required block (fix round 1,
+// finding 2 widened this from materials/form/spine/sources to all eight).
 //
 // Two separate proofs, because one alone would be weak: (1) a direct per-block key-shape
 // comparison against the fixture (the literal "no extra or missing keys" claim), and (2) an
 // actual fill-and-lint: everything from decisions: onward in the skeleton (which is where the
-// skeleton's OWN placeholder and deferred content lives) is replaced by the fixture's already-
-// proven-passing content, its files are materialized alongside, and the result is linted.
+// skeleton's OWN placeholder and open-decision content lives) is replaced by the fixture's
+// already-proven-passing content, its files are materialized alongside, and the result is linted.
 
 function dottedKeys(value, prefix = "") {
   if (Array.isArray(value)) {
@@ -147,12 +178,12 @@ function dottedKeys(value, prefix = "") {
   return [prefix];
 }
 
-test("the skeleton's materials, form, spine and sources blocks have exactly the fixture's keys: none extra, none missing", () => {
+test("the skeleton's eight required blocks each have exactly the fixture's keys: none extra, none missing", () => {
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   run("init", p, "--profile", "writing");
   const skeleton = loadSpec(p).data.writing;
   const fixture = loadSpec(WRITING_VALID).data.writing;
-  for (const block of ["materials", "form", "spine", "sources"]) {
+  for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
     assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
   }
 });
@@ -164,7 +195,7 @@ test("filling the writing skeleton's placeholders with the valid fixture's value
   const skeletonText = readFileSync(p, "utf8");
   const fixtureText = readFileSync(WRITING_VALID, "utf8");
 
-  // Everything from "decisions:" onward is where the skeleton's own deferred decisions and
+  // Everything from "decisions:" onward is where the skeleton's own open decisions and
   // placeholder content live; splicing in the fixture's already-passing content there (keeping
   // the skeleton's own header: hyperspec/title/kind/profile) is the fill.
   const skeletonHeader = skeletonText.slice(0, skeletonText.indexOf("decisions:"));
@@ -186,11 +217,12 @@ test("filling the writing skeleton's placeholders with the valid fixture's value
 });
 
 // ---------------------------------------------------------------------------------------------
-// HELP mentions the new flags.
+// HELP mentions the new flags, and says plainly that the skeleton never passes.
 
-test("HELP documents --profile, --form and --fiction", () => {
+test("HELP documents --profile, --form, --fiction, and that the skeleton never passes until its placeholders and open decisions are replaced", () => {
   const r = run("--help");
   assert.match(r.stdout, /--profile writing/);
   assert.match(r.stdout, /--form/);
   assert.match(r.stdout, /--fiction/);
+  assert.match(r.stdout, /never\s+passes/);
 });

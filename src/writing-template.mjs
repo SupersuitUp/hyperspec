@@ -1,19 +1,27 @@
 // The writing profile's `hyperspec init --profile writing` skeleton.
 //
-// Design: four of the nine writing blocks (dna, persona, audience, goal) are the ones that need a
-// real interview before a placeholder means anything, so this skeleton does not fake content for
-// them at all. Instead it defers each one with its own open decision (id writing-<block>, per the
-// deferral rule in writing.mjs), carrying the actual question the operator has to answer. The
-// other required blocks that ARE mechanical enough to scaffold up front (materials, form, spine,
-// sources, and characters when --fiction) are written out in full, with placeholder values chosen
-// to fail their own field rules visibly (a closed-set field set to a value outside its set, a path
-// that does not exist, a list one short of its minimum) — so `writing: k/9 blocks complete` reads
-// honestly low the moment the file is written, not only once someone runs lint.
+// Design (fix round 1, per the design doc's Part 3 item 3, "the ten blocks above as a template
+// with every field's check named"): every required writing block appears in full, in schema
+// order, with every field present as a placeholder value — including dna, persona, audience and
+// goal, which an earlier draft of this file omitted entirely on the theory that a decision alone
+// was enough to stand in for the shape. That was wrong: an operator opening the file is owed the
+// same inline shape for those four that materials/form/spine/sources already get, not a pointer
+// to go read the schema elsewhere. The four still carry their own open decision (id
+// writing-<block>, per the deferral rule in writing.mjs) alongside the placeholder content, naming
+// the real question that has to be answered before the placeholder becomes real — the decision and
+// the shape are not in tension: the block's own placeholder content already fails its field rules
+// (closed-set values outside their set, paths that do not exist, lists one short of their
+// minimum), so the decision never changes whether the spec passes, only what the operator is told
+// to go decide.
 //
-// characters is the one deliberate exception when --fiction is set: the schema's checks on a
-// character are all presence checks (no closed set), so a character with every required field
-// filled by a placeholder passes cleanly. That is the brief's own phrasing: "every required
-// character field present as a placeholder", present rather than broken.
+// Every placeholder scalar in this file is the bare word "TODO". That is not decorative: `str()`
+// in src/placeholder.mjs treats a value that IS the whole word todo/tbd/fixme/xxx/placeholder
+// (case-insensitive) as blank, so every presence check on every one of these fields fails on its
+// own, for free, without this file having to hand-pick which specific field to break per block.
+// (Fix round 1, R6: an earlier version of this file relied on "TODO" happening to be a valid,
+// non-empty string, which meant the one block whose checks are all presence-only — characters —
+// lints completely clean the moment init writes it. Fixing the presence check itself, once, in
+// src/placeholder.mjs, closes that for every field in every block, not just characters.)
 //
 // init with no --profile never imports or calls this file: template.mjs's own template() is
 // untouched, so a bare init is still byte-for-byte what it always was.
@@ -27,9 +35,10 @@ const DECISION_QUESTIONS = Object.freeze({
 });
 
 // Schema order (writing.mjs's BLOCKS): materials, dna, persona, audience, goal, form, spine,
-// sources, characters. dna/persona/audience/goal are the deferred four; this is the order the
-// remaining decisions and the remaining blocks are written in.
-const DEFERRED_BLOCKS = ["dna", "persona", "audience", "goal"];
+// sources, characters. These four get an open decision in ADDITION to their placeholder block,
+// because they are the ones that need real judgment before the placeholder means anything; every
+// other required block gets only the placeholder.
+const DECISION_BLOCKS = ["dna", "persona", "audience", "goal"];
 
 function deferredDecision(block) {
   return `  - id: writing-${block}
@@ -68,7 +77,7 @@ const CHARACTER_BLOCK = `
 export function writingTemplate({ title = "Untitled", form = "essay", fiction = false } = {}) {
   const heading = String(title).replace(/\s+/g, " ").trim();
   const kind = String(form || "essay");
-  const decisions = DEFERRED_BLOCKS.map(deferredDecision).join("\n");
+  const decisions = DECISION_BLOCKS.map(deferredDecision).join("\n");
   const characters = fiction ? CHARACTER_BLOCK : "";
 
   return `---
@@ -82,7 +91,7 @@ requirements: []
 rejects: []
 examples: []
 resume:
-  next_action: answer the open decisions, then fill in materials, form, spine and sources
+  next_action: answer the open decisions, then fill in every writing block below
 feedback:
   issues: ""
   fork: ""
@@ -99,6 +108,59 @@ writing:
         trust: TODO
     check:
       station: TODO
+    source: TODO
+    author: TODO
+  dna:
+    writer: TODO
+    scope:
+      form: TODO
+      audience: TODO
+      purpose: TODO
+    rules: TODO
+    goldens:
+      - path: goldens/TODO.md
+        why: TODO
+    check:
+      rubric: TODO
+    source: TODO
+    author: TODO
+  persona:
+    identity: TODO
+    stance: TODO
+    may_assert:
+      - TODO
+    will_not_say:
+      - TODO
+    facts_from: TODO
+    check:
+      rubric: TODO
+    source: TODO
+    author: TODO
+  audience:
+    who: TODO
+    funnel_now: TODO
+    knows:
+      - TODO
+    believes_now: TODO
+    wants: TODO
+    reads_on: TODO
+    reader: TODO
+    check:
+      station: TODO
+      rubric: TODO
+    source: TODO
+    author: TODO
+  goal:
+    from: TODO
+    to: TODO
+    next_if_worked: TODO
+    change:
+      kind: TODO
+      text: TODO
+    conditions:
+      - TODO
+    check:
+      rubric: TODO
     source: TODO
     author: TODO
   form:

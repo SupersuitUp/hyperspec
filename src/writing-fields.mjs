@@ -21,9 +21,8 @@
 // and nothing in the schema gives it a closed set or a count to check.
 
 import { statSync } from "node:fs";
+import { str } from "./placeholder.mjs";
 
-const PLACEHOLDER = /^(null|~)$/is;
-const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);

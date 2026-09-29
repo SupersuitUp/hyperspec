@@ -95,8 +95,12 @@ test("every finding names its test, a severity, a message and a fix", () => {
   }
 });
 
-// C1: a value that is only a YAML comment, or null / ~, is a placeholder and never counts as present.
-const PLACEHOLDERS = ["# TODO fill in", "null", "~", "# none yet"];
+// C1: a value that is only a YAML comment, or null / ~, is a placeholder and never counts as
+// present. R6 (fix round 1, Task 4) widened this to the bare placeholder words themselves (todo,
+// tbd, fixme, xxx, placeholder): a core decision value of exactly "TODO" is the case that started
+// this — hyperspec init --profile writing's own skeleton filled every field with that word and
+// lint let every one of them pass.
+const PLACEHOLDERS = ["# TODO fill in", "null", "~", "# none yet", "TODO", "tbd"];
 const PLACEHOLDER_FIELDS = [
   // [field, the fixture text to replace, the replacement (with $ for the placeholder), the test that must fail]
   ["decision id", "  - id: audience\n", "  - id: $\n", 1],
