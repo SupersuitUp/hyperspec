@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { canonical, sha256 } from "./hash.mjs";
 import { writeFileAtomic } from "./fsutil.mjs";
+import { isSha256 } from "./blobs.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
+const NOT_HEX = "is not a SHA-256 hash (64 lowercase hex characters)";
 
 export function readRecipe(path) {
   const abs = resolve(path);
@@ -90,6 +92,8 @@ export function checkRecipe(recipe, { root } = {}) {
 
   if (!present(recipe.factory?.version)) fail("factory.version", "factory.version is missing");
   if (!present(recipe.spec?.sha256)) fail("spec.sha256", "spec.sha256 is missing");
+  else if (!isSha256(recipe.spec.sha256)) fail("spec.sha256", `spec.sha256 ${NOT_HEX}`);
+  if (present(recipe.output?.sha256) && !isSha256(recipe.output.sha256)) fail("output.sha256", `output.sha256 ${NOT_HEX}`);
   const authors = recipe.spec?.authors;
   if (!authors || typeof authors !== "object" || Array.isArray(authors) || Object.keys(authors).length === 0) {
     fail("spec.authors", "spec.authors is missing");
@@ -100,10 +104,12 @@ export function checkRecipe(recipe, { root } = {}) {
   const parentSet = recipe.parent !== null && recipe.parent !== undefined;
   const changeSet = recipe.change !== null && recipe.change !== undefined;
   if (parentSet !== changeSet) fail("parent", "parent and change must both be null or both be set");
+  if (parentSet && present(recipe.parent?.sha256) && !isSha256(recipe.parent.sha256)) fail("parent.sha256", `parent.sha256 ${NOT_HEX}`);
 
   const inputs = Array.isArray(recipe.inputs) ? recipe.inputs : [];
   inputs.forEach((input, i) => {
     if (!present(input?.sha256)) fail(`inputs[${i}].sha256`, `input "${input?.name ?? i}" has no sha256`);
+    else if (!isSha256(input.sha256)) fail(`inputs[${i}].sha256`, `input "${input?.name ?? i}" sha256 ${NOT_HEX}`);
   });
 
   const stages = Array.isArray(recipe.stages) ? recipe.stages : [];
@@ -120,6 +126,8 @@ export function checkRecipe(recipe, { root } = {}) {
     // pending: true, or a null/incomplete output, makes the stage incomplete by definition.
     if (stage?.pending === true || stage?.output == null || !present(stage.output?.sha256)) {
       fail(`stages[${i}]`, `stage ${id} is pending`);
+    } else if (!isSha256(stage.output.sha256)) {
+      fail(`stages[${i}].output.sha256`, `stage "${id}" output.sha256 ${NOT_HEX}`);
     }
 
     if (!Array.isArray(stage?.reads) || stage.reads.length === 0) {

@@ -159,3 +159,26 @@ test("verifyBlob is false for a hash with no blob on disk at all", () => {
   const root = tmp();
   assert.equal(verifyBlob(root, sha256("nothing here")), false);
 });
+
+// ---- a hash is validated before it becomes a path ----
+
+test("blobPath refuses anything but 64 lowercase hex characters", () => {
+  const root = tmp();
+  const good = sha256("x");
+  assert.equal(blobPath(root, good), join(root, ".hyperspec", "blobs", good.slice(0, 2), good));
+  for (const bad of ["../x", "../../../../etc/passwd", good.toUpperCase(), good.slice(1), `${good}0`, "", null, undefined, 42]) {
+    assert.throws(() => blobPath(root, bad), /not a SHA-256 hash/, String(bad));
+  }
+});
+
+test("a hash that climbs out of the store names no blob: it reads nothing and never throws", () => {
+  const root = tmp();
+  // "../outside.md" would have resolved to <root>/outside.md: blobs/.. then ../outside.md.
+  writeFileSync(join(root, "outside.md"), "a file that is not a blob");
+  mkdirSync(join(root, ".hyperspec", "blobs"), { recursive: true });
+  for (const bad of ["../outside.md", sha256("y").toUpperCase()]) {
+    assert.equal(hasBlob(root, bad), false);
+    assert.equal(getBlob(root, bad), null);
+    assert.equal(verifyBlob(root, bad), false);
+  }
+});

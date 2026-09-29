@@ -1,11 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
-import { getBlob, storeRoot, verifyBlob } from "./blobs.mjs";
+import { getBlob, isSha256, storeRoot, verifyBlob } from "./blobs.mjs";
 import { insideDir, writeFileAtomic } from "./fsutil.mjs";
 import { readRecipe, stageKey } from "./recipe.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
+const MALFORMED = "recorded hash is not a SHA-256 hash (64 lowercase hex characters)";
+// A recorded hash that is not well formed names no blob at all; say so rather than "missing".
+const blobWhy = (hex, why) => (present(hex) && !isSha256(hex) ? MALFORMED : why);
 
 // Spec requirement `reproduce`: replay the record and hash-check it. Never invokes a model,
 // never runs a command, never regenerates a byte of content — every blob this looks at already
@@ -41,14 +44,14 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
   for (const input of inputs) {
     const hex = input?.sha256;
     const ok = present(hex) && verifyBlob(root, hex);
-    addStep(`input:${input?.name}`, hex, ok, "input blob missing or does not match its recorded hash");
+    addStep(`input:${input?.name}`, hex, ok, blobWhy(hex, "input blob missing or does not match its recorded hash"));
   }
 
   // 2. The spec blob verifies.
   {
     const hex = recipe.spec?.sha256;
     const ok = present(hex) && verifyBlob(root, hex);
-    addStep("spec", hex, ok, "spec blob missing or does not match its recorded hash");
+    addStep("spec", hex, ok, blobWhy(hex, "spec blob missing or does not match its recorded hash"));
   }
 
   // 3. For each stage: its output blob verifies, and its recorded key equals the recomputed key.
@@ -61,7 +64,7 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
     } else {
       const hex = stage.output.sha256;
       const ok = verifyBlob(root, hex);
-      addStep(`stage:${id}`, hex, ok, "stage output blob missing or does not match its recorded hash");
+      addStep(`stage:${id}`, hex, ok, blobWhy(hex, "stage output blob missing or does not match its recorded hash"));
     }
 
     let keyOk = false;
@@ -85,7 +88,7 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
     if (!lastStage || lastStage.output?.sha256 !== outputSha) {
       outputBlobWhy = "output.sha256 does not match the last stage's output";
     } else if (!verifyBlob(root, outputSha)) {
-      outputBlobWhy = "output blob missing or does not match output.sha256";
+      outputBlobWhy = blobWhy(outputSha, "output blob missing or does not match output.sha256");
     } else {
       outputBlobOk = true;
     }

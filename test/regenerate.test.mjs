@@ -547,3 +547,19 @@ test("an out file that appears while the runner runs is refused, not overwritten
   assert.equal(existsSync(`${out}.recipe.json`), false);
   assert.deepEqual(snapshotTree(join(dir, ".hyperspec")), blobsBefore);
 });
+
+test("a parent whose input hash climbs out of the store fails cleanly and writes nothing", () => {
+  const dir = project();
+  const { recipePath } = buildParent(dir);
+  const { data } = readRecipe(recipePath);
+  data.inputs[0].sha256 = "../../../../../../tmp/some-fifo";
+  writeRecipe(recipePath, data);
+  const out = join(dir, "essay-v2.md");
+
+  const res = regenerate(recipePath, { out, clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir) });
+  assert.equal(res.ok, false);
+  assert.equal(res.usage, undefined);
+  assert.match(res.error, /input transcript-1/);
+  assert.equal(existsSync(out), false);
+  assert.equal(existsSync(`${out}.recipe.json`), false);
+});

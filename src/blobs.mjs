@@ -21,7 +21,19 @@ export function storeRoot({ from, store } = {}) {
   }
 }
 
+// A hash read from a recipe is a claim, and it becomes part of a filesystem path here. Anything
+// but exactly 64 lowercase hex characters is refused before it touches the disk, so a crafted
+// recipe cannot point a read at `../../somewhere`, a device, or a pipe that never closes.
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+export function isSha256(hex) {
+  return typeof hex === "string" && SHA256_HEX.test(hex);
+}
+
 export function blobPath(root, hex) {
+  if (!isSha256(hex)) {
+    const shown = typeof hex === "string" ? JSON.stringify(hex.length > 80 ? `${hex.slice(0, 80)}...` : hex) : String(hex);
+    throw new Error(`not a SHA-256 hash (64 lowercase hex characters): ${shown}`);
+  }
   return join(root, ".hyperspec", "blobs", hex.slice(0, 2), hex);
 }
 
@@ -48,11 +60,13 @@ export function putBlob(root, bytes) {
   return hex;
 }
 
+// A malformed hash names no blob, so hasBlob, getBlob and verifyBlob treat it as missing.
 export function hasBlob(root, hex) {
-  return existsSync(blobPath(root, hex));
+  return isSha256(hex) && existsSync(blobPath(root, hex));
 }
 
 export function getBlob(root, hex) {
+  if (!isSha256(hex)) return null;
   try { return readFileSync(blobPath(root, hex)); } catch { return null; }
 }
 

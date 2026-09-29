@@ -317,3 +317,23 @@ test("reproduce() honors an explicit store root", () => {
   const step = result.steps.find((s) => s.ref === "stage:outline");
   assert.equal(step.ok, false);
 });
+
+// ---- a malformed hash never becomes a path ----
+
+test("a recipe hash that climbs out of the store fails that step as malformed and never reads the path", () => {
+  const dir = project();
+  const { recipePath } = buildRecipe(dir);
+  const { data } = readRecipe(recipePath);
+  // A pipe or device here once made reproduce hang; the shape is enough to prove it is refused.
+  data.inputs[0].sha256 = "../../../../../../../../tmp/some-fifo";
+  data.stages[0].output.sha256 = data.stages[0].output.sha256.toUpperCase();
+  writeRecipe(recipePath, data);
+
+  const result = reproduce(recipePath);
+  assert.equal(result.ok, false);
+  assert.equal(result.firstMismatch, "input:transcript-1");
+  const input = result.steps.find((s) => s.ref === "input:transcript-1");
+  assert.match(input.why, /not a SHA-256 hash/);
+  const stage = result.steps.find((s) => s.ref === "stage:outline");
+  assert.match(stage.why, /not a SHA-256 hash/);
+});

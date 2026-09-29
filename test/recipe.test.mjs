@@ -381,3 +381,22 @@ test("checkRecipe never puts the reads-warn and a key-recompute fail on the same
 test("checkRecipe on a two-stage recipe with everything correct reports no findings", () => {
   assert.deepEqual(checkRecipe(twoStageRecipe()), []);
 });
+
+// ---- every recorded hash is well formed ----
+
+test("checkRecipe fails any recorded hash that is not 64 lowercase hex characters", () => {
+  const cases = [
+    ["inputs[0].sha256", (r) => { r.inputs[0].sha256 = "../../etc/passwd"; }],
+    ["spec.sha256", (r) => { r.spec.sha256 = r.spec.sha256.toUpperCase(); }],
+    ["stages[0].output.sha256", (r) => { r.stages[0].output.sha256 = "../x"; }],
+    ["output.sha256", (r) => { r.output.sha256 = "../x"; }],
+    ["parent.sha256", (r) => { r.parent = { path: "p.recipe.json", sha256: "../x" }; r.change = "a change"; }],
+  ];
+  for (const [field, edit] of cases) {
+    const recipe = validRecipe();
+    edit(recipe);
+    const hit = checkRecipe(recipe).find((f) => f.field === field && /not a SHA-256 hash/.test(f.message));
+    assert.ok(hit, `${field}: ${JSON.stringify(checkRecipe(recipe))}`);
+    assert.equal(hit.severity, "fail");
+  }
+});
