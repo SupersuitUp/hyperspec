@@ -9,6 +9,7 @@ import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } f
 import { join } from "node:path";
 import { ROOT, cli, workspace, forStation, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
 import { tempDir } from "./tmp.mjs";
+import { createHash } from "node:crypto";
 import { LINEUP_INSTRUCTIONS, proseParagraphs, pickPassage, reflow, seededShuffle, skipReason } from "../src/judges/lineup.mjs";
 
 const PASSAGE = "A hyperspec is a contract a linter can check, not a prompt someone wrote once.";
@@ -355,6 +356,10 @@ test("record rebuilds the key: an edited lineup.key.json changes nothing", () =>
   assert.equal(j.status, "fail", "still the draft's real label");
 });
 
+const STALE_INPUTS = "fail [judge-stale] the packet's inputs no longer match what the spec, the draft and the DNA scope's goldens (dna-scope/goldens) produce now: the DNA scope's goldens (dna-scope/goldens) changed since the packet was prepared, or the packet was edited";
+
+const STALE_FIX = "fix: Run judge prepare again (with --force) so the packet is built from the spec, the draft and the DNA scope's goldens (dna-scope/goldens) as they are now, and judge the new packet.";
+
 test("a golden changed after prepare is stale, and the message names the goldens (R9)", () => {
   const w = ready();
   const opening = join(w.dir, "dna-scope", "goldens", "opening.md");
@@ -363,8 +368,24 @@ test("a golden changed after prepare is stale, and the message names the goldens
   const r = record(w);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
-  assert.ok(r.stdout.includes("fail [judge-stale] the packet's inputs no longer match what lineup builds now; the spec and the draft are unchanged, so the DNA scope's goldens (dna-scope/goldens) changed since the packet was prepared, or the packet was edited"), r.stdout);
-  assert.ok(r.stdout.includes("fix: Run judge prepare again (with --force) so the packet reads the DNA scope's goldens (dna-scope/goldens) as they are now, and judge the new packet."), r.stdout);
+  assert.ok(r.stdout.includes(STALE_INPUTS), r.stdout);
+  assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
+  assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
+});
+
+test("an edited draft with the packet's hash forged to match is refused, and the message claims no hash is honest (R10)", () => {
+  const w = ready();
+  writeFileSync(w.draft, `${DRAFT}Buy now today, friends.\n`);
+  const packet = json(w.packet);
+  packet.draft_sha256 = createHash("sha256").update(readFileSync(w.draft)).digest("hex");
+  writeFileSync(w.packet, `${JSON.stringify(packet, null, 2)}\n`);
+  writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
+  const r = record(w);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m, "only the shuffle moved, so only inputs differ");
+  assert.ok(r.stdout.includes(STALE_INPUTS), r.stdout);
+  assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
+  assert.ok(!/unchanged/.test(r.stdout), "never claims the spec or the draft is unchanged");
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });
 

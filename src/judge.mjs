@@ -258,12 +258,13 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // Ruling R9: a station that reads files besides the spec and the draft (lineup reads the DNA
   // goldens) can go out of date with both hashes unchanged. When the file is a well-formed packet
   // that differs from the rebuilt one only in its inputs, that is reported as stale, naming those
-  // files; the packet could also have been hand-edited there, and the message says so, since
-  // nothing on disk can tell the two apart. Anything else is an altered packet.
+  // files; the packet could also have been hand-edited there (its inputs, or a hash forged to match
+  // an edited draft), and the message says so without claiming either hash is honest (ruling R10),
+  // since nothing on disk can tell these apart. Anything else is an altered packet.
   if (rebuilt && rebuilt.packetBytes !== packetText && judge.inputSources && packetJson(packet) === packetText
       && JSON.stringify({ ...packet, inputs: null }) === JSON.stringify({ ...rebuilt.packet, inputs: null })) {
     const sources = judge.inputSources(spec);
-    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `the packet's inputs no longer match what ${judge.name} builds now; the spec and the draft are unchanged, so ${sources} changed since the packet was prepared, or the packet was edited`, `Run judge prepare again (with --force) so the packet reads ${sources} as they are now, and judge the new packet.`)], code: 1 };
+    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `the packet's inputs no longer match what the spec, the draft and ${sources} produce now: ${sources} changed since the packet was prepared, or the packet was edited`, `Run judge prepare again (with --force) so the packet is built from the spec, the draft and ${sources} as they are now, and judge the new packet.`)], code: 1 };
   }
   if (!rebuilt || rebuilt.packetBytes !== packetText) {
     const why = rebuilt ? "is not the packet judge prepare builds from the spec and draft on disk" : `is for a station that does not apply to this spec (${skip})`;
