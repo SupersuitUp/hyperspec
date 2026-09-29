@@ -58,6 +58,7 @@ does `none`.
 - SPEC.md gains a Profiles section and states the placeholder words in its test-to-field map.
 - The illustrative specs and recipe in SPEC.md and `examples/minimal.hyperspec.md` name a
   placeholder author, `example-author`, and a placeholder factory, `my-factory`.
+- Requires `@supersuit/superskill` 0.2.2, whose YAML reader reads an inline map (`scope: { form: essay, purpose: persuade }`), a bare inline map as a list item, and an inline list followed by a comment. On 0.2.1 those came back as text, so a correct spec written in that compact style failed. A test lints the essay example rewritten in that style.
 
 ## 0.2.0 (2026-09-28)
 

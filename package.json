@@ -40,6 +40,6 @@
     "outcome-factory"
   ],
   "dependencies": {
-    "@supersuit/superskill": "^0.2.1"
+    "@supersuit/superskill": "^0.2.2"
   }
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -68,4 +68,21 @@ test("the writing examples ship no personal path and no email", () => {
     const text = readFileSync(join(BASE, f), "utf8");
     assert.ok(!/\/Users\/|\/home\/|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/.test(text), `${f} holds a personal path or email`);
   }
+});
+
+test("a writing spec written with inline maps and a commented inline list lints the same as block style", () => {
+  // Adopters copy the compact schema shape: `scope: { ... }`, `check: { ... }`, and a list with a
+  // trailing comment. The reader has to see those as a map and a list, or a correct spec fails.
+  const d = tempDir("hs-writing-inline-");
+  cpSync(BASE, d, { recursive: true });
+  const p = join(d, "essay.hyperspec.md");
+  let t = readFileSync(p, "utf8");
+  t = t.replace(/\n    scope:\n      form: (.+)\n      audience: (.+)\n      purpose: (.+)\n/, (_, f, a, pu) => `\n    scope: { form: ${f}, audience: ${a}, purpose: ${pu} }\n`);
+  t = t.replace(/conditions: \[(.+)\]\n    check:\n      rubric: (.+)\n/, (_, c, r) => `conditions: [${c}]   # five to ten requirement ids\n    check: { rubric: "${r.replace(/"/g, '\\"')}" }\n`);
+  assert.match(t, /scope: \{ form:/, "the dna scope was rewritten inline");
+  assert.match(t, /# five to ten requirement ids\n    check: \{ rubric:/, "the goal list and check were rewritten inline");
+  writeFileSync(p, t);
+  const r = lint([p]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(r.stdout.includes("  writing: 9/9 blocks complete\n"), r.stdout);
 });
