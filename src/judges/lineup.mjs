@@ -3,12 +3,18 @@
 // shuffled and labelled; a judge who can pick the draft's passage out has found that the draft does
 // not yet sound like the writer. The station passes when the judge picks a golden.
 //
-// Everything here is deterministic. The goldens are the scope's first three by file name (the order
-// src/dna.mjs's reader returns them in). The draft's passage is its prose paragraph whose length in
-// characters is closest to the goldens' median length, ties to the earliest. The shuffle is seeded
-// from the draft's sha256, so the same draft always gets the same labels and a revised draft gets a
-// fresh draw. The draft's label is the hidden answer: it goes only in the station's key, which
-// prepare writes to lineup.key.json for a person to read and record rebuilds rather than reading.
+// Every candidate is built the same way, so none can be told apart by its formatting (ruling R7):
+// ONE prose paragraph (proseParagraphs below), reflowed to a single line. The target length is the
+// median, in characters, of every prose paragraph of every golden in the scope. Each of the scope's
+// first three goldens with a prose paragraph (by file name, the order src/dna.mjs's reader returns
+// them in) contributes its paragraph closest to that target; the draft contributes its paragraph
+// closest to the same target, skipping any that is already a golden paragraph word for word
+// (ruling R8), since a lineup of two identical passages tests nothing. Ties go to the earliest.
+//
+// The shuffle is seeded from the draft's sha256, so the same draft always gets the same labels and
+// a revised draft gets a fresh draw. The draft's label is the hidden answer: it goes only in the
+// station's key, which prepare writes to lineup.key.json for a person to read and record rebuilds
+// rather than reading.
 
 import { resolve } from "node:path";
 import { str } from "../placeholder.mjs";
@@ -84,13 +90,19 @@ function median(values) {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-// pickPassage(paragraphs, goldenLengths): the paragraph whose length in characters is closest to
-// the median of goldenLengths; on a tie, the earliest. null when there is no paragraph.
-export function pickPassage(paragraphs, goldenLengths) {
-  const target = median(goldenLengths);
+// reflow(text): the paragraph on one line, every run of whitespace (line breaks included) collapsed
+// to one space. Lineup carries no evidence, so nothing in a candidate has to stay verbatim.
+export const reflow = (text) => String(text).replace(/\s+/g, " ").trim();
+
+// pickPassage(paragraphs, lengths, { exclude }): the paragraph whose length in characters is
+// closest to the median of `lengths`; on a tie, the earliest. A paragraph whose text is in
+// `exclude` (a Set) is never picked. null when no paragraph is left.
+export function pickPassage(paragraphs, lengths, { exclude } = {}) {
+  const target = median(lengths);
   let best = null;
   let bestDistance = Infinity;
   for (const p of paragraphs) {
+    if (exclude?.has(p.text)) continue;
     const d = Math.abs(chars(p.text) - target);
     if (d < bestDistance) { best = p; bestDistance = d; }
   }
@@ -126,37 +138,60 @@ export function seededShuffle(items, sha256Hex) {
 
 // ---- the station ---------------------------------------------------------------------------------
 
-// The scope as written in the spec, and what is on disk there: { scopeDir, scope, goldens, unreadable }.
-function readLineupScope(spec) {
-  const scopeDir = str(spec.data?.writing?.dna?.scope_dir);
+// Every prose paragraph of a text, reflowed to one line: [{ line, text }].
+const reflowedParagraphs = (text) => proseParagraphs(text).map((p) => ({ line: p.line, text: reflow(p.text) }));
+
+// What the lineup would hold for this spec and draft, or why it cannot be built: { skip } or
+// { scope, goldens: [{ source, text }], passage: { line, text } }. The one plan both skipReason and
+// packet read, so a station that applies always has a packet to build. Without a draft (never the
+// case from prepare or record) only the scope's half is checked.
+function lineupPlan(spec, draft) {
+  const dna = spec.data?.writing?.dna;
+  if (!isObject(dna)) return { skip: "writing.dna is not written (deferred)" };
+  const scopeDir = str(dna.scope_dir);
+  if (!scopeDir) return { skip: "writing.dna.scope_dir is not set" };
+  if (!str(dna.check?.rubric)) return { skip: "writing.dna.check has no rubric" };
+
   const disk = readScope(resolve(spec.dir || ".", scopeDir), { displayDir: scopeDir });
-  const unreadable = disk.findings.some((x) => x.id === "writing-dna-goldens-missing" || x.id === "writing-dna-goldens-outside");
-  const goldens = disk.goldens.filter((g) => g.text).slice(0, MAX_GOLDENS);
-  return { scopeDir, scope: disk.scope, goldens, unreadable };
+  if (disk.findings.some((x) => x.id === "writing-dna-goldens-missing" || x.id === "writing-dna-goldens-outside")) {
+    return { skip: `writing.dna.scope_dir "${scopeDir}": its goldens cannot be read (run \`hyperspec lint\` for details)` };
+  }
+  const read = disk.goldens.filter((g) => g.text).map((g) => ({ source: g.path, paragraphs: reflowedParagraphs(g.text) }));
+  if (!read.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no goldens` };
+  const withProse = read.filter((g) => g.paragraphs.length);
+  if (!withProse.length) return { skip: `writing.dna.scope_dir "${scopeDir}" has no golden with a prose paragraph` };
+
+  const all = withProse.flatMap((g) => g.paragraphs);
+  const lengths = all.map((p) => chars(p.text));
+  const goldens = withProse.slice(0, MAX_GOLDENS).map((g) => ({ source: g.source, text: pickPassage(g.paragraphs, lengths).text }));
+  if (!draft) return { scope: disk.scope, goldens, passage: null };
+
+  const drafted = reflowedParagraphs(draft.text);
+  if (!drafted.length) return { skip: "the draft has no prose paragraph to put in the lineup" };
+  const passage = pickPassage(drafted, lengths, { exclude: new Set(all.map((p) => p.text)) });
+  if (!passage) return { skip: "every prose paragraph of the draft is already a golden in the scope, word for word" };
+  return { scope: disk.scope, goldens, passage };
 }
 
 // null when the lineup applies, otherwise why not: it needs a written dna block whose scope_dir is
-// set and whose check names a rubric, at least one golden in that scope, and a prose paragraph in the
-// draft to stand among them.
+// set and whose check names a rubric, a golden with a prose paragraph in that scope, and a prose
+// paragraph in the draft that is not already a golden.
 export function skipReason(spec, draft) {
-  const dna = spec.data?.writing?.dna;
-  if (!isObject(dna)) return "writing.dna is not written (deferred)";
-  if (!str(dna.scope_dir)) return "writing.dna.scope_dir is not set";
-  if (!str(dna.check?.rubric)) return "writing.dna.check has no rubric";
-  const { scopeDir, goldens, unreadable } = readLineupScope(spec);
-  if (unreadable) return `writing.dna.scope_dir "${scopeDir}": its goldens cannot be read (run \`hyperspec lint\` for details)`;
-  if (!goldens.length) return `writing.dna.scope_dir "${scopeDir}" has no goldens`;
-  if (draft && !proseParagraphs(draft.text).length) return "the draft has no prose paragraph to put in the lineup";
-  return null;
+  return lineupPlan(spec, draft).skip ?? null;
+}
+
+// Where the lineup's inputs come from beyond the spec and the draft: record names them when the
+// packet's inputs no longer match while neither hash changed (ruling R9).
+export function inputSources(spec) {
+  return `the DNA scope's goldens (${str(spec.data?.writing?.dna?.scope_dir)}/goldens)`;
 }
 
 // The packet's rubric (dna.check.rubric, verbatim), inputs (the scope and the labelled candidates,
 // text only) and verdict schema, and the key: which label is the draft's, and where every
 // candidate came from.
 export function packet(spec, draft) {
-  const { scope, goldens } = readLineupScope(spec);
-  const passage = pickPassage(proseParagraphs(draft.text), goldens.map((g) => chars(g.text)));
-  const pool = [...goldens.map((g) => ({ source: g.path, text: g.text })), { source: "draft", text: passage.text }];
+  const { scope, goldens, passage } = lineupPlan(spec, draft);
+  const pool = [...goldens, { source: "draft", text: passage.text }];
   const order = seededShuffle(pool, draft.sha256);
   const labels = LABELS.slice(0, order.length);
   return {

@@ -5,10 +5,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cli, workspace, forStation, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
-import { LINEUP_INSTRUCTIONS, proseParagraphs, pickPassage, seededShuffle, skipReason } from "../src/judges/lineup.mjs";
+import { ROOT, cli, workspace, forStation, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
+import { tempDir } from "./tmp.mjs";
+import { LINEUP_INSTRUCTIONS, proseParagraphs, pickPassage, reflow, seededShuffle, skipReason } from "../src/judges/lineup.mjs";
 
 const PASSAGE = "A hyperspec is a contract a linter can check, not a prompt someone wrote once.";
 const CLOSING = "A hyperspec is a contract you can check today, and a contract you can keep tomorrow.";
@@ -40,6 +41,22 @@ function editSpec(w, from, to) {
   const edited = text.replace(from, to);
   assert.notEqual(edited, text);
   writeFileSync(w.spec, edited);
+}
+
+// Replaces the workspace's goldens with `files` ({ name: body }) and re-measures the scope, so the
+// spec still lints clean.
+function setGoldens(w, files) {
+  const dir = join(w.dir, "dna-scope", "goldens");
+  for (const f of readdirSync(dir)) rmSync(join(dir, f));
+  for (const [file, body] of Object.entries(files)) {
+    writeFileSync(join(dir, file), `---\nwhy: the move this passage teaches\napproved_by: example-author\nsource: notes\n---\n\n${body}\n`);
+  }
+  const m = cli(["dna", "measure", join(w.dir, "dna-scope")]);
+  assert.equal(m.status, 0, m.stdout + m.stderr);
+}
+// No candidate carries a line break, so none can be told apart by how it was wrapped or split.
+function assertOneLineEach(candidates) {
+  for (const c of candidates) assert.ok(!/\s{2}|\n/.test(c.text), `${c.label} is not one reflowed line: ${JSON.stringify(c.text)}`);
 }
 
 // ---- which paragraph goes in ---------------------------------------------------------------------
@@ -99,6 +116,12 @@ test("the passage is the paragraph closest to the goldens' median length; ties g
   assert.equal(pickPassage(paras, [40, 60]).line, 5, "even count: the mean of the two middle, 50");
   assert.equal(pickPassage(paras, [40]).line, 3, "30 and 50 are both 10 away from 40: the earlier wins");
   assert.equal(pickPassage([p("é".repeat(4), 1), p("e".repeat(9), 2)], [5]).line, 1, "length counts characters, not bytes");
+  assert.equal(pickPassage(paras, [30], { exclude: new Set(["x".repeat(30)]) }).line, 1, "an excluded paragraph is never picked; 10 and 50 tie, the earlier wins");
+  assert.equal(pickPassage([p("same", 1)], [4], { exclude: new Set(["same"]) }), null);
+});
+
+test("reflow puts a paragraph on one line", () => {
+  assert.equal(reflow("  One line\nand   the\tnext,\r\nwrapped. "), "One line and the next, wrapped.");
 });
 
 test("the seeded shuffle is deterministic per hash and moves with it", () => {
@@ -173,6 +196,67 @@ test("with four goldens only the first three by file name go in, labelled A to D
   assert.ok(!readFileSync(w.packet, "utf8").includes("never read into the lineup"));
 });
 
+test("goldens with several paragraphs, headings and lists each give ONE reflowed paragraph, the one nearest the median", () => {
+  const w = forStation(workspace(), "lineup");
+  setGoldens(w, {
+    "opening.md": "# A heading the lineup never shows\n\nShort one.\n\nThis middle paragraph of the first golden is the one near the target length.\n\n- a list\n- that never goes in",
+    "b.md": "The second golden opens with a paragraph that runs\nacross two hard-wrapped lines, close to the target.\n\nThen a much longer paragraph follows it, one that goes on and on well past the median length of every golden paragraph in the scope, so it loses.",
+    "c.md": "> A quotation block is not prose.\n\nA third golden, one paragraph, about the same length as the rest.",
+  });
+  const r = prepare(w, "--only", "lineup");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const { candidates } = json(w.packet).inputs;
+  assertOneLineEach(candidates);
+  assert.deepEqual(candidates.map((c) => c.text).sort(), [
+    PASSAGE,
+    "A third golden, one paragraph, about the same length as the rest.",
+    "The second golden opens with a paragraph that runs across two hard-wrapped lines, close to the target.",
+    "This middle paragraph of the first golden is the one near the target length.",
+  ].sort());
+});
+
+test("an unwrapped draft beside hard-wrapped goldens: every candidate is one line, as the judge sees it", () => {
+  const w = forStation(workspace({ draft: "# Claim\n\nA hyperspec is a contract a linter can check, not a prompt someone wrote once, and that difference is the whole reason to write one.\n" }), "lineup");
+  setGoldens(w, {
+    "opening.md": "A hyperspec is a contract a linter can check,\nnot a prompt you hope holds; the linter says\nwhich promise broke and where.",
+    "b.md": "Write the contract once, and every draft after\nit is graded against the same nine tests\nwithout anyone rereading the prompt.",
+  });
+  assert.equal(prepare(w, "--only", "lineup").status, 0);
+  const { candidates } = json(w.packet).inputs;
+  assert.equal(candidates.length, 3);
+  assertOneLineEach(candidates);
+});
+
+test("a draft paragraph that is already a golden, word for word, never goes in the lineup", () => {
+  const golden = "A hyperspec is a contract you can check today,\nand a contract you can keep tomorrow.";
+  const w = forStation(workspace({ draft: DRAFT.replace(PASSAGE, "A hyperspec is a contract you can check today, and a contract you can keep tomorrow.") }), "lineup");
+  setGoldens(w, { "closing.md": golden, "opening.md": OPENING });
+  assert.equal(prepare(w, "--only", "lineup").status, 0);
+  const key = json(w.key);
+  const texts = json(w.packet).inputs.candidates.map((c) => c.text);
+  assert.equal(new Set(texts).size, texts.length, "no two candidates are the same passage");
+  assert.equal(key.draft_line, 7, "the golden-identical paragraph on line 3 was skipped");
+
+  const only = forStation(workspace({ draft: `# Close\n\n${golden.replace("\n", " ")}\n` }), "lineup");
+  setGoldens(only, { "closing.md": golden, "opening.md": OPENING });
+  const r = prepare(only, "--only", "lineup");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^lineup: skip \(every prose paragraph of the draft is already a golden in the scope, word for word\)$/m);
+  assert.deepEqual(readdirSync(only.out), []);
+});
+
+test("the shipped essay example gives four distinct one-line candidates", () => {
+  const dir = tempDir("hs-lineup-example-");
+  cpSync(join(ROOT, "examples", "writing"), dir, { recursive: true });
+  mkdirSync(join(dir, "judge"));
+  const r = cli(["judge", "prepare", "essay.hyperspec.md", "--draft", "essay/draft.md", "--out", "judge", "--only", "lineup"], { cwd: dir });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const { candidates } = json(join(dir, "judge", "lineup.packet.json")).inputs;
+  assert.equal(candidates.length, 4);
+  assertOneLineEach(candidates);
+  assert.equal(new Set(candidates.map((c) => c.text)).size, 4, "no two candidates are identical");
+});
+
 // ---- when it applies -----------------------------------------------------------------------------
 
 test("lineup is skipped when dna.scope_dir is not set", () => {
@@ -207,6 +291,8 @@ test("lineup is skipped when the scope has no goldens (lint refuses that spec, s
   assert.match(skipReason(spec, { text: DRAFT }), /writing\.dna\.scope_dir "empty-scope": its goldens cannot be read/);
   mkdirSync(join(w.dir, "empty-scope", "goldens"), { recursive: true });
   assert.equal(skipReason(spec, { text: DRAFT }), 'writing.dna.scope_dir "empty-scope" has no goldens');
+  writeFileSync(join(w.dir, "empty-scope", "goldens", "list.md"), "---\nwhy: w\napproved_by: a\nsource: s\n---\n\n- only a list\n- of things\n");
+  assert.equal(skipReason(spec, { text: DRAFT }), 'writing.dna.scope_dir "empty-scope" has no golden with a prose paragraph');
   assert.equal(skipReason({ dir: w.dir, data: { writing: {} } }, { text: DRAFT }), "writing.dna is not written (deferred)");
 });
 
@@ -269,26 +355,53 @@ test("record rebuilds the key: an edited lineup.key.json changes nothing", () =>
   assert.equal(j.status, "fail", "still the draft's real label");
 });
 
-test("a packet whose candidates were edited, or a golden changed after prepare, is refused", () => {
+test("a golden changed after prepare is stale, and the message names the goldens (R9)", () => {
+  const w = ready();
+  const opening = join(w.dir, "dna-scope", "goldens", "opening.md");
+  writeFileSync(opening, readFileSync(opening, "utf8").replace("you hope holds", "you hope will hold"));
+  writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
+  const r = record(w);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
+  assert.ok(r.stdout.includes("fail [judge-stale] the packet's inputs no longer match what lineup builds now; the spec and the draft are unchanged, so the DNA scope's goldens (dna-scope/goldens) changed since the packet was prepared, or the packet was edited"), r.stdout);
+  assert.ok(r.stdout.includes("fix: Run judge prepare again (with --force) so the packet reads the DNA scope's goldens (dna-scope/goldens) as they are now, and judge the new packet."), r.stdout);
+  assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
+});
+
+test("candidates edited in the packet read the same as stale goldens; an edit outside inputs is altered", () => {
   const w = ready();
   const p = json(w.packet);
   p.inputs.candidates.pop();
   writeFileSync(w.packet, `${JSON.stringify(p, null, 2)}\n`);
-  let { r } = recordJson(w, { pick: "A", confidence: 0.5, reason: "a guess" });
+  let { r, j } = recordJson(w, { pick: "A", confidence: 0.5, reason: "a guess" });
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /judge-packet-altered/);
+  assert.equal(j.stale, true);
+  assert.match(j.findings[0].message, /or the packet was edited/);
 
   const v = ready();
-  writeFileSync(join(v.dir, "dna-scope", "goldens", "opening.md"), readFileSync(join(v.dir, "dna-scope", "goldens", "opening.md"), "utf8").replace("you hope holds", "you hope will hold"));
-  ({ r } = recordJson(v, { pick: "A", confidence: 0.5, reason: "a guess" }));
+  const q = json(v.packet);
+  q.rubric = "anything passes";
+  writeFileSync(v.packet, `${JSON.stringify(q, null, 2)}\n`);
+  ({ r, j } = recordJson(v, { pick: "A", confidence: 0.5, reason: "a guess" }));
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /judge-packet-altered/);
+  assert.deepEqual(j.findings.map((f) => f.id), ["judge-packet-altered"]);
+
+  const m = ready();
+  const minified = json(m.packet);
+  minified.inputs.candidates.pop();
+  writeFileSync(m.packet, JSON.stringify(minified));
+  ({ j } = recordJson(m, { pick: "A", confidence: 0.5, reason: "a guess" }));
+  assert.deepEqual(j.findings.map((f) => f.id), ["judge-packet-altered"], "not a packet prepare wrote: altered");
 });
 
 // ---- the ledger ------------------------------------------------------------------------------------
 
 test("lineup ledger lines: one-shot, then its own history, apart from the doctor's", () => {
   const w = ready();
+  const doctor = forStation(w, "doctor");
+  assert.equal(prepare(doctor, "--only", "doctor").status, 0);
+  writeVerdict(doctor.verdict, doctorVerdict());
+  assert.match(record(doctor).stdout, /^verdict: one-shot$/m, "the doctor judges this draft first");
   const { draft, golden } = labels(w);
   writeVerdict(w.verdict, { pick: golden, confidence: 0.3, reason: "all three read alike" });
   let r = record(w);
@@ -300,7 +413,7 @@ test("lineup ledger lines: one-shot, then its own history, apart from the doctor
   assert.equal(r.status, 1);
   assert.match(r.stdout, /verdict: not-improved \(failing stations: lineup\)/);
   const lines = ledgerLines(w.ledger).filter((l) => l.kind === "judge");
-  assert.deepEqual(lines.map((l) => [l.station, l.status, l.verdict]), [["lineup", "pass", "one-shot"], ["lineup", "fail", "not-improved"]]);
-  assert.equal(lines[0].draft, "draft.md");
+  assert.deepEqual(lines.map((l) => [l.station, l.status, l.verdict]), [["doctor", "pass", "one-shot"], ["lineup", "pass", "one-shot"], ["lineup", "fail", "not-improved"]]);
+  assert.equal(lines[1].draft, "draft.md");
   assert.match(cli(["lint", w.spec]).stdout, /pass \(9\/9\)/);
 });
