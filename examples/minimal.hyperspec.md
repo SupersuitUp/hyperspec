@@ -7,7 +7,7 @@ decisions:
     state: decided
     value: the operator, reading on a phone
     source: interview A2
-    author: gary-sheng
+    author: example-author
     chosen_by: human
   - id: length
     state: delegated
@@ -22,7 +22,7 @@ requirements:
     check:
       rubric: ask the simulated reader to define the term; pass only on a correct definition
     source: design doc, audience block
-    author: gary-sheng
+    author: example-author
 rejects:
   - hype words about AI
 examples:

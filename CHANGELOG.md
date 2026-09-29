@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.3.0 (2026-09-29)
+
+The writing profile. A piece of writing can now carry a hyperspec that names everything an
+agent would otherwise fill with the average: what the piece is made from and how far each
+source can be trusted, whose voice it is for this form, audience and purpose, who it speaks as,
+who reads it, the one change it is for, what kind of thing it is, the claims it argues in order,
+where every fact comes from, and in fiction how each character speaks and what they know by
+each scene. `hyperspec lint` checks all of it under the same nine tests, and
+`hyperspec init --profile writing` lays every block out for you to fill in.
+
+**Behavior change for existing specs:** a value that is only `TODO`, `TBD`, `FIXME`, `XXX` or
+`placeholder` (in any case, and `<placeholder>`) now counts as missing, everywhere, in specs
+with no profile too. A spec that passed 0.2.0 with `source: TODO` on a decision now fails that
+test. Real text that starts with one of those words, such as `TODO: write the opening`, still
+counts as present.
+
+- `profile: writing` opts a spec in; its blocks live under a top-level `writing:` map:
+  `materials`, `dna`, `persona`, `audience`, `goal`, `form`, `spine`, `sources`, and
+  `characters`, which is required when `fiction: true`. Every block carries a `check`, a
+  `source` and an `author`. The core format still applies in full.
+- No tenth test. Every writing finding reports under one of the nine, with an id starting
+  `writing-`, and the score stays out of nine. `lint` prints one more line,
+  `writing: <k>/9 blocks complete`, and `--json` carries it as `profile` on each file.
+- A missing block fails test 1 unless a decision with the id `writing-<block>` defers it:
+  `open`, which blocks the spec like any open decision, or `delegated` with a `rule`. A
+  deferred block does not count as complete.
+- Progress is never stored: a `writing.progress` key fails test 7, because saved progress goes
+  stale the first time a session dies mid-arc. Progress is read off the folder instead.
+- Field rules for every block, each under the test it belongs to: closed sets for `trust`,
+  `reader`, `change.kind`, the shape of `persona.identity` and `unsourced_claim`; five to ten
+  `goal.conditions` naming real requirements (test 2); spine claims that name real materials
+  (test 4); `persona.facts_from: sources` and a non-empty `will_not_say` (test 5); a `why` on
+  every golden, material and golden paths that exist, and golden and rejected lines for every
+  character (test 6). A `stance` outside peer, mentor, witness and guide is a warning.
+- A character needs speech rules (what they say and never say), wants, fears, what they hide,
+  an arc state, a knowledge timeline, and golden and rejected lines. `relationships` and a
+  pointer to a character `entity` file are optional.
+- `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` writes a
+  skeleton with every required block in schema order, every field a placeholder, and open
+  decisions for the four blocks that need your judgment first (dna, persona, audience, goal).
+  It fails lint until the placeholders are replaced. An unknown `--profile` exits 2.
+- `lint` warns under test 7 on a `profile` it does not know, and checks none of its rules.
+- WRITING.md documents the profile: the ten components, the schema with every field, the test
+  mapping, the closed sets, the seven materials labels and what each may be used as, and
+  deferral. It ships in the package.
+- `examples/writing/` ships two complete specs, an essay and a two-character short story, with
+  every file they name. Both pass with no findings, and a test keeps them that way.
+- SPEC.md gains a Profiles section and states the placeholder words in its test-to-field map.
+- The illustrative specs and recipe in SPEC.md and `examples/minimal.hyperspec.md` name a
+  placeholder author, `example-author`, and a placeholder factory, `my-factory`.
+
 ## 0.2.0 (2026-09-28)
 
 Recipes. Every output a factory makes can now carry a recipe beside it: what made it, from

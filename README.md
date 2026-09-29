@@ -24,6 +24,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 |---|---|
 | `hyperspec lint <file...> [--json]` | Score each hyperspec against the nine tests. |
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
+| `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
 | `hyperspec recipe approve <recipe> --by <slug>` | Record who approved the output. |
 | `hyperspec reproduce <recipe> [--restore]` | Re-check every hash the recipe recorded. Never runs a model. |
@@ -103,11 +104,39 @@ recipe.finish();
 The schema, the stage key, the runner and doctor contracts, and every exit code are in
 [SPEC.md](SPEC.md#recipes).
 
+## Writing specs
+
+A piece of writing gets its own profile. Add `profile: writing` to a hyperspec and it gains nine
+blocks that name what an agent would otherwise fill with the average: the materials it draws on
+and how far each can be trusted, the writer's voice scoped to this form, audience and purpose,
+who the piece speaks as, who reads it and what they already know, the one change the piece is
+for, its form, the claims it argues in order, where every fact comes from, and in fiction every
+character who speaks. Findings still report under the nine tests, and `lint` adds one line:
+
+```
+essay.hyperspec.md: pass (9/9)
+  writing: 9/9 blocks complete
+```
+
+Start one with every block laid out and waiting:
+
+```bash
+npx @supersuit/hyperspec init essay.hyperspec.md --profile writing --title "Your title"
+npx @supersuit/hyperspec init story.hyperspec.md --profile writing --form "short story" --fiction
+```
+
+The skeleton fails until every placeholder is real and its four open questions (whose voice,
+who speaks, who reads, what changes) are answered. The blocks, every field, and which test
+each rule reports under are in [WRITING.md](WRITING.md). Two complete specs that pass with
+nothing to warn ship in `examples/writing/`: an essay for new managers, and a short story with
+two characters whose voices a judge can tell apart.
+
 ## The format
 
 A hyperspec is a markdown file with a YAML frontmatter block: `decisions`, `requirements`,
-`rejects`, `examples`, `resume`, `feedback`, and `improvement`. The full field-by-field
-standard, including what makes each of the nine tests fail, is in [SPEC.md](SPEC.md).
+`rejects`, `examples`, `resume`, `feedback`, and `improvement`, plus an optional `profile`.
+The full field-by-field standard, including what makes each of the nine tests fail, is in
+[SPEC.md](SPEC.md).
 
 ## Install
 
