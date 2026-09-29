@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { ROOT, cli, workspace, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
+import { ROOT, cli, workspace, storyWorkspace, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
 
 // ---- prepare -------------------------------------------------------------------------------------
 
@@ -22,8 +22,26 @@ test("prepare writes one packet per applicable station, plus lineup's key, and p
     "<out>/lineup.packet.json",
     "<out>/lineup.key.json",
     "<out>/reader.packet.json",
+    "<out>/persona.packet.json",
+    "attribution: skip (the spec is not fiction; attribution applies only with fiction: true)",
+    "knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)",
   ]);
-  assert.deepEqual(readdirSync(w.out).sort(), ["doctor.packet.json", "lineup.key.json", "lineup.packet.json", "reader.packet.json"]);
+  assert.deepEqual(readdirSync(w.out).sort(), ["doctor.packet.json", "lineup.key.json", "lineup.packet.json", "persona.packet.json", "reader.packet.json"]);
+});
+
+test("a story gets the fiction stations too: attribution with its key, and knowledge", () => {
+  const w = storyWorkspace();
+  const r = prepare(w);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(r.stdout.trim().split("\n").map((l) => l.replace(w.out, "<out>")), [
+    "<out>/doctor.packet.json",
+    "<out>/reader.packet.json",
+    "<out>/persona.packet.json",
+    "<out>/attribution.packet.json",
+    "<out>/attribution.key.json",
+    "<out>/knowledge.packet.json",
+    "lineup: skip (writing.dna.scope_dir is not set)",
+  ]);
 });
 
 test("the packet is 2-space JSON with a trailing newline and its keys in the fixed order", () => {

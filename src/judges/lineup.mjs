@@ -183,7 +183,8 @@ export function skipReason(spec, draft) {
 // Where the lineup's inputs come from beyond the spec and the draft: record names them when the
 // packet's inputs no longer match while neither hash changed (ruling R9).
 export function inputSources(spec) {
-  return `the DNA scope's goldens (${str(spec.data?.writing?.dna?.scope_dir)}/goldens)`;
+  const dir = str(spec.data?.writing?.dna?.scope_dir);
+  return dir ? `the DNA scope's goldens (${dir}/goldens)` : null;
 }
 
 // The packet's rubric (dna.check.rubric, verbatim), inputs (the scope and the labelled candidates,

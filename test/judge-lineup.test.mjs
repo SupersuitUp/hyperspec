@@ -373,6 +373,18 @@ test("a golden changed after prepare is stale, and the message names the goldens
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });
 
+test("goldens removed after prepare so lineup no longer applies: stale, naming the skip and the goldens", () => {
+  const w = ready();
+  for (const f of ["opening.md", "closing.md"]) rmSync(join(w.dir, "dna-scope", "goldens", f));
+  writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
+  const r = record(w);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
+  assert.match(r.stdout, /fail \[judge-stale\] lineup no longer applies \(writing\.dna\.scope_dir "dna-scope"[^\n]*\): the DNA scope's goldens \(dna-scope\/goldens\) changed since the packet was prepared, or the packet was edited$/m);
+  assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
+  assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
+});
+
 test("an edited draft with the packet's hash forged to match is refused, and the message claims no hash is honest (R10)", () => {
   const w = ready();
   writeFileSync(w.draft, `${DRAFT}Buy now today, friends.\n`);

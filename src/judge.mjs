@@ -261,10 +261,17 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // files; the packet could also have been hand-edited there (its inputs, or a hash forged to match
   // an edited draft), and the message says so without claiming either hash is honest (ruling R10),
   // since nothing on disk can tell these apart. Anything else is an altered packet.
-  if (rebuilt && rebuilt.packetBytes !== packetText && judge.inputSources && packetJson(packet) === packetText
+  //
+  // The same holds when such a station no longer applies at all (its source file was deleted, say,
+  // so persona's claims ledger cannot be read): with the spec and draft hashes matching, a skip
+  // that was not there at prepare time can only come from those files, or from a forged hash, so
+  // it is stale too, and the message names the skip reason and the sources.
+  const sources = judge.inputSources?.(spec) ?? null;
+  const staleSources = (message) => ({ ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${message}: ${sources} changed since the packet was prepared, or the packet was edited`, `Run judge prepare again (with --force) so the packet is built from the spec, the draft and ${sources} as they are now, and judge the new packet.`)], code: 1 });
+  if (sources && !rebuilt) return staleSources(`${judge.name} no longer applies (${skip})`);
+  if (rebuilt && rebuilt.packetBytes !== packetText && sources && packetJson(packet) === packetText
       && JSON.stringify({ ...packet, inputs: null }) === JSON.stringify({ ...rebuilt.packet, inputs: null })) {
-    const sources = judge.inputSources(spec);
-    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `the packet's inputs no longer match what the spec, the draft and ${sources} produce now: ${sources} changed since the packet was prepared, or the packet was edited`, `Run judge prepare again (with --force) so the packet is built from the spec, the draft and ${sources} as they are now, and judge the new packet.`)], code: 1 };
+    return staleSources(`the packet's inputs no longer match what the spec, the draft and ${sources} produce now`);
   }
   if (!rebuilt || rebuilt.packetBytes !== packetText) {
     const why = rebuilt ? "is not the packet judge prepare builds from the spec and draft on disk" : `is for a station that does not apply to this spec (${skip})`;
@@ -288,7 +295,9 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   }
   if (problems.length) return { ...base, ok: false, invalid: true, findings: problems, code: 1 };
 
-  const { status, findings } = derived;
+  // summary: an optional one-line result a station reports beside its status (attribution's
+  // accuracy); printed after the status and carried in --json, never in the ledger line.
+  const { status, findings, summary } = derived;
 
   // ---- ledger: the same truth rules as check (ruling R1): compared with the most recent earlier
   // judge line for the same station and draft path, through ledgerVerdict; two judge-only rules on
@@ -330,5 +339,5 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
     ledgerPath = ledger.decl;
   }
 
-  return { ...base, ok: true, status, findings, verdict, verdictDetail, ledgerPath, ledgerWarning, code: status === "pass" ? 0 : 1 };
+  return { ...base, ok: true, status, ...(summary ? { summary } : {}), findings, verdict, verdictDetail, ledgerPath, ledgerWarning, code: status === "pass" ? 0 : 1 };
 }

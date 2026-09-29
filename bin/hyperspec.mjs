@@ -44,7 +44,11 @@ const HELP = `hyperspec <command> [options]
                                shape, for an outside judge to fill; hyperspec never calls a model;
                                stations: doctor, lineup (a blind voice lineup against the DNA
                                scope's goldens, whose answer goes to lineup.key.json for a person
-                               to read; record rebuilds it and never reads the file), reader;
+                               to read; record rebuilds it and never reads the file), reader,
+                               persona (against the claims ledger), and for fiction attribution (a
+                               blind speaker test on the dialogue lines whose speaker the draft
+                               names; the answers go to attribution.key.json, likewise rebuilt)
+                               and knowledge (each character's knowledge timeline);
                                the same spec and draft give byte-identical packets; refuses to
                                overwrite an existing packet without --force
                                exit 0 written, 2 usage (a missing or non-folder --out, an existing
@@ -438,6 +442,7 @@ if (cmd === "judge") {
       for (const f of result.findings) printFinding(f);
     } else {
       console.log(`${result.station}: ${result.status}`);
+      if (result.summary) console.log(`  ${result.summary}`);
       for (const f of result.findings) printFinding(f);
       if (result.verdict) {
         const detail = result.verdictDetail.change ?? result.verdictDetail.reason;

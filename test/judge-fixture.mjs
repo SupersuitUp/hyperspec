@@ -27,11 +27,20 @@ export const DRAFT = [
   "",
 ].join("\n");
 
-// A fresh copy of the fixture holding draft.md (DRAFT unless `draft` is given) and an empty
-// judge/ output folder. Returns the paths.
+// The claims ledger the fixture spec declares (writing.sources.ledger: essay.claims.jsonl), with two
+// claims that are in DRAFT word for word; the persona judge hands their texts to the judge.
+export const CLAIMS = [
+  { text: "The nine tests run on every spec, and each one names what fails it.", source: "m1#s1" },
+  { text: "\"Progress\" is read from disk.", source: "m1#s1" },
+];
+export const claimsJsonl = (claims = CLAIMS) => claims.map((c) => `${JSON.stringify(c)}\n`).join("");
+
+// A fresh copy of the fixture holding draft.md (DRAFT unless `draft` is given), the claims ledger
+// (CLAIMS) and an empty judge/ output folder. Returns the paths.
 export function workspace({ draft = DRAFT, prefix = "hs-judge-" } = {}) {
   const dir = tempDir(prefix);
   cpSync(FIXTURE, dir, { recursive: true });
+  writeFileSync(join(dir, "essay.claims.jsonl"), claimsJsonl());
   const draftPath = join(dir, "draft.md");
   writeFileSync(draftPath, draft);
   const out = join(dir, "judge");
@@ -83,4 +92,55 @@ export function readerVerdict(edit = (v) => v) {
     next_step: "open the schema section",
   };
   return edit(v) ?? v;
+}
+
+// A persona verdict that passes: no break.
+export function personaVerdict(edit = (v) => v) {
+  const v = { breaks: [] };
+  return edit(v) ?? v;
+}
+
+// ---- fiction: the story example ----------------------------------------------------------------
+
+const STORY = join(ROOT, "examples", "writing");
+
+// A short scene for the story example's two characters (ines, theo). Its dialogue lines, in order:
+//   L1 "Flour first. Then you can talk."          ines (the paragraph names only Ines)
+//   L2 "I can do the rye. I mean, ..."            theo
+//   L3 "Left side runs hot,"                      ines
+//   L4 "Turn them at eight minutes."              ines (same paragraph as L3)
+//   --  "You're late,"                             left out: the paragraph names no one
+//   --  "Is that a yes?"                           left out: the paragraph names both
+//   L5 "Sold means sold. Shape the rye,"          ines (curly quotes)
+export const STORY_DRAFT = [
+  "# The Rye",
+  "",
+  "## 3:40",
+  "",
+  "\"Flour first. Then you can talk.\" Ines did not look up from the bowl.",
+  "",
+  "Theo laughed. \"I can do the rye. I mean, I think I can do the rye.\"",
+  "",
+  "\"Left side runs hot,\" Ines said. \"Turn them at eight minutes.\"",
+  "",
+  "\"You're late,\" she said.",
+  "",
+  "Ines watched Theo shape the loaf. \"Is that a yes?\"",
+  "",
+  "\u201CSold means sold. Shape the rye,\u201D said Ines, and the oven ticked.",
+  "",
+].join("\n");
+
+// A fresh copy of the story example (story.hyperspec.md, story/, style-rules.md) with the draft
+// written to scene.md and an empty judge/ output folder. Same shape as workspace().
+export function storyWorkspace({ draft = STORY_DRAFT, prefix = "hs-judge-story-" } = {}) {
+  const dir = tempDir(prefix);
+  cpSync(join(STORY, "story.hyperspec.md"), join(dir, "story.hyperspec.md"));
+  cpSync(join(STORY, "style-rules.md"), join(dir, "style-rules.md"));
+  cpSync(join(STORY, "story"), join(dir, "story"), { recursive: true });
+  const draftPath = join(dir, "scene.md");
+  writeFileSync(draftPath, draft);
+  const out = join(dir, "judge");
+  mkdirSync(out);
+  return { dir, spec: join(dir, "story.hyperspec.md"), draft: draftPath, out, ledger: join(dir, "story", "runs.jsonl"), packet: join(out, "doctor.packet.json"), verdict: join(dir, "doctor.verdict.json") };
 }
