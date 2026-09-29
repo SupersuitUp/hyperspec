@@ -140,3 +140,31 @@ test("round trip through the CLI: segments init then readSegments reports only '
     assert.match(finding.message, /still unlabeled/);
   }
 });
+
+test("segments init --out into a folder that does not exist exits 2 with a plain message, and writes nothing", () => {
+  const d = tempDir("hs-cli-seg-outdir-");
+  const material = join(d, "call.md");
+  writeFileSync(material, "First thought.\n");
+  const out = join(d, "nope", "call.segments.jsonl");
+  const r = run("segments", "init", material, "--id", "m1", "--out", out);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /folder does not exist/);
+  assert.doesNotMatch(r.stderr, /\n\s+at /, "no stack trace");
+  assert.ok(!existsSync(join(d, "nope")));
+});
+
+test("segments init on a material with nothing in it exits 2 with a plain message, and writes nothing", () => {
+  const d = tempDir("hs-cli-seg-empty-");
+  const material = join(d, "call.md");
+  writeFileSync(material, "\n   \n");
+  const r = run("segments", "init", material, "--id", "m1");
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /nothing to mark/);
+  assert.ok(!existsSync(`${material}.segments.jsonl`));
+});
+
+test("HELP lists the new exit-2 cases for segments init", () => {
+  const help = run("--help").stdout.replace(/\s+/g, " ");
+  assert.match(help, /--out folder that does not exist/);
+  assert.match(help, /material with nothing in it/);
+});

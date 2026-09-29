@@ -319,7 +319,7 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker` |
@@ -372,7 +372,8 @@ segment per paragraph. `--by sentence` makes one per sentence, and a new line th
 marker (`-`, `*`, `+`, `1.` or `1)`, then a space) also starts a segment, so each bullet in a set
 of notes stands on its own. Every segment starts as `unlabeled`, which lint never accepts. `init`
 refuses to overwrite a file that exists, and exits 2 on a material that does not exist or a
-`--by` it does not know.
+`--by` it does not know, a material with nothing in it, and an `--out` folder that does not
+exist.
 
 Then name the file on the material item, as `segments:` beside `path:`, and label every segment.
 You may also move a boundary by hand, splitting one segment in two or joining two, as long as
@@ -426,13 +427,19 @@ My first manager, in my second week: "Ask what they want to talk about, then sto
 | `private` | not for this audience | never used; kept for context | nothing more |
 
 `own` counts when it is `true` or the string `"true"`. Any other value, `false` included, leaves
-it unset, and a claim with no `source` then fails.
+it unset, and a claim with no `source` then fails. A placeholder word such as `TODO`, `n/a` or
+`???` counts as missing here as it does everywhere in a hyperspec (see [The schema](#the-schema)),
+so `source: "TODO"` fails like no source at all. The same holds for the header's fields and for
+segment ids.
 
 ### Coverage
 
 Taken in order of `start`, whatever order the lines are in, segments never overlap, and between
 them they cover every character of the material that is not whitespace. Whitespace between
-segments may be left out, which is what `init` does. Segment ids are unique within a file.
+segments may be left out, which is what `init` does. Segment ids are unique within a file. When
+text is left uncovered, the finding gives the offset of the first uncovered stretch and quotes up
+to 60 characters of it. A material with no text that is not whitespace has nothing to mark and
+fails test 1.
 
 ### When a material changes
 
@@ -447,7 +454,8 @@ text did not change.
 A spine claim cites a segment as `<material>#<segment>`, such as `voice-memo#s3`. The segment has
 to exist in that material's segments file (test 4). A `private` segment is never used and a
 `question` is never an assertion, so a claim citing either fails test 5. A bare material id, such
-as `voice-memo`, still cites the whole material. When a claim cites a segment of a material whose
+as `voice-memo`, still cites the whole material; `voice-memo#`, with nothing after the `#`, is not
+a bare id and fails as an unknown segment. When a claim cites a segment of a material whose
 segments cannot be read at all (the material is not marked, its file is missing, or the file
 holds no segments), lint says so once for that material rather than once per citation.
 
@@ -456,13 +464,15 @@ holds no segments), lint says so once for that material rather than once per cit
 Every marking finding fails the test in its row. `<segment>` is the segment's id, or its
 position when it has none; `<line>` is a line number in the segments file; `<n>` is the claim's
 position in `spine.claims`, counting from 0. Every message names the material, and the segment
-where there is one.
+where there is one, and prints paths as the spec wrote them, so the output is the same on every
+machine.
 
 | Id | Test | Fails when |
 |---|---|---|
 | `writing-materials-unmarked` | 1 | a material item has no `segments` field |
 | `writing-materials-segments-missing` | 1 | the segments file does not exist or cannot be read |
 | `writing-materials-material-missing` | 1 | the material file cannot be read. Lint reports a missing material path under test 6 instead, so this comes only from `readSegments` |
+| `writing-materials-empty` | 1 | the material has no text that is not whitespace |
 | `writing-materials-header` | 1 | line 1 is not a JSON object, or has no `material`, `path` or `sha256` |
 | `writing-materials-header-material` | 1 | the header names a different material from the item |
 | `writing-materials-json-line-<line>` | 1 | a segment line is not a JSON object |
@@ -501,7 +511,9 @@ parsed as a JSON object, and findings in the shape lint reports: `test`, `id`, `
 `message` and `fix`. Without `materialPath` it runs only the checks that need no material text
 (the header, ids, labels and label fields); with it, it also checks verbatim text, coverage,
 overlap and staleness. `materialId`, when given, has to match the header's `material`.
-`MATERIAL_LABELS` is the seven labels, in the order of the table above.
+Two more options, `displayPath` and `materialDisplayPath`, set how the two files are named in
+messages (lint passes the paths as the spec wrote them); by default the paths are printed as
+given. `MATERIAL_LABELS` is the seven labels, in the order of the table above.
 
 ## Deferring a block
 

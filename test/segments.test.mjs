@@ -774,3 +774,112 @@ test("splitSegments paragraph: list markers do not split a paragraph", () => {
   const segs = splitSegments(text, { by: "paragraph" });
   assert.deepEqual(segs.map((s) => s.text), ['- "A quoted bullet."\n- A second bullet.', "Next paragraph."]);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Presence checks go through the shared placeholder rule (src/placeholder.mjs): a placeholder word
+// in a label field, a header field or a segment id counts as missing, as everywhere in the linter.
+
+const PLACEHOLDER_VALUES = ["TODO", "n/a", "...", "???", "tbd", "   "];
+const LABEL_FIELDS = [
+  ["claim", "source", "writing-materials-claim-source-s1"],
+  ["story", "teller", "writing-materials-story-teller-s1"],
+  ["quote", "speaker", "writing-materials-quote-speaker-s1"],
+];
+
+for (const [label, field, findingId] of LABEL_FIELDS) {
+  for (const value of PLACEHOLDER_VALUES) {
+    test(`readSegments: a ${label} whose ${field} is ${JSON.stringify(value)} fails test 4 as ${findingId}, exactly like a missing ${field}`, () => {
+      const d = tempDir("hs-seg-ph-");
+      const text = "Only sentence.\n";
+      const materialPath = join(d, "material.md");
+      writeFileSync(materialPath, text);
+      const { segmentsPath } = write(d, text, [headerFor(materialPath), JSON.stringify(seg(text, "s1", label, "Only sentence.", { [field]: value }))]);
+      const r = readSegments(segmentsPath, { materialPath, materialId: "m1" });
+      assert.deepEqual(fails(r.findings).map((x) => [x.test, x.id]), [[4, findingId]]);
+    });
+  }
+}
+
+test("readSegments: real text that starts with a placeholder word still counts as present", () => {
+  const d = tempDir("hs-seg-ph-real-");
+  const text = "Only sentence.\n";
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, text);
+  const { segmentsPath } = write(d, text, [headerFor(materialPath), JSON.stringify(seg(text, "s1", "claim", "Only sentence.", { source: "TODO: the survey export, row 12" }))]);
+  assert.deepEqual(fails(readSegments(segmentsPath, { materialPath, materialId: "m1" }).findings), []);
+});
+
+for (const key of ["material", "path", "sha256"]) {
+  test(`readSegments: a header whose ${key} is a placeholder fails test 1 as writing-materials-header, saying it has no ${key}`, () => {
+    const d = tempDir("hs-seg-ph-header-");
+    const text = "Only sentence.\n";
+    const materialPath = join(d, "material.md");
+    writeFileSync(materialPath, text);
+    const header = { ...JSON.parse(headerFor(materialPath)), [key]: "TODO" };
+    const { segmentsPath } = write(d, text, [JSON.stringify(header), JSON.stringify(seg(text, "s1", "stance", "Only sentence."))]);
+    const r = readSegments(segmentsPath, { materialPath, materialId: "m1" });
+    const found = fails(r.findings).filter((x) => x.id === "writing-materials-header");
+    assert.equal(found.length, 1, JSON.stringify(r.findings));
+    assert.equal(found[0].test, 1);
+    assert.match(found[0].message, new RegExp(`has no ${key}`));
+  });
+}
+
+test("readSegments: a segment whose id is a placeholder fails test 1 as having no id", () => {
+  const d = tempDir("hs-seg-ph-id-");
+  const text = "Only sentence.\n";
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, text);
+  const { segmentsPath } = write(d, text, [headerFor(materialPath), JSON.stringify(seg(text, "TODO", "stance", "Only sentence."))]);
+  assert.deepEqual(ids(readSegments(segmentsPath, { materialPath, materialId: "m1" }).findings), ["writing-materials-segment-id-2"]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The coverage finding says where the uncovered text is.
+
+test("readSegments: the coverage finding quotes the first uncovered text and gives its offset", () => {
+  const d = tempDir("hs-seg-cov-where-");
+  const text = "One.\n\n  Two is the part nobody marked.\n\nThree.\n";
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, text);
+  const { segmentsPath } = write(d, text, [
+    headerFor(materialPath),
+    JSON.stringify(seg(text, "s1", "stance", "One.")),
+    JSON.stringify(seg(text, "s2", "stance", "Three.")),
+  ]);
+  const found = fails(readSegments(segmentsPath, { materialPath, materialId: "m1" }).findings).find((x) => x.id === "writing-materials-coverage");
+  assert.ok(found);
+  assert.match(found.message, new RegExp(`offset ${text.indexOf("Two")}\\b`));
+  assert.ok(found.message.includes('"Two is the part nobody marked."'), found.message);
+});
+
+test("readSegments: a long uncovered stretch is quoted up to 60 characters, and a second stretch is counted", () => {
+  const d = tempDir("hs-seg-cov-long-");
+  const long = "Word ".repeat(30).trim();
+  const text = `One.\n\n${long}\n\nThree.\n\nFour.\n`;
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, text);
+  const { segmentsPath } = write(d, text, [
+    headerFor(materialPath),
+    JSON.stringify(seg(text, "s1", "stance", "One.")),
+    JSON.stringify(seg(text, "s2", "stance", "Three.")),
+  ]);
+  const found = fails(readSegments(segmentsPath, { materialPath, materialId: "m1" }).findings).find((x) => x.id === "writing-materials-coverage");
+  assert.ok(found.message.includes(`"${long.slice(0, 60)}..."`), found.message);
+  assert.match(found.message, /2 uncovered stretches/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A material with nothing in it is not a material.
+
+for (const [name, text] of [["an empty", ""], ["a whitespace-only", "\n  \n\t\n"]]) {
+  test(`readSegments: ${name} material with a header-only segments file fails test 1 as writing-materials-empty`, () => {
+    const d = tempDir("hs-seg-empty-");
+    const materialPath = join(d, "material.md");
+    writeFileSync(materialPath, text);
+    const { segmentsPath } = write(d, text, [headerFor(materialPath)]);
+    const r = readSegments(segmentsPath, { materialPath, materialId: "m1" });
+    assert.deepEqual(fails(r.findings).map((x) => [x.test, x.id]), [[1, "writing-materials-empty"]]);
+    assert.match(fails(r.findings)[0].message, /\bm1\b/);
+  });
+}

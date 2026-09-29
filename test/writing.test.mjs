@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, readFileSync, cpSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -521,6 +521,54 @@ test("spine: a materials ref naming a segment id that does not exist in the real
     "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s9]\n",
   ));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials-segment-unknown"]]);
+});
+
+test("spine: a materials ref with an empty segment id (m1#) fails test 4 as an unknown segment, never passing as a bare ref", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#]\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials-segment-unknown"]]);
+});
+
+test("spine: m1# never resolves to a segment that has no id of its own", () => {
+  const s = segmentsVariant(
+    (t) => t.replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#]\n",
+    ),
+    (t) => t.replace('{"id":"s1",', "{"),
+  );
+  assert.ok(fails(s).some((x) => x.id === "writing-spine-claim-0-materials-segment-unknown"), JSON.stringify(fails(s).map((x) => x.id)));
+});
+
+test("materials: marking findings print paths as the spec gives them, never the absolute folder the spec sits in", () => {
+  const d = tempDir("hs-writing-relpaths-");
+  cpSync(VALID, d, { recursive: true });
+  const segPath = join(d, SEGMENTS_FILE);
+  // Break it every way that names a path: a malformed segment line, a changed material (stale,
+  // verbatim, coverage), and a second material whose segments file does not exist.
+  writeFileSync(segPath, `${readFileSync(segPath, "utf8")}not json\n`);
+  const materialPath = join(d, "materials", "call-2026-09-28.md");
+  writeFileSync(materialPath, `${readFileSync(materialPath, "utf8")}\nAn added line nobody marked.\n`);
+  const specPath = join(d, "spec.md");
+  const spec = readFileSync(specPath, "utf8");
+  const m1 = spec.slice(spec.indexOf("      - id: m1\n"), spec.indexOf("    check:", spec.indexOf("      - id: m1\n")));
+  const m2 = m1.replace("id: m1", "id: m2").replace("segments: materials/call-2026-09-28.md.segments.jsonl", "segments: materials/nope.segments.jsonl");
+  writeFileSync(specPath, spec.replace(m1, m1 + m2));
+  const all = lintSpec(loadSpec(specPath)).filter((x) => x.id.startsWith("writing-materials-"));
+  const idsSeen = all.map((x) => x.id);
+  for (const id of ["writing-materials-json-line-4", "writing-materials-stale", "writing-materials-coverage", "writing-materials-segments-missing"]) {
+    assert.ok(idsSeen.includes(id), `${id} in ${JSON.stringify(idsSeen)}`);
+  }
+  const real = realpathSync(d);
+  for (const x of all) {
+    assert.ok(!x.message.includes(d) && !x.message.includes(real), x.message);
+    assert.ok(!x.fix.includes(d) && !x.fix.includes(real), x.fix);
+  }
+  assert.ok(all.some((x) => x.message.includes('"materials/call-2026-09-28.md.segments.jsonl"')), JSON.stringify(all.map((x) => x.message)));
+  assert.ok(all.some((x) => x.message.includes('"materials/nope.segments.jsonl"')));
+  assert.ok(all.some((x) => x.message.includes('"materials/call-2026-09-28.md"')));
 });
 
 test("spine: a materials ref to a segment labeled private fails test 5, naming private", () => {

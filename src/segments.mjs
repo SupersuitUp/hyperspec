@@ -15,9 +15,9 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { sha256 } from "./hash.mjs";
 import { MATERIAL_LABELS } from "./labels.mjs";
+import { str } from "./placeholder.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
-const nonEmptyStr = (v) => typeof v === "string" && v.trim() !== "";
 // own counts as set when it is the JSON boolean true or the string "true"; anything else
 // (false, "false", missing, any other value) is unset.
 const ownIsSet = (obj) => obj?.own === true || obj?.own === "true";
@@ -202,9 +202,14 @@ export function splitSegments(text, { by = "paragraph" } = {}) {
 // in order: the caller's own materialId, else the header's own "material" field (once parsed),
 // else the segments file's own basename. The last resort covers the missing-file and
 // unparsable-header cases, where neither of the first two is available yet.
-export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
+export function readSegments(segmentsPath, { materialPath, materialId, displayPath, materialDisplayPath } = {}) {
   const findings = [];
   const fallbackTag = basename(segmentsPath);
+  // What messages print for the two files: the caller's display paths when given (lint passes the
+  // paths as the spec wrote them), else the paths exactly as given. Never a path this function
+  // resolved itself, so a finding reads the same on every machine.
+  const segShown = displayPath ?? segmentsPath;
+  const matShown = materialDisplayPath ?? materialPath;
 
   let raw;
   try {
@@ -212,7 +217,7 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
   } catch {
     const matTag = materialId ?? fallbackTag;
     findings.push(f(1, "writing-materials-segments-missing", "fail",
-      `material ${matTag}: is not marked (segments file "${segmentsPath}" does not exist or cannot be read)`,
+      `material ${matTag}: is not marked (segments file "${segShown}" does not exist or cannot be read)`,
       `Run \`hyperspec segments init <material> --id <id>\` to write it, then label every segment.`));
     return { header: null, segments: [], findings };
   }
@@ -238,24 +243,24 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
   // Computed once header parsing has settled, so every finding from here on (including the
   // header's own shape findings) can use it. header?.material is only trusted when it is a real,
   // non-empty string; a header that fails its own presence check contributes nothing here.
-  const matTag = materialId ?? (header && nonEmptyStr(header.material) ? header.material : fallbackTag);
+  const matTag = materialId ?? (header && str(header.material) ? str(header.material) : fallbackTag);
   const matPrefix = (segId) => (segId ? `material ${matTag}, segment ${segId}: ` : `material ${matTag}: `);
 
   if (!header) {
     findings.push(f(1, "writing-materials-header", "fail",
-      `${matPrefix()}segments file "${segmentsPath}" line 1 is not a valid JSON header object`,
+      `${matPrefix()}segments file "${segShown}" line 1 is not a valid JSON header object`,
       `Fix line 1 to a JSON object: {"material":"<id>","path":"<material path>","sha256":"<hex>"}.`));
   } else {
     for (const key of ["material", "path", "sha256"]) {
-      if (!nonEmptyStr(header[key])) {
+      if (!str(header[key])) {
         findings.push(f(1, "writing-materials-header", "fail",
-          `${matPrefix()}segments file "${segmentsPath}" header has no ${key}`,
+          `${matPrefix()}segments file "${segShown}" header has no ${key}`,
           `Add ${key}: to the header line (line 1).`));
       }
     }
-    if (materialId !== undefined && nonEmptyStr(header.material) && header.material !== materialId) {
+    if (materialId !== undefined && str(header.material) && str(header.material) !== materialId) {
       findings.push(f(1, "writing-materials-header-material", "fail",
-        `${matPrefix()}segments file "${segmentsPath}" header names material "${header.material}", not "${materialId}"`,
+        `${matPrefix()}segments file "${segShown}" header names material "${header.material}", not "${materialId}"`,
         `Set the header's material to "${materialId}", or point the item at the right segments file.`));
     }
   }
@@ -270,19 +275,19 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
       obj = JSON.parse(text);
     } catch {
       findings.push(f(1, `writing-materials-json-line-${n}`, "fail",
-        `${matPrefix()}segments file "${segmentsPath}" line ${n} is not valid JSON`,
+        `${matPrefix()}segments file "${segShown}" line ${n} is not valid JSON`,
         "Fix the JSON on that line."));
       continue;
     }
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
       findings.push(f(1, `writing-materials-json-line-${n}`, "fail",
-        `${matPrefix()}segments file "${segmentsPath}" line ${n} is not a JSON object`,
+        `${matPrefix()}segments file "${segShown}" line ${n} is not a JSON object`,
         "Each segment line must be a JSON object."));
       continue;
     }
     segments.push(obj);
 
-    const id = nonEmptyStr(obj.id) ? obj.id : "";
+    const id = str(obj.id);
     const segTag = id || `line ${n}`;
     if (!id) {
       findings.push(f(1, `writing-materials-segment-id-${n}`, "fail", `${matPrefix()}segment on line ${n} has no id`, "Give it a short id, e.g. s1."));
@@ -302,13 +307,13 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
           ? `${matPrefix(segTag)}is still unlabeled`
           : `${matPrefix(segTag)}label "${label}" is outside ${MATERIAL_LABELS.join(", ")}`,
         `Set label to one of: ${MATERIAL_LABELS.join(", ")}.`));
-    } else if (label === "claim" && !(nonEmptyStr(obj.source) || ownIsSet(obj))) {
+    } else if (label === "claim" && !(str(obj.source) || ownIsSet(obj))) {
       findings.push(f(4, `writing-materials-claim-source-${segTag}`, "fail",
         `${matPrefix(segTag)}claim has no source and is not marked own`,
         `Add source: to segment "${segTag}", or set own: true if it is the author's own claim, said as such.`));
-    } else if (label === "story" && !nonEmptyStr(obj.teller)) {
+    } else if (label === "story" && !str(obj.teller)) {
       findings.push(f(4, `writing-materials-story-teller-${segTag}`, "fail", `${matPrefix(segTag)}story has no teller`, `Add teller: to segment "${segTag}".`));
-    } else if (label === "quote" && !nonEmptyStr(obj.speaker)) {
+    } else if (label === "quote" && !str(obj.speaker)) {
       findings.push(f(4, `writing-materials-quote-speaker-${segTag}`, "fail", `${matPrefix(segTag)}quote has no speaker`, `Add speaker: to segment "${segTag}".`));
     }
   }
@@ -321,25 +326,25 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
       materialBuffer = readFileSync(materialPath);
     } catch {
       findings.push(f(1, "writing-materials-material-missing", "fail",
-        `${matPrefix()}the material file "${materialPath}" does not exist or cannot be read`,
+        `${matPrefix()}the material file "${matShown}" does not exist or cannot be read`,
         "Fix the material's path, or add the file."));
     }
 
     if (materialBuffer) {
       const materialText = materialBuffer.toString("utf8");
 
-      if (header && nonEmptyStr(header.sha256)) {
+      if (header && str(header.sha256)) {
         const current = sha256(materialBuffer);
-        if (current !== header.sha256) {
+        if (current !== str(header.sha256)) {
           findings.push(f(4, "writing-materials-stale", "fail",
-            `${matPrefix()}segments file "${segmentsPath}" was marked against a different version of "${materialPath}" (sha256 no longer matches)`,
+            `${matPrefix()}segments file "${segShown}" was marked against a different version of "${matShown}" (sha256 no longer matches)`,
             "Re-run `hyperspec segments init` (or otherwise re-mark) against the current material, and re-label every segment."));
         }
       }
 
       const valid = [];
       segments.forEach((obj, i) => {
-        const id = nonEmptyStr(obj.id) ? obj.id : `#${i + 1}`;
+        const id = str(obj.id) || `#${i + 1}`;
         const { start, end } = obj;
         const shapeOk = Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start && end <= materialText.length;
         if (!shapeOk) {
@@ -367,6 +372,13 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
         }
       }
 
+      // A material with no text that is not whitespace has nothing to mark, so it is not a material.
+      if (!/\S/.test(materialText)) {
+        findings.push(f(1, "writing-materials-empty", "fail",
+          `${matPrefix()}the material "${matShown}" has no text to mark`,
+          "Put the material's text in the file, or drop the item from materials.items."));
+      }
+
       let cursor = 0;
       const gaps = [];
       for (const seg of valid) {
@@ -374,10 +386,18 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
         cursor = Math.max(cursor, seg.end);
       }
       if (cursor < materialText.length) gaps.push([cursor, materialText.length]);
-      const uncovered = gaps.some(([s, e]) => /\S/.test(materialText.slice(s, e)));
-      if (uncovered) {
+      const uncovered = gaps.filter(([s, e]) => /\S/.test(materialText.slice(s, e)));
+      if (uncovered.length) {
+        // Say where: the first uncovered stretch's offset (its first non-whitespace character) and
+        // up to 60 characters of it, trimmed, plus how many stretches there are in all.
+        const [gs, ge] = uncovered[0];
+        const gap = materialText.slice(gs, ge);
+        const offset = gs + gap.search(/\S/);
+        const trimmed = gap.trim();
+        const excerpt = trimmed.length > 60 ? `${trimmed.slice(0, 60)}...` : trimmed;
+        const more = uncovered.length > 1 ? ` (${uncovered.length} uncovered stretches in all)` : "";
         findings.push(f(1, "writing-materials-coverage", "fail",
-          `${matPrefix()}some of "${materialPath}" is not covered by any segment`,
+          `${matPrefix()}text at offset ${offset} of "${matShown}" is not covered by any segment: ${JSON.stringify(excerpt)}${more}`,
           "Add a segment for every non-whitespace span, or extend an existing segment's start/end."));
       }
     }

@@ -34,13 +34,14 @@ const HELP = `hyperspec <command> [options]
 
   segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]
                                split a material into candidate segments, written as JSONL to
-                               <material>.segments.jsonl by default; every segment starts
-                               label: unlabeled, never valid in lint; label each one by hand
-                               (claim, story, quote, stance, question, aside, private), then run
-                               hyperspec lint on the spec; refuses to overwrite an existing file
-                               (exit 2); exit 2 for a missing material or a --by outside
-                               paragraph/sentence; --by sentence also starts a segment at each
-                               list item (-, *, +, 1. or 1) then a space)
+                               <material>.segments.jsonl by default; every segment starts label:
+                               unlabeled, never valid in lint; label each one by hand (claim,
+                               story, quote, stance, question, aside, private), then run hyperspec
+                               lint on the spec; --by sentence also starts a segment at each list
+                               item (-, *, +, 1. or 1) then a space); refuses to overwrite an
+                               existing file (exit 2); exit 2 for a missing material, a material
+                               with nothing in it, an --out folder that does not exist, or a --by
+                               outside paragraph/sentence
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json
@@ -127,9 +128,12 @@ if (cmd === "segments") {
     if (!materialStat || !materialStat.isFile()) { console.error(`material not found: ${material}`); process.exit(2); }
     const out = parsed.values["--out"] ?? `${material}.segments.jsonl`;
     if (existsSync(out)) { console.error(`refusing to overwrite ${out}`); process.exit(2); }
+    const outFolder = dirname(resolve(out));
+    if (!existsSync(outFolder) || !statSync(outFolder).isDirectory()) { console.error(`folder does not exist: ${dirname(out)}; create it first`); process.exit(2); }
 
     const buf = readFileSync(material);
     const text = buf.toString("utf8");
+    if (!/\S/.test(text)) { console.error(`nothing to mark: ${material} has no text`); process.exit(2); }
     const segments = splitSegments(text, { by });
     const header = { material: id, path: material, sha256: sha256(buf) };
     const lines = [JSON.stringify(header), ...segments.map((s) => JSON.stringify(s))];

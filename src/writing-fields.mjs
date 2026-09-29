@@ -86,7 +86,7 @@ function materialsFields(raw, d, here, idPrefix) {
         `material ${tag} is not marked (no segments field)`,
         "Run `hyperspec segments init <material> --id <id>`, then add segments: to the material item."));
     } else {
-      const { findings: segFindings } = readSegments(here(segPath), { materialPath: materialFilePath(it, here), materialId: id || undefined });
+      const { findings: segFindings } = readSegments(here(segPath), { materialPath: materialFilePath(it, here), materialId: id || undefined, ...shownPaths(it, segPath) });
       out.push(...segFindings);
     }
   });
@@ -102,6 +102,13 @@ function materialFilePath(item, here) {
   return p && pathKind(here, p) === "file" ? here(p) : undefined;
 }
 
+// The paths readSegments' messages print: exactly as the spec wrote them, the way every other path
+// finding in the linter reads, never resolved against the spec's folder. A finding pasted into a
+// public issue then names no one's home folder, and --json is the same on every machine.
+function shownPaths(item, segPath) {
+  return { displayPath: segPath, materialDisplayPath: str(item?.path) || undefined };
+}
+
 // Resolves ONE material item's segments (for spine ref resolution below). Never pushes
 // readSegments' own findings: those are already reported once, by materialsFields, under the
 // materials block; this is read-only lookup. When nothing resolves, `why` says which of the three
@@ -110,7 +117,7 @@ function materialFilePath(item, here) {
 function resolveMaterialSegments(item, here) {
   const segPath = str(item?.segments);
   if (!segPath) return { segments: [], loaded: false, why: "unmarked" };
-  const { segments, findings } = readSegments(here(segPath), { materialPath: materialFilePath(item, here), materialId: str(item?.id) || undefined });
+  const { segments, findings } = readSegments(here(segPath), { materialPath: materialFilePath(item, here), materialId: str(item?.id) || undefined, ...shownPaths(item, segPath) });
   if (segments.length > 0) return { segments, loaded: true };
   const unreadable = findings.some((x) => x.id === "writing-materials-segments-missing");
   return { segments, loaded: false, why: unreadable ? "unreadable" : "empty" };
@@ -297,9 +304,10 @@ function spineFields(raw, d, here, idPrefix) {
           out.push(f(4, `${idPrefix}-claim-${i}-materials-unknown`, "fail", `spine claim "${cid}" points at material "${ref}", which is not in writing.materials.items`, "Point materials: at an id that exists in writing.materials.items."));
           return;
         }
-        // A bare material id (no #segment) stays valid on its own; only a ref naming a specific
-        // segment needs resolving against that material's segments file.
-        if (!segId) return;
+        // A bare material id (no "#") stays valid on its own; only a ref naming a specific segment
+        // needs resolving against that material's segments file. "m1#" names an empty segment id,
+        // which is not a bare ref, so it goes on to fail as an unknown segment.
+        if (hashIdx === -1) return;
         const { segments, loaded, why } = segmentsFor(mid);
         if (!loaded) {
           if (!reportedUnresolvable.has(mid)) {
@@ -310,7 +318,7 @@ function spineFields(raw, d, here, idPrefix) {
           }
           return;
         }
-        const seg = segments.find((s) => str(s?.id) === segId);
+        const seg = segId ? segments.find((s) => str(s?.id) === segId) : undefined;
         if (!seg) {
           out.push(f(4, `${idPrefix}-claim-${i}-materials-segment-unknown`, "fail",
             `spine claim "${cid}" points at material "${ref}", which is not a segment in "${mid}"'s segments file`,
