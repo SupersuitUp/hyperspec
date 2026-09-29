@@ -17,6 +17,7 @@ import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
 import { str } from "../src/placeholder.mjs";
 import { runCheck } from "../src/check.mjs";
+import { prepareJudges, recordJudgment } from "../src/judge.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -35,6 +36,25 @@ const HELP = `hyperspec <command> [options]
                                exit 0 every run station passed, 1 a station failed, 2 usage
                                (including a missing draft file, a spec without the writing
                                profile, or an --only that names no known station)
+  judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force] [--json]
+                               needs a writing spec that passes lint (exits with lint's own code
+                               otherwise); writes one <station>.packet.json per applicable
+                               judgment station (or the --only subset) into <dir>: the rubric from
+                               the spec, fixed instructions, the inputs and the exact verdict
+                               shape, for an outside judge to fill; hyperspec never calls a model;
+                               the same spec and draft give byte-identical packets; refuses to
+                               overwrite an existing packet without --force
+                               exit 0 written, 2 usage (a missing or non-folder --out, an existing
+                               packet without --force, an unknown --only name)
+  judge record <packet> --verdict <file> [--json]
+                               validate the judge's verdict against its packet (every evidence
+                               span must appear in the draft; a draft or spec changed since the
+                               packet is stale), derive the station's status, and append one line
+                               to the spec's improvement.ledger, as check does; an invalid or stale
+                               verdict appends nothing; run it from the folder prepare ran in, since
+                               the packet keeps the spec and draft paths as they were given
+                               exit 0 the station passed, 1 it failed or the verdict is invalid
+                               or stale, 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
   init <file> --profile writing [--title T] [--form F] [--fiction]
                                write a writing-profile skeleton: every required block (materials,
@@ -349,6 +369,84 @@ if (cmd === "check") {
     if (result.ledgerWarning) console.log(`warn: ${result.ledgerWarning}`);
   }
   process.exit(result.code);
+}
+
+if (cmd === "judge") {
+  const sub = argv[1];
+  const printFinding = (f) => console.log(`  ${f.severity === "fail" ? "fail" : "warn"} [${f.id}] ${f.message}${typeof f.line === "number" ? ` (line ${f.line})` : ""}\n    fix: ${f.fix}`);
+
+  if (sub === "prepare") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--draft", "--out", "--only"], boolFlags: ["--force", "--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [specPath] = parsed.positionals;
+    const json = parsed.values["--json"];
+    const usage = (error) => {
+      if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, out: parsed.values["--out"] ?? null, error }, null, 2));
+      else console.error(error);
+      process.exit(2);
+    };
+    if (!specPath) usage("judge prepare needs a spec path");
+    if (!parsed.values["--draft"]) usage("judge prepare needs --draft <file>");
+    if (!parsed.values["--out"]) usage("judge prepare needs --out <dir>");
+    let only;
+    if (parsed.values["--only"] !== undefined) {
+      only = parsed.values["--only"].split(",").map((x) => x.trim()).filter(Boolean);
+      if (!only.length) usage("--only names no judge");
+    }
+    const result = prepareJudges(specPath, parsed.values["--draft"], parsed.values["--out"], { only, force: parsed.values["--force"] });
+    if (result.usage) usage(result.error);
+    if (result.lintBlocked) {
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else {
+        const r = result.lintScore;
+        console.log(`${result.specPath}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
+        for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
+        for (const f of result.lintFindings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
+        console.log("no packets written: the spec is not ready (run `hyperspec lint` on it for details)");
+      }
+      process.exit(result.code);
+    }
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else {
+      for (const w of result.written) console.log(w.path);
+      for (const s of result.skipped) console.log(`${s.station}: skip (${s.reason})`);
+      for (const f of result.crashed) { console.log(`${f.station}: no packet`); printFinding(f); }
+    }
+    process.exit(result.code);
+  }
+
+  if (sub === "record") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--verdict"], boolFlags: ["--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [packetPath] = parsed.positionals;
+    const json = parsed.values["--json"];
+    const usage = (error) => {
+      if (json) console.log(JSON.stringify({ packet: packetPath ?? null, verdict: parsed.values["--verdict"] ?? null, error }, null, 2));
+      else console.error(error);
+      process.exit(2);
+    };
+    if (!packetPath) usage("judge record needs a packet path");
+    if (!parsed.values["--verdict"]) usage("judge record needs --verdict <file>");
+    const result = recordJudgment(packetPath, parsed.values["--verdict"]);
+    if (result.usage) usage(result.error);
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else if (result.stale || result.invalid) {
+      console.log(`${result.station}: ${result.stale ? "stale" : "invalid"} verdict, nothing recorded`);
+      for (const f of result.findings) printFinding(f);
+    } else {
+      console.log(`${result.station}: ${result.status}`);
+      for (const f of result.findings) printFinding(f);
+      if (result.verdict) {
+        const detail = result.verdictDetail.change ?? result.verdictDetail.reason;
+        console.log(`verdict: ${result.verdict}${detail ? ` (${detail})` : ""}`);
+      }
+      if (result.ledgerWarning) console.log(`warn: ${result.ledgerWarning}`);
+    }
+    process.exit(result.code);
+  }
+
+  console.error(`unknown judge subcommand: ${sub ?? "(none)"}\n\n${HELP}`);
+  process.exit(2);
 }
 
 // Generic flag/positional parser for the recipe verbs below. A value-taking flag (valueFlags,
