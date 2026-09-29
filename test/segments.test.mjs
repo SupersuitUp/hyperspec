@@ -578,3 +578,132 @@ test("round trip: init then readSegments reports only 'still unlabeled' findings
   assert.ok(fails(r.findings).every((x) => x.id.startsWith("writing-materials-label-")));
   for (const finding of fails(r.findings)) assert.match(finding.message, /still unlabeled/);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Fix round 1
+
+// R2 (progress.md): every message names the material id (and the segment id where one applies),
+// so findings from two materials never read the same, even when the finding IDs are the same rule
+// id (finding ids are rule ids and may repeat across materials, as core findings do — it is the
+// MESSAGE text this ruling is about).
+
+test("R2: two materials each with an unlabeled s1 produce findings whose messages differ", () => {
+  const d = tempDir("hs-seg-r2-");
+  const material1 = join(d, "one.md");
+  const material2 = join(d, "two.md");
+  writeFileSync(material1, "Hello.");
+  writeFileSync(material2, "Hello.");
+  const segments1 = join(d, "one.md.segments.jsonl");
+  const segments2 = join(d, "two.md.segments.jsonl");
+  writeFileSync(segments1, `${headerFor(material1, "m1")}\n${JSON.stringify({ id: "s1", start: 0, end: 6, label: "unlabeled", text: "Hello." })}\n`);
+  writeFileSync(segments2, `${headerFor(material2, "m2")}\n${JSON.stringify({ id: "s1", start: 0, end: 6, label: "unlabeled", text: "Hello." })}\n`);
+
+  const r1 = readSegments(segments1, { materialPath: material1, materialId: "m1" });
+  const r2 = readSegments(segments2, { materialPath: material2, materialId: "m2" });
+
+  const f1 = fails(r1.findings).find((x) => x.id === "writing-materials-label-s1");
+  const f2 = fails(r2.findings).find((x) => x.id === "writing-materials-label-s1");
+  assert.ok(f1);
+  assert.ok(f2);
+  // The finding id is allowed to repeat (it is a rule id); the message must not.
+  assert.equal(f1.id, f2.id);
+  assert.notEqual(f1.message, f2.message);
+  assert.match(f1.message, /\bm1\b/);
+  assert.match(f1.message, /\bs1\b/);
+  assert.match(f2.message, /\bm2\b/);
+  assert.match(f2.message, /\bs1\b/);
+});
+
+test("R2: materialId names the material even for findings that name no segment (missing file, header shape, coverage)", () => {
+  const d = tempDir("hs-seg-r2-");
+  // Missing segments file entirely.
+  const rMissing = readSegments(join(d, "nope.segments.jsonl"), { materialId: "m7" });
+  assert.match(fails(rMissing.findings)[0].message, /\bm7\b/);
+
+  // Malformed header, still tagged by materialId since header.material is unreadable.
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, "Hello.");
+  const badHeaderPath = join(d, "bad-header.segments.jsonl");
+  writeFileSync(badHeaderPath, "not json\n");
+  const rBadHeader = readSegments(badHeaderPath, { materialPath, materialId: "m8" });
+  const headerFinding = fails(rBadHeader.findings).find((x) => x.id === "writing-materials-header");
+  assert.match(headerFinding.message, /\bm8\b/);
+
+  // Coverage finding, which names no single segment.
+  const materialPath2 = join(d, "material2.md");
+  writeFileSync(materialPath2, "One. Two.");
+  const segmentsPath2 = join(d, "material2.md.segments.jsonl");
+  writeFileSync(segmentsPath2, `${headerFor(materialPath2, "m9")}\n${JSON.stringify(seg("One. Two.", "s1", "stance", "One."))}\n`);
+  const rCoverage = readSegments(segmentsPath2, { materialPath: materialPath2, materialId: "m9" });
+  const coverageFinding = fails(rCoverage.findings).find((x) => x.id === "writing-materials-coverage");
+  assert.ok(coverageFinding);
+  assert.match(coverageFinding.message, /\bm9\b/);
+});
+
+test("R2: with no materialId given, the material tag falls back to the header's own material field", () => {
+  const d = tempDir("hs-seg-r2-");
+  const materialPath = join(d, "material.md");
+  writeFileSync(materialPath, "Hello.");
+  const segmentsPath = join(d, "material.md.segments.jsonl");
+  writeFileSync(segmentsPath, `${headerFor(materialPath, "m5")}\n${JSON.stringify({ id: "s1", start: 0, end: 6, label: "unlabeled", text: "Hello." })}\n`);
+  const r = readSegments(segmentsPath, { materialPath });
+  const finding = fails(r.findings).find((x) => x.id === "writing-materials-label-s1");
+  assert.match(finding.message, /\bm5\b/);
+});
+
+test("R2: with no materialId and no readable header, the material tag falls back to the segments file's basename", () => {
+  const d = tempDir("hs-seg-r2-");
+  const r = readSegments(join(d, "orphan.segments.jsonl"), {});
+  assert.match(fails(r.findings)[0].message, /orphan\.segments\.jsonl/);
+});
+
+// The cross-line quote-close branch: inQuote resets on every "\n" regardless of whether a quote
+// is genuinely still open, so a quote opened on one line and closed with terminal punctuation on
+// a LATER line still produces a real boundary right after the closing quote — the "punctuation +
+// closing quote" extension is not gated to "same line as the opening quote," only to "not
+// currently read as inside a quote," which a line break always resets.
+
+test("splitSegments sentence: a quote opened on one line and closed with punctuation on a later line still closes the sentence right after the quote mark", () => {
+  const text = 'He said "Something long\ncontinues here." Then he left.';
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), [
+    'He said "Something long\ncontinues here."',
+    "Then he left.",
+  ]);
+  for (const s of segs) assert.equal(text.slice(s.start, s.end), s.text);
+});
+
+test("splitSegments sentence: an orphan closing quote with no matching open quote on its own line still closes the sentence there (same branch, no special case)", () => {
+  const text = 'He was done." Next thing happened.';
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), ['He was done."', "Next thing happened."]);
+});
+
+// Item 3: isWhitespace (sentence splitter) and the coverage check's /\S/ share one Unicode-aware
+// definition, so an NBSP (U+00A0) is whitespace to both.
+
+test("splitSegments sentence: a non-breaking space (NBSP) between sentences is excluded, same as an ordinary space", () => {
+  const NBSP = " ";
+  const text = `First one.${NBSP}Second one.`;
+  const segs = splitSegments(text, { by: "sentence" });
+  assert.deepEqual(segs.map((s) => s.text), ["First one.", "Second one."]);
+});
+
+test("readSegments: a gap consisting solely of an NBSP between segments does not fail coverage", () => {
+  const d = tempDir("hs-seg-nbsp-");
+  const NBSP = " ";
+  const materialPath = join(d, "material.md");
+  const text = `One.${NBSP}Two.`;
+  writeFileSync(materialPath, text);
+  const segmentsPath = join(d, "material.md.segments.jsonl");
+  const lines = [
+    headerFor(materialPath),
+    JSON.stringify(seg(text, "s1", "stance", "One.")),
+    // The gap left between them is the single NBSP — whitespace under the shared definition, so
+    // this must read as covered, exactly like the ordinary-space case above.
+    JSON.stringify(seg(text, "s2", "stance", "Two.")),
+  ];
+  writeFileSync(segmentsPath, `${lines.join("\n")}\n`);
+  const r = readSegments(segmentsPath, { materialPath });
+  assert.deepEqual(fails(r.findings).filter((x) => x.id === "writing-materials-coverage"), []);
+});
