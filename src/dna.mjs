@@ -87,8 +87,18 @@ export function readGoldens(dir, { displayDir } = {}) {
     const sha = sha256(buf);
     // parseSkillFile never throws: malformed or missing frontmatter comes back as data: {} (and,
     // for missing frontmatter, the whole file as body), so every required field below is simply
-    // reported missing rather than needing a separate "malformed" finding.
-    const { data, body } = parseSkillFile(buf.toString("utf8"));
+    // reported missing rather than needing a separate "malformed" finding. The one exception is
+    // frontmatter that OPENS (a first line of ---) and never closes: parseSkillFile has nowhere to
+    // end the block, so body comes back empty and the real passage text is invisible, meaning the
+    // three field checks below and golden-empty would all fire for what is really one defect. R1:
+    // report that once, plainly, instead of a cascade that reads like four unrelated problems.
+    const { data, body, error } = parseSkillFile(buf.toString("utf8"));
+    if (error === "unterminated frontmatter") {
+      findings.push(f(1, "writing-dna-golden-frontmatter", "fail",
+        `scope "${shown}", golden "${relPath}"'s frontmatter opens with --- but never closes`,
+        `Close ${relPath}'s frontmatter with a second --- line.`));
+      continue;
+    }
     const why = str(data.why);
     const approvedBy = str(data.approved_by);
     const source = str(data.source);

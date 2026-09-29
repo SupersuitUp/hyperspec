@@ -18,9 +18,11 @@
 // (test 1), because dialogue cannot be specified without them. relationships stays optional: a
 // character may genuinely relate to no one yet, and nothing gives it a closed set or a count.
 
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
 import { str } from "./placeholder.mjs";
 import { readSegments } from "./segments.mjs";
+import { readScope } from "./dna.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -131,6 +133,36 @@ const UNRESOLVABLE_BECAUSE = {
 
 // ---------------------------------------------------------------- 2. dna ----------------------
 
+// writing.dna.scope_dir (0.5, optional): the path (relative to the spec, like every other path in
+// this file) to a scoped-DNA folder built by `hyperspec dna init`/`dna measure` (src/dna.mjs, task
+// 1). Absent, none of the checks below run: 0.4 behavior, unchanged. Present, four things must all
+// hold: scope.md's writer/form/audience/purpose must agree with what the spec itself claims under
+// dna.writer/dna.scope (test 1); every dna.goldens[].path must resolve inside <scope_dir>/goldens/,
+// never a golden borrowed from another scope (test 5, id writing-dna-golden-leak, no per-golden
+// index: it names the golden and the scope in its message instead, the same convention src/dna.mjs
+// itself uses for a broken golden's own field findings); every golden IN the scope must pass its
+// own field checks, which is exactly what readScope (task 1) already computes, reused here rather
+// than re-derived, with displayDir set to the scope_dir string the spec wrote (never a resolved
+// filesystem path, so a finding here never names this machine's folders); and <scope_dir>/
+// features.json must exist and still match the scope's goldens by sha256 (test 6).
+function isInsideDir(parentAbs, childAbs) {
+  return childAbs === parentAbs || childAbs.startsWith(parentAbs + sep);
+}
+
+// One field of the spec's own dna claim against the same field read off scope.md. Silent when
+// either side is empty: an empty spec-side value already fails its own presence check above (e.g.
+// writing-dna-writer), and an empty disk-side value already fails as one of readScope's own
+// findings (e.g. writing-dna-scope-writer); comparing two things when one is already known-broken
+// would just be a second name for the same defect, not a second defect.
+function scopeMismatch(out, idPrefix, scopeDirRaw, label, idSuffix, specVal, diskVal) {
+  const a = str(specVal);
+  const b = str(diskVal);
+  if (!a || !b || a.trim().toLowerCase() === b.trim().toLowerCase()) return;
+  out.push(f(1, `${idPrefix}-scope-mismatch-${idSuffix}`, "fail",
+    `writing.dna.scope_dir "${scopeDirRaw}": ${label} "${a}" does not match ${scopeDirRaw}/scope.md's ${label} "${b}"`,
+    `Make writing.dna's ${label} and ${scopeDirRaw}/scope.md's ${label} agree; one of them is wrong.`));
+}
+
 function dnaFields(raw, d, here, idPrefix) {
   const out = [];
   if (!str(raw.writer)) out.push(f(1, `${idPrefix}-writer`, "fail", "writing.dna has no writer", "Add writer:."));
@@ -141,6 +173,10 @@ function dnaFields(raw, d, here, idPrefix) {
   const rulesPath = str(raw.rules);
   if (!rulesPath) out.push(f(1, `${idPrefix}-rules`, "fail", "writing.dna has no rules", "Add rules: the path to the always-on writing style."));
   else out.push(...pathFindings(here, rulesPath, `${idPrefix}-rules`, "dna.rules", "Fix the path, or add the file."));
+
+  const scopeDirRaw = str(raw.scope_dir);
+  const goldensRootAbs = scopeDirRaw ? here(join(scopeDirRaw, "goldens")) : null;
+
   const goldens = list(raw.goldens);
   if (!goldens.length) out.push(f(1, `${idPrefix}-goldens`, "fail", "writing.dna has no goldens", "Add at least one golden under dna.goldens."));
   goldens.forEach((g, i) => {
@@ -148,7 +184,53 @@ function dnaFields(raw, d, here, idPrefix) {
     if (!p) out.push(f(1, `${idPrefix}-golden-${i}-path`, "fail", `dna.goldens[${i + 1}] has no path`, "Add path: to the golden."));
     else out.push(...pathFindings(here, p, `${idPrefix}-golden-${i}`, "golden", "Fix the path, or add the golden file."));
     if (!str(g?.why)) out.push(f(6, `${idPrefix}-golden-${i}-why`, "fail", `golden "${p || `#${i + 1}`}" has no why`, "Add why: what it shows that an adjective could not."));
+    // Checked only once the path resolves to a real file: a missing or non-file path is already
+    // reported above under test 6, and is not also a leak.
+    if (scopeDirRaw && p && pathKind(here, p) === "file" && !isInsideDir(goldensRootAbs, here(p))) {
+      out.push(f(5, `${idPrefix}-golden-leak`, "fail",
+        `golden "${p}" feeds only work that shares its scope; it does not live under ${scopeDirRaw}/goldens/`,
+        `Move ${p} into ${scopeDirRaw}/goldens/, or point dna.goldens[${i + 1}].path at a golden already there.`));
+    }
   });
+
+  if (scopeDirRaw) {
+    const scopeDirAbs = here(scopeDirRaw);
+    const { scope: diskScope, goldens: diskGoldens, findings: diskFindings } = readScope(scopeDirAbs, { displayDir: scopeDirRaw });
+    out.push(...diskFindings);
+
+    if (diskScope) {
+      scopeMismatch(out, idPrefix, scopeDirRaw, "writer", "writer", raw.writer, diskScope.writer);
+      scopeMismatch(out, idPrefix, scopeDirRaw, "form", "form", scope.form, diskScope.form);
+      scopeMismatch(out, idPrefix, scopeDirRaw, "audience", "audience", scope.audience, diskScope.audience);
+      scopeMismatch(out, idPrefix, scopeDirRaw, "purpose", "purpose", scope.purpose, diskScope.purpose);
+    }
+
+    let featuresData = null;
+    try {
+      featuresData = JSON.parse(readFileSync(join(scopeDirAbs, "features.json"), "utf8"));
+    } catch {
+      out.push(f(6, `${idPrefix}-features-missing`, "fail",
+        `writing.dna.scope_dir "${scopeDirRaw}" has no features.json (or it is not valid JSON)`,
+        `Run \`hyperspec dna measure ${scopeDirRaw}\`.`));
+    }
+    if (featuresData) {
+      const recorded = new Map(list(featuresData.goldens).map((g) => [str(g?.path), str(g?.sha256)]));
+      const current = new Map(diskGoldens.map((g) => [g.path, g.sha256]));
+      const added = [...current.keys()].filter((p) => !recorded.has(p)).sort();
+      const removed = [...recorded.keys()].filter((p) => !current.has(p)).sort();
+      const changed = [...current.keys()].filter((p) => recorded.has(p) && recorded.get(p) !== current.get(p)).sort();
+      if (added.length || removed.length || changed.length) {
+        const parts = [];
+        if (added.length) parts.push(`added ${added.join(", ")}`);
+        if (removed.length) parts.push(`removed ${removed.join(", ")}`);
+        if (changed.length) parts.push(`changed ${changed.join(", ")}`);
+        out.push(f(6, `${idPrefix}-features-stale`, "fail",
+          `writing.dna.scope_dir "${scopeDirRaw}"'s features.json is stale: ${parts.join("; ")}`,
+          `Run \`hyperspec dna measure ${scopeDirRaw}\` again.`));
+      }
+    }
+  }
+
   return out;
 }
 

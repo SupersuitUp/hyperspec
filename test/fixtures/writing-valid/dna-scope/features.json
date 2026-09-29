@@ -1,0 +1,52 @@
+{
+  "dna": "0.1",
+  "scope": {
+    "writer": "gary-sheng",
+    "form": "essay",
+    "audience": "builders",
+    "purpose": "persuade"
+  },
+  "goldens": [
+    {
+      "path": "goldens/closing.md",
+      "sha256": "3bb43a4d129332114d9da4d181815395ed4d2576fcc00680141155d932367695"
+    },
+    {
+      "path": "goldens/opening.md",
+      "sha256": "e417bbe3f92a270911c4d36ad99d0541e2b8defa49023636e2a4f3a52e90d11f"
+    }
+  ],
+  "features": {
+    "word_count": 31,
+    "sentence_length": {
+      "mean": 15.5,
+      "median": 15.5,
+      "p90": 16
+    },
+    "paragraph_length": {
+      "mean_sentences": 1,
+      "mean_words": 15.5
+    },
+    "rates_per_1000_words": {
+      "comma": 64.516,
+      "semicolon": 0,
+      "colon": 0,
+      "em_dash": 0,
+      "en_dash": 0,
+      "exclamation": 0,
+      "question_mark": 0,
+      "parentheses": 0,
+      "quotation_marks": 0
+    },
+    "contraction_rate": 0,
+    "first_person_singular_rate": 0,
+    "first_person_plural_rate": 0,
+    "second_person_rate": 96.774,
+    "mean_word_length": 4.032,
+    "signature_words": [
+      "contract",
+      "check",
+      "hyperspec"
+    ]
+  }
+}

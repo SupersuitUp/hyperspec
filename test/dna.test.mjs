@@ -286,6 +286,33 @@ test("readGoldens: an empty passage body is a finding, test 1, golden-empty", ()
   assert.ok(findings.some((x) => x.id === "writing-dna-golden-empty" && x.test === 1));
 });
 
+// R1 (build 5a, task 2): a golden whose frontmatter opens with --- and never closes used to
+// cascade into golden-empty plus all three field-missing findings (parseSkillFile has nowhere to
+// end the block, so body comes back "" and data {}). That read like four unrelated defects for
+// one real one. It is now caught on its own, before any of those checks run.
+test("readGoldens: a golden whose frontmatter opens but never closes gets one clear finding, test 1, writing-dna-golden-frontmatter, not the cascade", () => {
+  const dir = tempDir("hs-dna-");
+  makeScope(dir);
+  writeFileSync(join(dir, "goldens", "broken.md"), "---\nwhy: shows restraint\napproved_by: gary-sheng\nsource: essay draft\n\nThe real passage never gets read.\n");
+  const { goldens, findings } = readGoldens(dir);
+  assert.deepEqual(goldens, []);
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].id, "writing-dna-golden-frontmatter");
+  assert.equal(findings[0].test, 1);
+  assert.match(findings[0].message, /goldens\/broken\.md/);
+  for (const id of ["writing-dna-golden-empty", "writing-dna-golden-why", "writing-dna-golden-approved-by", "writing-dna-golden-source"]) {
+    assert.ok(!findings.some((x) => x.id === id), `${id} must not also fire`);
+  }
+});
+
+test("readGoldens: frontmatter with no closing --- at all (one line only) is the same single finding, not a crash", () => {
+  const dir = tempDir("hs-dna-");
+  makeScope(dir);
+  writeFileSync(join(dir, "goldens", "broken.md"), "---\n");
+  const { findings } = readGoldens(dir);
+  assert.deepEqual(findings.map((x) => x.id), ["writing-dna-golden-frontmatter"]);
+});
+
 test("readGoldens: README.md in goldens/ is never treated as a golden", () => {
   const dir = tempDir("hs-dna-");
   makeScope(dir);

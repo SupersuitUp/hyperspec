@@ -62,6 +62,30 @@ test("dna init needs a scope-dir path (exit 2)", () => {
   assert.equal(r.status, 2, r.stdout + r.stderr);
 });
 
+// R1 (build 5a, task 2): a placeholder-looking flag value used to write straight through to
+// scope.md and only fail on the next `dna measure`. It is refused here instead, naming the flag,
+// so the placeholder never lands on disk.
+test("dna init refuses a placeholder flag value (exit 2), naming the flag, and writes nothing", () => {
+  const dir = tempDir("hs-cli-dna-");
+  const scope = join(dir, "scope");
+  const r = run("dna", "init", scope, "--writer", "TODO", "--form", "essay", "--audience", "builders", "--purpose", "explain the idea");
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /--writer/);
+  assert.ok(!existsSync(scope));
+});
+
+test("dna init refuses a placeholder flag value for any of the four flags, not only --writer", () => {
+  const dir = tempDir("hs-cli-dna-");
+  for (const flag of ["--form", "--audience", "--purpose"]) {
+    const args = INIT_ARGS.map((v, i) => (INIT_ARGS[i - 1] === flag ? "???" : v));
+    const scope = join(dir, `scope-${flag.slice(2)}`);
+    const r = run("dna", "init", scope, ...args);
+    assert.equal(r.status, 2, `${flag}: ${r.stdout + r.stderr}`);
+    assert.match(r.stderr, new RegExp(flag), flag);
+    assert.ok(!existsSync(scope), flag);
+  }
+});
+
 // ---------------------------------------------------------------------------------------------
 // dna measure
 

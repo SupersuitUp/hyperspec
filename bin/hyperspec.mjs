@@ -15,6 +15,7 @@ import { compare } from "../src/compare.mjs";
 import { splitSegments } from "../src/segments.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
+import { str } from "../src/placeholder.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -49,8 +50,9 @@ const HELP = `hyperspec <command> [options]
                                purpose) and an empty goldens/ folder holding a README on the
                                golden file shape (why, approved_by, source, optional approved_on;
                                the body is the passage, verbatim); refuses to overwrite an
-                               existing scope.md; exit 2 on a missing parent folder or a missing
-                               flag, never a stack trace
+                               existing scope.md; exit 2 on a missing parent folder, a missing
+                               flag, or a flag value that looks like a placeholder (todo, ..., a
+                               bare -), never a stack trace
   dna measure <scope-dir> [--json]
                                read every golden in <scope-dir>/goldens/, check its required
                                fields, and write <scope-dir>/features.json: deterministic style
@@ -173,6 +175,15 @@ if (cmd === "dna") {
     if (!scopeDir) { console.error("dna init needs a scope-dir path"); process.exit(2); }
     for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
       if (!parsed.values[flagName]) { console.error(`dna init needs ${flagName} <value>`); process.exit(2); }
+    }
+    // R1: a placeholder-looking value (todo, tbd, ..., ???, ...) is caught here rather than left
+    // for the next `dna measure` to catch on scope.md's own fields; str() is the one place that
+    // pattern is defined (src/placeholder.mjs), reused rather than re-checked.
+    for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
+      if (!str(parsed.values[flagName])) {
+        console.error(`dna init ${flagName} "${parsed.values[flagName]}" looks like a placeholder; give it real content`);
+        process.exit(2);
+      }
     }
     const writer = parsed.values["--writer"];
     const form = parsed.values["--form"];

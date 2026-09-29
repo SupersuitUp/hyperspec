@@ -81,14 +81,13 @@ writing:
     author: agent:claude
   dna:
     writer: gary-sheng
-    scope_dir: dna-scope
     scope:
       form: essay
       audience: builders
       purpose: persuade
     rules: WRITING-STYLE.md
     goldens:
-      - path: dna-scope/goldens/opening.md
+      - path: goldens/opening.md
         why: the claim lands in the first line and the second line earns it
     check:
       rubric: blind lineup within this scope; a judge cannot pick the generated passage out from three goldens

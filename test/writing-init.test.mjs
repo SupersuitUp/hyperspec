@@ -198,7 +198,13 @@ test("the skeleton's eight required blocks each have exactly the fixture's keys:
   const fixture = loadSpec(WRITING_VALID).data.writing;
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
     await t.test(block, () => {
-      assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
+      let fixtureKeys = dottedKeys(fixture[block]).sort();
+      // dna.scope_dir (0.5) is optional and the skeleton does not scaffold it: a scope folder
+      // does not exist yet at init time, so there is nothing to point it at. The fixture carries
+      // it (build 5a, task 2) to exercise the scope_dir lint path; every other key must still
+      // match the skeleton exactly.
+      if (block === "dna") fixtureKeys = fixtureKeys.filter((k) => k !== "scope_dir");
+      assert.deepEqual(dottedKeys(skeleton[block]).sort(), fixtureKeys, block);
     });
   }
 });
@@ -217,9 +223,9 @@ test("filling the writing skeleton's placeholders with the valid fixture's value
   const fixtureBody = fixtureText.slice(fixtureText.indexOf("decisions:"));
   writeFileSync(p, skeletonHeader + fixtureBody);
 
-  // The fixture's writing.materials/dna/goldens/examples files, so the filled spec's paths
+  // The fixture's writing.materials/dna-scope/examples files, so the filled spec's paths
   // resolve exactly as they do for the fixture itself.
-  for (const name of ["materials", "goldens", "examples"]) {
+  for (const name of ["materials", "dna-scope", "examples"]) {
     cpSync(join(WRITING_VALID_DIR, name), join(d, name), { recursive: true });
   }
   cpSync(join(WRITING_VALID_DIR, "WRITING-STYLE.md"), join(d, "WRITING-STYLE.md"));
