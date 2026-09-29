@@ -75,8 +75,9 @@ export class DiffTooLarge extends Error {
 
 // A boundary between two units: a blank line between paragraphs, or the end of a heading that
 // opens its paragraph. Boundaries are tokens in the diff, equal to one another, so the LCS anchors
-// on them and no hunk crosses one (ruling R17). A heading line in the middle of a paragraph (a
-// hard wrap that happens to start a line with "# ") is not a boundary, so a reflow cannot make one.
+// on them and no hunk crosses one (ruling R17). Only a paragraph's first line is ever a heading
+// (src/sentences.mjs, ruling R22), so a hard wrap that starts a line with "# " is text, not a
+// boundary, and a reflow cannot make one.
 const BOUNDARY = Symbol("boundary");
 
 function tokens(units) {

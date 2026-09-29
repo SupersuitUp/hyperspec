@@ -71,3 +71,9 @@ test("each unit names its paragraph and whether it is a heading", () => {
   const u = sentenceUnits("# H\nBody one. Body two.\n\nNext para.");
   assert.deepEqual(u.map((x) => [x.text, x.para, x.heading]), [["# H", 0, true], ["Body one.", 0, false], ["Body two.", 0, false], ["Next para.", 1, false]]);
 });
+
+test("only a paragraph's first line is a heading: a wrapped line starting with # is split as text", () => {
+  assert.deepEqual(texts("Intro line stays.\n# One thing happens. Another thing happens too."), ["Intro line stays.", "# One thing happens.", "Another thing happens too."]);
+  assert.deepEqual(sentenceUnits("Intro line stays.\n# One thing happens.").map((u) => u.heading), [false, false]);
+  assert.deepEqual(sentenceUnits("# Opening heading\nBody one. Body two.").map((u) => [u.text, u.heading]), [["# Opening heading", true], ["Body one.", false], ["Body two.", false]]);
+});

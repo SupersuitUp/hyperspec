@@ -3,7 +3,7 @@
 // A unit is one sentence, one markdown heading line, or one list item. Built from the splitters
 // src/segments.mjs already ships, so "what is a sentence" never disagrees between commands:
 // paragraphs first (a blank line always ends a unit, punctuation or not), then, inside each
-// paragraph, every heading line on its own and every run of other lines through the sentence
+// paragraph, its first line on its own when it is a heading, and the other lines through the sentence
 // splitter (". ! ?" followed by whitespace, never inside a quotation on the same line, each list
 // item on its own). Three rules of its own on top:
 //   - curly double quotes count as quotes, the same as straight ones (the shared splitter only
@@ -65,10 +65,12 @@ export function sentenceUnits(text) {
   splitSegments(text).forEach((para, p) => {
     let run = null;
     const flush = () => { if (run) out.push(...sentencesOf(text, scan, run.start, run.end).map((u) => ({ ...u, para: p, heading: false }))); run = null; };
-    for (const line of lines(text, para.start, para.end)) {
-      if (HEADING.test(text.slice(line.start, line.end))) { flush(); out.push({ start: line.start, end: line.end, para: p, heading: true }); continue; }
+    // Only a paragraph's first line can be a heading (ruling R22): a later line that starts with
+    // "#" is a hard wrap inside the text and is split into sentences like the rest of it.
+    lines(text, para.start, para.end).forEach((line, k) => {
+      if (k === 0 && HEADING.test(text.slice(line.start, line.end))) { out.push({ start: line.start, end: line.end, para: p, heading: true }); return; }
       if (run) run.end = line.end; else run = { ...line };
-    }
+    });
     flush();
   });
   return out.map((u) => ({ text: text.slice(u.start, u.end), start: u.start, end: u.end, para: u.para, heading: u.heading }));

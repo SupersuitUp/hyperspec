@@ -120,6 +120,15 @@ test("diffSentences: a hunk never crosses a paragraph or a heading, and counts i
   assert.deepEqual(diffSentences("One here. Two here.", "One here.\n\nTwo here."), []);
 });
 
+test("diffSentences: a mid-paragraph line starting with # is text, split into sentences; an opening heading is its own hunk", () => {
+  assert.deepEqual(diffSentences("Intro line stays.\n# One thing happens. Another thing happens too.", "Intro line stays.\n# One thing occurs. A different thing happens too."), [
+    { id: "E1", kind: "replaced", first: "# One thing happens. Another thing happens too.", approved: "# One thing occurs. A different thing happens too.", sentences: 2 },
+  ]);
+  assert.deepEqual(diffSentences("# Opening heading\nBody one. Body two.", "# Opening title\nBody one. Body two."), [
+    { id: "E1", kind: "replaced", first: "# Opening heading", approved: "# Opening title", sentences: 1 },
+  ]);
+});
+
 test("diffSentences: a rewrap that moves a number or a bullet to the start of a line is no edit", () => {
   assert.deepEqual(diffSentences("It happened in the year 1984. Then more.", "It happened in the year\n1984. Then more."), []);
   const para = "Hiring slowed after March 3. We shipped 4 releases in Q2. Churn fell - slowly - all year.";
