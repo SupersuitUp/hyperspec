@@ -93,18 +93,22 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
   assert.ok(ids.includes("writing-sources-unsourced-claim"), "sources.unsourced_claim placeholder must fail closed-set");
 });
 
-test("the skeleton's dna block hints at scope_dir as a comment, which the loader skips and lint never reports", () => {
-  // Every other placeholder in the skeleton fails its own presence check. scope_dir is optional,
-  // so a bare-TODO value would be blanked to "absent" and could survive into a spec that passes;
-  // a comment gives the operator the same hint without that hole.
+test("the skeleton's dna block shows scope_dir: TODO like every other field, and it fails test 1 as writing-dna-scope-dir", () => {
+  // Fix round 1, R2: scope_dir is optional, but a present placeholder value now fails on its own
+  // (writing-dna-scope-dir, src/writing-fields.mjs), so it no longer needs the comment workaround
+  // this test used to assert on. That check is what makes an uncommented `scope_dir: TODO` safe
+  // to show at all: without it, str() would blank the placeholder to "absent" and a spec filled
+  // in everywhere else would pass with the placeholder still sitting there.
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   run("init", p, "--profile", "writing");
   const text = readFileSync(p, "utf8");
   const dnaBlock = text.slice(text.indexOf("\n  dna:\n"), text.indexOf("\n  persona:\n"));
-  assert.match(dnaBlock, /^ {4}# scope_dir: dna\/<scope> {3}optional; a folder from `hyperspec dna init`, and every golden below then lives in its goldens\/$/m);
-  assert.doesNotMatch(dnaBlock, /^ {4}scope_dir:/m, "never an uncommented placeholder");
-  assert.equal(loadSpec(p).data.writing.dna.scope_dir, undefined);
+  assert.match(dnaBlock, /^ {4}scope_dir: TODO$/m);
+  assert.equal(loadSpec(p).data.writing.dna.scope_dir, "TODO");
   const ids = JSON.parse(run("lint", p, "--json").stdout).files[0].findings.map((f) => f.id);
+  assert.ok(ids.includes("writing-dna-scope-dir"), JSON.stringify(ids));
+  // Nothing further down the scope_dir path runs off a placeholder value: it is read as absent
+  // by every check that gates on scopeDirRaw, so none of the scope-contents findings fire twice.
   assert.deepEqual(ids.filter((id) => /scope-mismatch|golden-leak|features-/.test(id)), []);
 });
 
@@ -213,14 +217,11 @@ test("the skeleton's eight required blocks each have exactly the fixture's keys:
   const fixture = loadSpec(WRITING_VALID).data.writing;
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
     await t.test(block, () => {
-      let fixtureKeys = dottedKeys(fixture[block]).sort();
-      // dna.scope_dir (0.5) is optional, and the skeleton shows it only as a comment (see the
-      // test below): a scope folder does not exist yet at init time, so there is nothing to point
-      // it at, and a `scope_dir: TODO` would read as absent rather than fail. The fixture carries
-      // it to exercise the scope_dir lint path; every other key must still match the skeleton
-      // exactly.
-      if (block === "dna") fixtureKeys = fixtureKeys.filter((k) => k !== "scope_dir");
-      assert.deepEqual(dottedKeys(skeleton[block]).sort(), fixtureKeys, block);
+      // dna.scope_dir (0.5, optional) is a real `scope_dir: TODO` key on both sides since fix
+      // round 1's R2 (src/writing-template.mjs, src/writing-fields.mjs's writing-dna-scope-dir
+      // check), so no exception is needed here: every key on the fixture's side is expected on
+      // the skeleton's side too, scope_dir included.
+      assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
     });
   }
 });

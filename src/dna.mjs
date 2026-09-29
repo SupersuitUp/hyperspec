@@ -60,7 +60,7 @@ export function readGoldens(dir, { displayDir } = {}) {
   } catch {
     findings.push(f(1, "writing-dna-goldens-missing", "fail",
       `scope "${shown}": goldens folder "goldens/" does not exist or cannot be read`,
-      `Run \`hyperspec dna init ${dir} --writer W --form F --audience A --purpose P\`, or create goldens/ yourself.`));
+      `Run \`hyperspec dna init ${shown} --writer W --form F --audience A --purpose P\`, or create goldens/ yourself.`));
     return { goldens: [], findings };
   }
 
@@ -156,7 +156,7 @@ export function readScope(dir, { displayDir } = {}) {
   } catch {
     findings.push(f(1, "writing-dna-scope-missing", "fail",
       `scope "${shown}": scope.md does not exist or cannot be read`,
-      `Run \`hyperspec dna init ${dir} --writer W --form F --audience A --purpose P\` to create it.`));
+      `Run \`hyperspec dna init ${shown} --writer W --form F --audience A --purpose P\` to create it.`));
   }
 
   if (raw !== undefined) {

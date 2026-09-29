@@ -18,7 +18,7 @@
 // (test 1), because dialogue cannot be specified without them. relationships stays optional: a
 // character may genuinely relate to no one yet, and nothing gives it a closed set or a count.
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { str } from "./placeholder.mjs";
 import { readSegments } from "./segments.mjs";
@@ -135,8 +135,11 @@ const UNRESOLVABLE_BECAUSE = {
 
 // writing.dna.scope_dir (0.5, optional): the path (relative to the spec, like every other path in
 // this file) to a scoped-DNA folder built by `hyperspec dna init`/`dna measure` (src/dna.mjs, task
-// 1). Absent, none of the checks below run: 0.4 behavior, unchanged. Present, four things must all
-// hold: scope.md's writer/form/audience/purpose must agree with what the spec itself claims under
+// 1). The KEY being absent means none of the checks below run: 0.4 behavior, unchanged. A key
+// that IS present but placeholder-ish (fix round 1, R2: TODO, tbd, an empty string) fails on its
+// own (test 1, writing-dna-scope-dir, naming the value) before any of this runs, since a real
+// value is what every check below needs. Present with a real value, four things must all hold:
+// scope.md's writer/form/audience/purpose must agree with what the spec itself claims under
 // dna.writer/dna.scope (test 1); every dna.goldens[].path must resolve inside <scope_dir>/goldens/,
 // never a golden borrowed from another scope (test 5, id writing-dna-golden-leak, no per-golden
 // index: it names the golden and the scope in its message instead, the same convention src/dna.mjs
@@ -147,6 +150,23 @@ const UNRESOLVABLE_BECAUSE = {
 // features.json must exist and still match the scope's goldens by sha256 (test 6).
 function isInsideDir(parentAbs, childAbs) {
   return childAbs === parentAbs || childAbs.startsWith(parentAbs + sep);
+}
+
+// Fix round 1, finding 1: a golden reached through a symlink placed inside the scope's own
+// goldens/ folder used to pass this check on its LEXICAL path (the symlink file itself lives
+// under <scope_dir>/goldens/) while its real bytes, wherever the symlink actually points, are
+// invisible to readGoldens (fs.Dirent.isFile() is false for a symlink entry, so it is never
+// measured into features.json). Both sides are resolved to their real, symlink-free path before
+// the inside-check, so a symlink is judged by where it actually points, not by where its own
+// file happens to sit. A realpath failure (a symlink whose target has since moved or a broken
+// link somewhere in the chain) is refused rather than silently passed: it cannot be proven inside
+// the scope, so it is treated the same as a golden that is not inside the scope.
+function resolvesInsideGoldens(goldensRootAbs, goldenAbs) {
+  try {
+    return isInsideDir(realpathSync(goldensRootAbs), realpathSync(goldenAbs));
+  } catch {
+    return false;
+  }
 }
 
 // One field of the spec's own dna claim against the same field read off scope.md. Silent when
@@ -174,6 +194,17 @@ function dnaFields(raw, d, here, idPrefix) {
   if (!rulesPath) out.push(f(1, `${idPrefix}-rules`, "fail", "writing.dna has no rules", "Add rules: the path to the always-on writing style."));
   else out.push(...pathFindings(here, rulesPath, `${idPrefix}-rules`, "dna.rules", "Fix the path, or add the file."));
 
+  // R2: scope_dir is optional, so its KEY being absent from writing.dna is never a finding (the
+  // whole scope_dir section below simply does not run). But a key that IS present with a
+  // placeholder-ish value (TODO, tbd, an empty string, ...) is a different situation: the operator
+  // wrote something and str() silently reads it as "not there", which would otherwise make a
+  // half-filled skeleton lint clean by accident. That gets its own finding, naming the value, and
+  // is why this check reads raw.scope_dir directly rather than through scopeDirRaw.
+  if (raw.scope_dir !== undefined && !str(raw.scope_dir)) {
+    out.push(f(1, `${idPrefix}-scope-dir`, "fail",
+      `writing.dna.scope_dir "${raw.scope_dir}" looks like a placeholder`,
+      "Point scope_dir: at a real scope folder (built with hyperspec dna init), or remove the field entirely; it is optional."));
+  }
   const scopeDirRaw = str(raw.scope_dir);
   const goldensRootAbs = scopeDirRaw ? here(join(scopeDirRaw, "goldens")) : null;
 
@@ -186,7 +217,7 @@ function dnaFields(raw, d, here, idPrefix) {
     if (!str(g?.why)) out.push(f(6, `${idPrefix}-golden-${i}-why`, "fail", `golden "${p || `#${i + 1}`}" has no why`, "Add why: what it shows that an adjective could not."));
     // Checked only once the path resolves to a real file: a missing or non-file path is already
     // reported above under test 6, and is not also a leak.
-    if (scopeDirRaw && p && pathKind(here, p) === "file" && !isInsideDir(goldensRootAbs, here(p))) {
+    if (scopeDirRaw && p && pathKind(here, p) === "file" && !resolvesInsideGoldens(goldensRootAbs, here(p))) {
       out.push(f(5, `${idPrefix}-golden-leak`, "fail",
         `golden "${p}" feeds only work that shares its scope; it does not live under ${scopeDirRaw}/goldens/`,
         `Move ${p} into ${scopeDirRaw}/goldens/, or point dna.goldens[${i + 1}].path at a golden already there.`));

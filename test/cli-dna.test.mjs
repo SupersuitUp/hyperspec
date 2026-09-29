@@ -8,6 +8,10 @@ import { tempDir } from "./tmp.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const run = (...a) => spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...a], { encoding: "utf8" });
+// Like run(), but in a chosen working directory, so a relative scope-dir argument stays relative
+// end to end (run() always executes from wherever the test runner's own cwd is, which is not
+// useful for proving a CLI prints paths as given rather than resolved).
+const runIn = (cwd, ...a) => spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...a], { encoding: "utf8", cwd });
 
 const INIT_ARGS = ["--writer", "gary", "--form", "essay", "--audience", "builders", "--purpose", "explain the idea"];
 
@@ -60,6 +64,26 @@ test("dna init exits 2 when a required flag is missing, naming which one", () =>
 test("dna init needs a scope-dir path (exit 2)", () => {
   const r = run("dna", "init", ...INIT_ARGS);
   assert.equal(r.status, 2, r.stdout + r.stderr);
+});
+
+// R3 (fix round 1): dna init built its "wrote ..."/"refusing to overwrite ..." messages from the
+// resolved absolute scope-dir instead of the relative string the operator actually typed. Only a
+// RELATIVE scope-dir argument, run from a chosen cwd, exercises this: an already-absolute
+// tempDir()-built path (every other dna init test in this file) resolves to itself, so it cannot
+// tell "prints as given" apart from "prints resolved".
+test("dna init prints every path as given (relative), never resolved to an absolute path", () => {
+  const dir = tempDir("hs-cli-dna-");
+  const escapedDir = dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const r = runIn(dir, "dna", "init", "scope", ...INIT_ARGS);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^wrote scope\/scope\.md and scope\/goldens\/\./m);
+  assert.doesNotMatch(r.stdout, new RegExp(escapedDir), "must never print the resolved absolute scope-dir");
+
+  const r2 = runIn(dir, "dna", "init", "scope", ...INIT_ARGS);
+  assert.equal(r2.status, 2, r2.stdout + r2.stderr);
+  assert.match(r2.stderr, /^refusing to overwrite scope\/scope\.md$/m);
+  assert.doesNotMatch(r2.stderr, new RegExp(escapedDir), "must never print the resolved absolute scope-dir");
 });
 
 // R1 (build 5a, task 2): a placeholder-looking flag value used to write straight through to

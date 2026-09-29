@@ -200,13 +200,19 @@ if (cmd === "dna") {
       console.error(`${scopeDir} is not a directory`);
       process.exit(2);
     }
+    // scopeMdPath (absolute, resolved from the cwd) is for filesystem operations only. Every
+    // message uses scopeMdDisplay, built from scopeDir exactly as given (relative, if that is how
+    // the operator typed it): R3, fix round 1, a path the operator did not resolve themselves
+    // must never appear resolved in output, the same rule every other finding in this linter
+    // already follows.
     const scopeMdPath = join(scopeAbs, "scope.md");
-    if (existsSync(scopeMdPath)) { console.error(`refusing to overwrite ${scopeMdPath}`); process.exit(2); }
+    const scopeMdDisplay = join(scopeDir, "scope.md");
+    if (existsSync(scopeMdPath)) { console.error(`refusing to overwrite ${scopeMdDisplay}`); process.exit(2); }
 
     mkdirSync(join(scopeAbs, "goldens"), { recursive: true });
     writeFileSync(scopeMdPath, scopeTemplate({ writer, form, audience, purpose }));
     writeFileSync(join(scopeAbs, "goldens", "README.md"), GOLDENS_README);
-    console.log(`wrote ${scopeMdPath} and ${scopeDir}/goldens/. Add goldens, then run: hyperspec dna measure ${scopeDir}`);
+    console.log(`wrote ${scopeMdDisplay} and ${scopeDir}/goldens/. Add goldens, then run: hyperspec dna measure ${scopeDir}`);
     process.exit(0);
   }
 

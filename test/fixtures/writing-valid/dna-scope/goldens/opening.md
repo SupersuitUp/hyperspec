@@ -1,6 +1,6 @@
 ---
 why: the claim lands in the first line and the second line earns it
-approved_by: gary-sheng
+approved_by: example-author
 source: essay draft, 2026-09-28
 ---
 

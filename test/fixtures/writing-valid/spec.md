@@ -80,7 +80,7 @@ writing:
     source: capture step
     author: agent:claude
   dna:
-    writer: gary-sheng
+    writer: example-author
     scope_dir: dna-scope
     scope:
       form: essay

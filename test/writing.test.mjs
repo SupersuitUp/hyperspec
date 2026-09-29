@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync, rmSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -326,7 +326,7 @@ test("materials: an item path that does not exist fails test 6", () => {
 });
 
 test("dna: no writer fails test 1", () => {
-  const s = variant((t) => t.replace("    writer: gary-sheng\n", ""));
+  const s = variant((t) => t.replace("    writer: example-author\n", ""));
   assert.deepEqual(failIds(s), ["writing-dna-writer"]);
 });
 
@@ -377,11 +377,11 @@ test("dna: a golden with no why fails test 6", () => {
 test("dna: scope_dir present, scope.md's writer disagreeing with writing.dna.writer fails test 1, naming both values", () => {
   const s = dnaScopeVariant(null, (d) => {
     const p = join(d, "dna-scope", "scope.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("writer: gary-sheng", "writer: someone-else"));
+    writeFileSync(p, readFileSync(p, "utf8").replace("writer: example-author", "writer: someone-else"));
   });
   const f = fails(s);
   assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-mismatch-writer"]]);
-  assert.match(f[0].message, /gary-sheng/);
+  assert.match(f[0].message, /example-author/);
   assert.match(f[0].message, /someone-else/);
 });
 
@@ -403,7 +403,7 @@ for (const c of SCOPE_MISMATCH_CASES) {
 test("dna: scope_dir comparison is case-insensitive: a case-only difference is never a mismatch", () => {
   const s = dnaScopeVariant(null, (d) => {
     const p = join(d, "dna-scope", "scope.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("writer: gary-sheng", "writer: Gary-Sheng"));
+    writeFileSync(p, readFileSync(p, "utf8").replace("writer: example-author", "writer: Example-Author"));
   });
   assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-dna-scope-mismatch")), []);
 });
@@ -416,6 +416,28 @@ test("dna: a golden from outside the scope's goldens/ folder fails test 5, golde
   assert.match(f[0].message, /dna-scope/);
 });
 
+// Fix round 1, finding 1: the leak check used to compare LEXICAL paths, so a golden reached
+// through a symlink placed inside the scope's own goldens/ folder passed cleanly no matter where
+// the symlink actually pointed, and was simultaneously invisible to readGoldens (a symlink dirent
+// is never isFile()), so it was never measured into features.json either. Both cases below prove
+// the fix resolves the REAL path before judging it.
+test("dna: a golden reached through a symlink inside goldens/, pointing at a file OUTSIDE the scope, fails test 5, golden-leak", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "WRITING-STYLE.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-dna-golden-leak"]]);
+});
+
+test("dna: a golden reached through a symlink inside goldens/, pointing at a file INSIDE the scope, lints clean", () => {
+  const s = dnaScopeVariant(
+    (t) => t.replace("path: dna-scope/goldens/opening.md", "path: dna-scope/goldens/via-symlink.md"),
+    (d) => symlinkSync(join(d, "dna-scope", "goldens", "opening.md"), join(d, "dna-scope", "goldens", "via-symlink.md")),
+  );
+  assert.deepEqual(fails(s), []);
+});
+
 test("dna: scope_dir present, features.json missing fails test 6, features-missing, naming hyperspec dna measure <scope_dir>", () => {
   const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "features.json")));
   const f = fails(s);
@@ -426,7 +448,7 @@ test("dna: scope_dir present, features.json missing fails test 6, features-missi
 test("dna: features.json stale after a golden is added without re-measuring fails test 6, features-stale, naming what was added", () => {
   const s = dnaScopeVariant(null, (d) => {
     writeFileSync(join(d, "dna-scope", "goldens", "extra.md"),
-      "---\nwhy: a third example of the same restraint\napproved_by: gary-sheng\nsource: essay draft, 2026-09-28\n---\n\nA third passage, just as short as the other two.\n");
+      "---\nwhy: a third example of the same restraint\napproved_by: example-author\nsource: essay draft, 2026-09-28\n---\n\nA third passage, just as short as the other two.\n");
   });
   const f = fails(s);
   assert.deepEqual(f.map((x) => [x.test, x.id]), [[6, "writing-dna-features-stale"]]);
@@ -453,7 +475,7 @@ test("dna: features.json stale after a golden's text changes without re-measurin
   assert.match(f[0].message, /goldens\/closing\.md/);
 });
 
-test("dna: a broken golden inside the scope surfaces Task 1's own finding, displayed as the spec wrote scope_dir (never an absolute path)", () => {
+test("dna: a broken golden inside the scope surfaces Task 1's own finding, displayed as the spec wrote scope_dir (never an absolute path, in message or fix)", () => {
   const s = dnaScopeVariant(null, (d) => {
     const p = join(d, "dna-scope", "goldens", "closing.md");
     writeFileSync(p, readFileSync(p, "utf8").replace("why: the close returns to the claim without repeating the opening sentence verbatim\n", ""));
@@ -462,18 +484,53 @@ test("dna: a broken golden inside the scope surfaces Task 1's own finding, displ
   const found = f.find((x) => x.id === "writing-dna-golden-why");
   assert.ok(found && found.test === 6, JSON.stringify(f));
   assert.match(found.message, /scope "dna-scope"/);
-  assert.doesNotMatch(found.message, /\/private\/|\/tmp\/|\/Users\//, "must never print an absolute path");
+  assert.doesNotMatch(found.message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(found.fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
 });
 
-test("dna: scope_dir present but scope.md is unreadable/missing fails test 1, writing-dna-scope-missing (Task 1's own finding)", () => {
+// Fix round 1, finding 2: writing-dna-scope-missing and writing-dna-goldens-missing (both from
+// readScope/readGoldens in src/dna.mjs, task 1) built their fix TEXT from the resolved dir rather
+// than the displayDir/shown string their own message already used correctly. It was latent in
+// task 1 (the CLI always calls readScope with dir === shown) and only fires once a caller passes
+// a displayDir that differs from the resolved path, which is exactly what this file's dnaFields
+// does. Both tests below check .fix explicitly, not just .message, which is what let the bug ship.
+test("dna: scope_dir present but scope.md is unreadable/missing fails test 1, writing-dna-scope-missing (Task 1's own finding), fix names the scope_dir string, never an absolute path", () => {
   const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "scope.md")));
-  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-dna-scope-missing"]]);
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-missing"]]);
+  assert.match(f[0].fix, /dna-scope/);
+  assert.doesNotMatch(f[0].message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(f[0].fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
 });
 
-test("dna: scope_dir present but its goldens/ folder is missing fails test 1, writing-dna-goldens-missing (Task 1's own finding)", () => {
+test("dna: scope_dir present but its goldens/ folder is missing fails test 1, writing-dna-goldens-missing (Task 1's own finding), fix names the scope_dir string, never an absolute path", () => {
   const s = dnaScopeVariant(null, (d) => rmSync(join(d, "dna-scope", "goldens"), { recursive: true }));
   const f = fails(s);
-  assert.ok(f.some((x) => x.id === "writing-dna-goldens-missing" && x.test === 1), JSON.stringify(f));
+  const found = f.find((x) => x.id === "writing-dna-goldens-missing");
+  assert.ok(found && found.test === 1, JSON.stringify(f));
+  assert.match(found.fix, /dna-scope/);
+  assert.doesNotMatch(found.message, /\/private\/|\/tmp\/|\/Users\//, "message must never print an absolute path");
+  assert.doesNotMatch(found.fix, /\/private\/|\/tmp\/|\/Users\//, "fix must never print an absolute path");
+});
+
+test("dna: every scope_dir finding is path-clean in BOTH message and fix, never an absolute path, across every kind of break", () => {
+  const absPathMarker = /\/private\/|\/tmp\/|\/Users\//;
+  const scenarios = [
+    (d) => rmSync(join(d, "dna-scope", "scope.md")),
+    (d) => rmSync(join(d, "dna-scope", "goldens"), { recursive: true }),
+    (d) => rmSync(join(d, "dna-scope", "features.json")),
+    (d) => {
+      const p = join(d, "dna-scope", "goldens", "closing.md");
+      writeFileSync(p, readFileSync(p, "utf8").replace("why: the close returns to the claim without repeating the opening sentence verbatim\n", ""));
+    },
+  ];
+  for (const mutate of scenarios) {
+    const s = dnaScopeVariant(null, mutate);
+    for (const finding of fails(s).filter((x) => x.id.startsWith("writing-dna-"))) {
+      assert.doesNotMatch(finding.message, absPathMarker, `${finding.id}.message: ${finding.message}`);
+      assert.doesNotMatch(finding.fix, absPathMarker, `${finding.id}.fix: ${finding.fix}`);
+    }
+  }
 });
 
 test("dna: any scope_dir finding (e.g. features.json missing) drops the dna block out of writing k/9 complete", () => {
@@ -481,6 +538,26 @@ test("dna: any scope_dir finding (e.g. features.json missing) drops the dna bloc
   const findings = lintSpec(s);
   const sc = score(findings, s.data);
   assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
+});
+
+// Fix round 1, R2: writing.dna.scope_dir is optional, so the KEY being absent is never a finding
+// (proven by the no-scope_dir fixture test at the top of this file). But a key that IS present
+// with a placeholder-ish value is a different situation: the operator wrote something, and it
+// needs its own finding rather than silently reading as "absent" the way every other scope_dir
+// check already does via str().
+const SCOPE_DIR_PLACEHOLDER_CASES = ["TODO", "tbd", "TBD", "...", "???", "-"];
+for (const placeholder of SCOPE_DIR_PLACEHOLDER_CASES) {
+  test(`dna: scope_dir set to the placeholder value "${placeholder}" fails test 1 as writing-dna-scope-dir, naming the value`, () => {
+    const s = variant((t) => t.replace("scope_dir: dna-scope", `scope_dir: ${placeholder}`));
+    const f = fails(s);
+    assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-dna-scope-dir"]]);
+    assert.match(f[0].message, new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+}
+
+test("dna: scope_dir set to an empty string is the same placeholder finding, writing-dna-scope-dir", () => {
+  const s = variant((t) => t.replace("scope_dir: dna-scope", 'scope_dir: ""'));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-dna-scope-dir"]]);
 });
 
 test("persona: identity that is not self, role:<name> or character:<id> fails test 1", () => {
@@ -966,7 +1043,7 @@ const FIELD_RULE_CASES = [
   // passed silently.
   {
     name: "dna: writer set to the placeholder word \"tbd\" fails test 1, same as writer being absent",
-    edit: (t) => t.replace("    writer: gary-sheng\n", "    writer: tbd\n"),
+    edit: (t) => t.replace("    writer: example-author\n", "    writer: tbd\n"),
     expect: [[1, "writing-dna-writer"]],
   },
   {

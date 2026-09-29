@@ -192,7 +192,7 @@ test("str() keeps real text, including text that starts with a placeholder word 
 
 test("a writing field of n/a or ? fails like a missing one", () => {
   for (const v of ["n/a", "?", "...", "TODO."]) {
-    const s = variant((t) => t.replace("    writer: gary-sheng\n", `    writer: "${v}"\n`));
+    const s = variant((t) => t.replace("    writer: example-author\n", `    writer: "${v}"\n`));
     assert.ok(has(s, 1, "writing-dna-writer"), `${v}: ${JSON.stringify(pairs(s))}`);
   }
 });

@@ -1,7 +1,7 @@
 {
   "dna": "0.1",
   "scope": {
-    "writer": "gary-sheng",
+    "writer": "example-author",
     "form": "essay",
     "audience": "builders",
     "purpose": "persuade"
@@ -9,11 +9,11 @@
   "goldens": [
     {
       "path": "goldens/closing.md",
-      "sha256": "3bb43a4d129332114d9da4d181815395ed4d2576fcc00680141155d932367695"
+      "sha256": "a0a63d572e2e9c2ac6810e903f2464be9b1b861947e559bb0b7da7f9e6bbabdb"
     },
     {
       "path": "goldens/opening.md",
-      "sha256": "e417bbe3f92a270911c4d36ad99d0541e2b8defa49023636e2a4f3a52e90d11f"
+      "sha256": "294cff2876a90cf7a29386fcb4cb88dcabf07e78f4fd2a0c52e02854226e06ab"
     }
   ],
   "features": {

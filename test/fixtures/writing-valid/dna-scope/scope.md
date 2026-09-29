@@ -1,5 +1,5 @@
 ---
-writer: gary-sheng
+writer: example-author
 form: essay
 audience: builders
 purpose: persuade
