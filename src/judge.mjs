@@ -26,13 +26,21 @@ const present = (v) => typeof v === "string" && v.trim().length > 0;
 // ---- the evidence rule -------------------------------------------------------------------------
 // A span of evidence counts as quoted from the draft when, after both are normalized, the draft
 // contains it. Normalization collapses every run of whitespace (spaces, tabs, line breaks, CRLF) to
-// one space and turns curly, low and angle quote characters into their straight forms, so a judge
-// that reflows a quotation or types typographic quotes is still quoting; changing a single word is
-// not.
+// one space and turns curly, low and angle quotation marks and apostrophes into their straight
+// forms (primes are not quotation marks and are left alone), so a judge that reflows a quotation or
+// types typographic quotes is still quoting; changing a single word is not.
+//
+// A span must also carry at least MIN_EVIDENCE_WORDS word tokens (runs of letters and digits), and
+// match on word boundaries: a match may not start or end in the middle of a word. A one-letter or
+// one-word "quotation" is found almost anywhere and so checks nothing.
+
+export const MIN_EVIDENCE_WORDS = 3;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+const WORD_TOKENS = /[\p{L}\p{N}]+/gu;
 
 const QUOTE_CHARS = new Map([
-  ["‘", "'"], ["’", "'"], ["‚", "'"], ["‛", "'"], ["′", "'"], ["‹", "'"], ["›", "'"],
-  ["“", '"'], ["”", '"'], ["„", '"'], ["‟", '"'], ["″", '"'], ["«", '"'], ["»", '"'],
+  ["\u2018", "'"], ["\u2019", "'"], ["\u201A", "'"], ["\u201B", "'"], ["\u2039", "'"], ["\u203A", "'"],
+  ["\u201C", '"'], ["\u201D", '"'], ["\u201E", '"'], ["\u201F", '"'], ["\u00AB", '"'], ["\u00BB", '"'],
 ]);
 
 // { norm, map }: the normalized text, and for each of its characters the offset in `text` it came
@@ -56,11 +64,20 @@ export function normalizeForEvidence(text) {
 // fix, line? }).
 function toolsFor(stationName, draft) {
   const { norm, map } = normalizeForEvidence(draft.text);
+  // The 1-based line of the first whole-word match of `span`, or -1.
   const locate = (span) => {
     const needle = normalizeForEvidence(span).norm;
     if (!needle) return -1;
-    const at = norm.indexOf(needle);
-    return at < 0 ? -1 : lineAt(draft.text, map[at]);
+    const startsWord = WORD_CHAR.test(needle[0]);
+    const endsWord = WORD_CHAR.test(needle[needle.length - 1]);
+    for (let at = norm.indexOf(needle); at >= 0; at = norm.indexOf(needle, at + 1)) {
+      const before = at > 0 ? norm[at - 1] : "";
+      const after = norm[at + needle.length] ?? "";
+      if (startsWord && before && WORD_CHAR.test(before)) continue;
+      if (endsWord && after && WORD_CHAR.test(after)) continue;
+      return lineAt(draft.text, map[at]);
+    }
+    return -1;
   };
   const finding = (id, message, fix, line) => ({ station: stationName, id, severity: "fail", message, fix, ...(typeof line === "number" && line > 0 ? { line } : {}) });
   return {
@@ -71,8 +88,12 @@ function toolsFor(stationName, draft) {
       if (typeof value !== "string" || !value.trim()) {
         return [finding("judge-evidence-missing", `${where} is empty or not a string`, "Quote the span of the draft this judgment rests on, verbatim.")];
       }
+      const words = (normalizeForEvidence(value).norm.match(WORD_TOKENS) ?? []).length;
+      if (words < MIN_EVIDENCE_WORDS) {
+        return [finding("judge-evidence-too-short", `${where} has ${words} word${words === 1 ? "" : "s"}, fewer than ${MIN_EVIDENCE_WORDS}: "${truncate(value, 80)}"`, `Quote the sentence or clause the judgment rests on, at least ${MIN_EVIDENCE_WORDS} words, verbatim.`)];
+      }
       if (locate(value) < 0) {
-        return [finding("judge-evidence-not-found", `${where} is not in the draft: "${truncate(value, 80)}"`, "Copy the evidence verbatim from the draft; only whitespace and quote characters may differ.")];
+        return [finding("judge-evidence-not-found", `${where} is not in the draft: "${truncate(value, 80)}"`, "Copy the evidence verbatim from the draft, whole words only; only whitespace and quote characters may differ.")];
       }
       return [];
     },
@@ -85,6 +106,28 @@ function toolsFor(stationName, draft) {
 }
 
 const packetJson = (packet) => `${JSON.stringify(packet, null, 2)}\n`;
+
+// The packet one judge gets for this spec and draft, built the one way both commands build it:
+// prepare writes it, and record rebuilds it to check the file it was handed. { packet, packetBytes,
+// key }: key is the station's hidden answer key (null for a station with none), written by prepare
+// to <station>.key.json for a person to read, and never read back as truth: record rebuilds it.
+// specPathArg and the draft's path are the strings as given, so the bytes are deterministic.
+export function buildPacket(judge, specPathArg, spec, draft, specSha) {
+  const parts = judge.packet(spec, draft);
+  const packet = {
+    hyperspec_judge: PACKET_VERSION,
+    station: judge.name,
+    spec: specPathArg,
+    spec_sha256: specSha,
+    draft: draft.path,
+    draft_sha256: draft.sha256,
+    rubric: parts.rubric,
+    instructions: judge.instructions,
+    inputs: parts.inputs,
+    verdict_schema: parts.verdict_schema,
+  };
+  return { packet, packetBytes: packetJson(packet), key: parts.key ?? null };
+}
 
 // ---- prepare -----------------------------------------------------------------------------------
 
@@ -129,26 +172,14 @@ export function prepareJudges(specPathArg, draftPathArg, outDirArg, { only, forc
   for (const judge of judges) {
     const reason = judge.skipReason(spec);
     if (reason) { skipped.push({ station: judge.name, reason }); continue; }
-    let parts;
-    try { parts = judge.packet(spec, draft); }
+    let built;
+    try { built = buildPacket(judge, specPathArg, spec, draft, specSha); }
     catch (e) {
       crashed.push({ station: judge.name, id: `judge-${judge.name}-crashed`, severity: "fail", message: withoutAbsolutePaths(e instanceof Error ? e.message : String(e)), fix: "Fix the station or file an issue; it should never throw." });
       continue;
     }
-    const packet = {
-      hyperspec_judge: PACKET_VERSION,
-      station: judge.name,
-      spec: specPathArg,
-      spec_sha256: specSha,
-      draft: draftPathArg,
-      draft_sha256: draft.sha256,
-      rubric: parts.rubric,
-      instructions: judge.instructions,
-      inputs: parts.inputs,
-      verdict_schema: parts.verdict_schema,
-    };
-    files.push({ station: judge.name, path: join(outDirArg, `${judge.name}.packet.json`), bytes: packetJson(packet) });
-    if (parts.key) files.push({ station: judge.name, path: join(outDirArg, `${judge.name}.key.json`), bytes: packetJson(parts.key) });
+    files.push({ station: judge.name, path: join(outDirArg, `${judge.name}.packet.json`), bytes: built.packetBytes });
+    if (built.key) files.push({ station: judge.name, path: join(outDirArg, `${judge.name}.key.json`), bytes: packetJson(built.key) });
   }
 
   const existing = files.filter((f) => existsSync(resolve(f.path))).map((f) => f.path);
@@ -212,6 +243,23 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
     return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${what} changed since the packet was prepared`, "Run judge prepare again (with --force) and judge the new packet.")], code: 1 };
   }
 
+  // record never trusts the packet file: it rebuilds the packet (and any answer key) from the spec
+  // and draft on disk, requires the file to be those exact bytes, and validates the verdict against
+  // the rebuilt copy only. A packet edited after prepare (its conditions, its inputs, a hash made to
+  // match a changed draft) is refused here.
+  const skip = judge.skipReason(spec);
+  let rebuilt = null;
+  if (!skip) {
+    try { rebuilt = buildPacket(judge, packet.spec, spec, draft, specSha); }
+    catch (e) {
+      return { ...base, ok: false, invalid: true, findings: [t.finding(`judge-${judge.name}-crashed`, withoutAbsolutePaths(e instanceof Error ? e.message : String(e)), "Fix the station or file an issue; it should never throw.")], code: 1 };
+    }
+  }
+  if (!rebuilt || rebuilt.packetBytes !== packetText) {
+    const why = rebuilt ? "is not the packet judge prepare builds from the spec and draft on disk" : `is for a station that does not apply to this spec (${skip})`;
+    return { ...base, ok: false, invalid: true, findings: [t.finding("judge-packet-altered", `${packetPathArg} ${why}`, "Run judge prepare again (with --force) and judge the new packet; never edit a packet.")], code: 1 };
+  }
+
   let verdictJson;
   try { verdictJson = JSON.parse(verdictBuf.toString("utf8").replace(/^﻿/, "")); }
   catch (e) {
@@ -221,8 +269,8 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   let problems;
   let derived;
   try {
-    problems = judge.validate(verdictJson, packet, t);
-    if (!problems.length) derived = judge.derive(verdictJson, packet, t);
+    problems = judge.validate(verdictJson, rebuilt.packet, t, rebuilt.key);
+    if (!problems.length) derived = judge.derive(verdictJson, rebuilt.packet, t, rebuilt.key);
   } catch (e) {
     const crash = t.finding(`judge-${judge.name}-crashed`, withoutAbsolutePaths(e instanceof Error ? e.message : String(e)), "Fix the station or file an issue; it should never throw.");
     return { ...base, ok: false, invalid: true, findings: [crash], code: 1 };
@@ -232,7 +280,8 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   const { status, findings } = derived;
 
   // ---- ledger: the same truth rules as check (ruling R1): compared with the most recent earlier
-  // judge line for the same station and draft path, through ledgerVerdict.
+  // judge line for the same station and draft path, through ledgerVerdict; two judge-only rules on
+  // top (R3, R5) are marked below.
   let ledgerPath = null;
   let ledgerWarning = null;
   let verdict = null;
@@ -241,9 +290,20 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   if (ledger?.warning) ledgerWarning = ledger.warning;
   else if (ledger) {
     const draftKey = ledgerDraftKey(spec.dir, packet.draft);
-    const prior = priorLines(ledger.priorText, "judge").filter((l) => l.station === judge.name && l.draft === draftKey).at(-1);
+    const judgeLines = priorLines(ledger.priorText, "judge");
+    const prior = judgeLines.filter((l) => l.station === judge.name && l.draft === draftKey).at(-1);
     const last = prior ? { stations: { [prior.station]: prior.status }, draft_sha256: prior.draft_sha256, spec_sha256: prior.spec_sha256 } : undefined;
-    ({ verdict, detail: verdictDetail } = ledgerVerdict({ last, statusNow: { [judge.name]: status }, draftSha: draft.sha256, specSha }));
+    ({ verdict, detail: verdictDetail } = ledgerVerdict({
+      last, statusNow: { [judge.name]: status }, draftSha: draft.sha256, specSha,
+      // A judge can answer differently about identical bytes; that is not the work improving.
+      unchangedImprovedReason: "the verdict changed; draft and spec unchanged",
+    }));
+    // one-shot means these bytes passed the first time they were judged, whatever the file was
+    // called: bytes already judged under another path (a copy, a rename) never earn it.
+    if (verdict === "one-shot") {
+      const sameBytes = judgeLines.filter((l) => l.station === judge.name && l.draft_sha256 === draft.sha256).at(-1);
+      if (sameBytes) { verdict = "not-improved"; verdictDetail = { reason: `these draft bytes were judged before as ${sameBytes.draft}: ${sameBytes.status}` }; }
+    }
     const line = {
       at: new Date().toISOString(),
       kind: "judge",

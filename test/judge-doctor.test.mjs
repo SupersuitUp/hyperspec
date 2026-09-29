@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { cli, workspace, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
 import { DOCTOR_INSTRUCTIONS } from "../src/judges/doctor.mjs";
+import { normalizeForEvidence } from "../src/judge.mjs";
 
 const packetOf = (w) => JSON.parse(readFileSync(w.packet, "utf8"));
 const ready = () => { const w = workspace(); prepare(w); return w; };
@@ -86,7 +87,7 @@ test("a missing, a duplicated and an unknown condition id are each named; nothin
   const { r, j } = recordJson(w, doctorVerdict((v) => {
     v.conditions = v.conditions.filter((c) => c.id !== "r5");
     v.conditions.push({ ...v.conditions[0] });
-    v.conditions.push({ id: "r9", pass: true, evidence: "# Close", note: "extra" });
+    v.conditions.push({ id: "r9", pass: true, evidence: "Read the schema section next.", note: "extra" });
   }));
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.equal(j.invalid, true);
@@ -180,7 +181,7 @@ test("a failing condition is judge-doctor-condition, naming the id and the judge
 
 test("would_take_next_step false is judge-doctor-next-step, naming the next step", () => {
   const w = ready();
-  const { j } = recordJson(w, doctorVerdict((v) => { v.would_take_next_step = false; v.evidence = "# Close"; }));
+  const { j } = recordJson(w, doctorVerdict((v) => { v.would_take_next_step = false; v.evidence = "# Close Read the schema"; }));
   assert.deepEqual(ids(j.findings), ["judge-doctor-next-step"]);
   assert.match(j.findings[0].message, /reads the schema section/);
   assert.equal(j.findings[0].line, 9);
@@ -209,4 +210,38 @@ test("--only doctor prepares the doctor packet", () => {
   const r = cli(["judge", "prepare", w.spec, "--draft", w.draft, "--out", w.out, "--only", "doctor"]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.deepEqual(readdirSync(w.out), ["doctor.packet.json"]);
+});
+
+test("evidence needs at least three words: \"e\" and \".\" are judge-evidence-too-short", () => {
+  const w = ready();
+  const { r, j } = recordJson(w, doctorVerdict((v) => {
+    for (const c of v.conditions) c.evidence = "e";
+    v.evidence = ".";
+  }));
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(j.invalid, true);
+  assert.deepEqual(ids(j.findings), Array(6).fill("judge-evidence-too-short"));
+  assert.match(j.findings[5].message, /^evidence /);
+  assert.deepEqual(ledgerLines(w.ledger), []);
+});
+
+test("two words are too short; three whole words are enough", () => {
+  const w = ready();
+  let { j } = recordJson(w, doctorVerdict((v) => { v.evidence = "schema section"; }));
+  assert.deepEqual(ids(j.findings), ["judge-evidence-too-short"]);
+  ({ j } = recordJson(w, doctorVerdict((v) => { v.evidence = "the schema section"; })));
+  assert.deepEqual(j.findings, []);
+});
+
+test("evidence must match on word boundaries: a span starting or ending mid-word is not found", () => {
+  const w = ready();
+  let { j } = recordJson(w, doctorVerdict((v) => { v.evidence = "ead the schema"; }));
+  assert.deepEqual(ids(j.findings), ["judge-evidence-not-found"]);
+  ({ j } = recordJson(w, doctorVerdict((v) => { v.evidence = "Read the schem"; })));
+  assert.deepEqual(ids(j.findings), ["judge-evidence-not-found"]);
+});
+
+test("quote folding: curly and angle quotes and apostrophes become straight; primes stay primes", () => {
+  assert.equal(normalizeForEvidence("\u201Ca\u201D \u2018b\u2019 \u00ABc\u00BB \u2039d\u203A").norm, "\"a\" 'b' \"c\" 'd'");
+  assert.equal(normalizeForEvidence("5\u2032 6\u2033").norm, "5\u2032 6\u2033");
 });

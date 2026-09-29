@@ -63,7 +63,12 @@ export function ledgerDraftKey(specDir, draftPathArg) {
 //
 // Returns { verdict, detail }, detail holding either change (improved) or reason (not-improved),
 // or nothing (one-shot). Every reason is literally true of the two lines compared.
-export function ledgerVerdict({ last, statusNow, draftSha, specSha }) {
+//
+// unchangedImprovedReason: a caller whose station can flip from fail to pass with neither the
+// draft nor the spec changed (a judge answering differently; check cannot, being deterministic
+// over the same files) passes the reason to record instead: "improved" then requires a changed
+// draft or spec hash since the failing line, and an unchanged flip is not-improved with this reason.
+export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImprovedReason }) {
   const list = (names) => names.join(", ");
   const failing = Object.entries(statusNow).filter(([, st]) => st === "fail").map(([n]) => n);
   const passedNow = failing.length === 0;
@@ -79,6 +84,7 @@ export function ledgerVerdict({ last, statusNow, draftSha, specSha }) {
 
   if (passedNow && failedThen.length) {
     const nowPass = failedThen.filter((n) => statusNow[n] === "pass");
+    if (nowPass.length && !what && unchangedImprovedReason) return { verdict: "not-improved", detail: { reason: unchangedImprovedReason } };
     if (nowPass.length) return { verdict: "improved", detail: { change: `stations now pass: ${list(nowPass)}` } };
     return { verdict: "not-improved", detail: { reason: `${what ? `${what} changed; ` : ""}stations that failed last time now skip: ${list(failedThen)}` } };
   }

@@ -45,7 +45,7 @@ export function doctorVerdict(edit = (v) => v) {
     conditions: [
       { id: "r1", pass: true, evidence: "A hyperspec is a contract a linter can check", note: "the claim is restated in the first line" },
       { id: "r2", pass: true, evidence: "The nine tests run on every spec", note: "no claim outside the ledger" },
-      { id: "r3", pass: true, evidence: "# Claim", note: "short, inside the form" },
+      { id: "r3", pass: true, evidence: "# Evidence The nine tests", note: "short, inside the form" },
       { id: "r4", pass: true, evidence: "not a prompt someone wrote once", note: "argues only c1" },
       { id: "r5", pass: true, evidence: "each one names what fails it", note: "no unsourced fact" },
     ],
