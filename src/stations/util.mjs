@@ -1,3 +1,7 @@
+import { resolve } from "node:path";
+import { str } from "../placeholder.mjs";
+import { readSegments } from "../segments.mjs";
+
 // Shared helpers for the deterministic stations (hyperspec 0.6, build 6a). "One place this
 // pattern is defined" (src/placeholder.mjs's own header comment), so a helper more than one
 // station needs lives here rather than being copied station to station. Fix round 1 promoted
@@ -73,4 +77,26 @@ export function maskCode(text) {
   let im;
   while ((im = INLINE_CODE_RE.exec(withoutFences))) inlineRanges.push({ start: im.index, end: im.index + im[0].length });
   return maskRanges(withoutFences, inlineRanges);
+}
+
+// Every marked material of the spec, as [{ material, segments }], in writing.materials.items
+// order: an item with a segments: field whose file readSegments can read. The segments file
+// resolves relative to spec.dir, the way every writing path does. readSegments' own findings are
+// dropped here on purpose: lint reports them (test 1 and 4) and check only runs once lint passes,
+// so a station reading materials only needs the segments themselves. quotes and private both
+// read this, so it is cached on ctx (one read per check run, whichever station asks first); a
+// caller that passes no ctx simply reads the files again.
+export function markedSegments(spec, ctx) {
+  if (ctx && ctx.markedSegments) return ctx.markedSegments;
+  const items = spec?.data?.writing?.materials?.items;
+  const out = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const segPath = str(item?.segments);
+    if (!segPath) continue;
+    const material = str(item?.id) || segPath;
+    const { segments } = readSegments(resolve(spec?.dir || ".", segPath), { materialId: str(item?.id) || undefined });
+    out.push({ material, segments: segments.filter((s) => s && typeof s === "object") });
+  }
+  if (ctx) ctx.markedSegments = out;
+  return out;
 }

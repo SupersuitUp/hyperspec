@@ -204,8 +204,10 @@ function scopeMismatch(out, idPrefix, scopeDirRaw, label, idSuffix, specVal, dis
 // changed by hash; scope fields that differ from scope.md; a dna format this linter does not
 // know; features that differ from a fresh measurement (only named when the goldens themselves
 // are unchanged, since changed goldens explain every number); and, when nothing more specific
-// differs, bytes dna measure would not have written.
-function featuresStaleness(featuresPath, diskScope, diskGoldens) {
+// differs, bytes dna measure would not have written. Exported so the check command's dna station
+// (src/stations/dna.mjs) skips on exactly the staleness lint fails a spec for, never a second
+// definition of it.
+export function featuresStaleness(featuresPath, diskScope, diskGoldens) {
   let text;
   let recorded;
   try {
