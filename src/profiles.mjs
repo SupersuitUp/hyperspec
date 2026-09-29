@@ -21,6 +21,10 @@ export const PROFILES = Object.freeze({
   }),
 });
 
+// Own-property lookup only: a profile named after something every object inherits
+// (constructor, toString, __proto__) is an unknown profile, never a function to call.
+export const knownProfile = (name) => (Object.hasOwn(PROFILES, name) ? PROFILES[name] : undefined);
+
 // Runs the declared profile's rules against a loaded spec. A spec with no profile: at all runs no
 // profile rules, so an unprofiled spec lints exactly as it always has. A profile: this linter does
 // not know is a warning under test 7 (a stranger resuming the spec still needs to know its rules
@@ -29,7 +33,7 @@ export const PROFILES = Object.freeze({
 export function lintProfile(spec) {
   const name = str(spec?.data?.profile);
   if (!name) return [];
-  const profile = PROFILES[name];
+  const profile = knownProfile(name);
   if (!profile) {
     return [f(7, "unknown-profile", "warn", `this linter does not know profile "${name}"; its rules were not checked`, "Set profile: to one this linter knows (writing), or remove it.")];
   }
@@ -40,7 +44,7 @@ export function lintProfile(spec) {
 // when no profile ran or the declared one is unknown (nothing to count).
 export function profileStatus(data, findings) {
   const name = str(data?.profile);
-  const profile = PROFILES[name];
+  const profile = knownProfile(name);
   if (!profile) return undefined;
   return { name, ...profile.status(data, findings) };
 }

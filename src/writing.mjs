@@ -18,9 +18,9 @@ const f = (test, id, severity, message, fix) => ({ test, id, severity, message, 
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
 
-// The closed vocabulary build 4 will enforce on every segment of a material file. Build 3 does
-// not read segment files; this export exists so the vocabulary is defined once, here, rather than
-// copied into whatever later reads it.
+// The closed vocabulary a later version will enforce on every segment of a material file. This
+// version does not read segment files; the export exists so the vocabulary is defined once, here,
+// rather than copied into whatever later reads it.
 export const MATERIAL_LABELS = Object.freeze(["claim", "story", "quote", "stance", "question", "aside", "private"]);
 
 // The nine writing blocks, in schema order. "characters" is the one block that is not always
@@ -34,8 +34,8 @@ const required = (block, fiction) => block !== "characters" || fiction;
 // fields are checked. materials is present when it has at least one item; characters is present
 // when the list has at least one entry; every other block is present when it is an object with at
 // least one field. This is deliberately shallow: it is the bar for "something was written here",
-// not the bar for "this block is correct", which is what checkOwner and later tasks' field rules
-// are for.
+// not the bar for "this block is correct", which is what checkOwner and the field rules in
+// writing-fields.mjs are for.
 function blockPresent(block, raw) {
   if (block === "characters") return Array.isArray(raw) && raw.length > 0;
   if (block === "materials") return isObj(raw) && Array.isArray(raw.items) && raw.items.length > 0;
@@ -94,6 +94,15 @@ export function lintWriting(spec) {
   // discipline every closed-set field in this file and in rules.mjs already follows.
   const fiction = str(d.fiction) === "true";
 
+  // fiction is a closed set: absent means false; present, it must be exactly true or false. A
+  // typo here would otherwise drop the whole characters block from a story without a word.
+  if (d.fiction !== undefined) {
+    const raw = typeof d.fiction === "string" ? d.fiction.trim() : "";
+    if (str(d.fiction) !== "true" && str(d.fiction) !== "false") {
+      out.push(f(1, "writing-fiction", "fail", `fiction is "${raw || "(none)"}", not true or false`, "Set fiction: true or fiction: false, or remove it (absent means false)."));
+    }
+  }
+
   // Progress is never stored, under any key spelled writing.progress: test 7, stale state.
   if ("progress" in writing) {
     out.push(f(7, "writing-progress", "fail", "writing.progress is stored state; progress is derived from disk, never saved", "Remove writing.progress; derive progress by reading the drafted work itself, not by saving a record of it."));
@@ -118,6 +127,19 @@ export function lintWriting(spec) {
     // block's completeness (blockStatus below) reflects both without either file needing to know
     // about the other's findings.
     if (block === "characters") {
+      // A character id names one person: persona.identity: character:<id> and every later check
+      // resolve through it, so a repeated id is reported once per id, like a repeated material.
+      const seen = new Set();
+      const reported = new Set();
+      raw.forEach((c) => {
+        const id = str(c?.id);
+        if (!id) return;
+        if (seen.has(id) && !reported.has(id)) {
+          out.push(f(1, "writing-characters-id", "fail", `character id "${id}" is used twice`, "Ids must be unique across writing.characters; rename one."));
+          reported.add(id);
+        }
+        seen.add(id);
+      });
       raw.forEach((c, i) => {
         const cid = str(c?.id) || `#${i + 1}`;
         const idPrefix = `writing-characters-${i}`;

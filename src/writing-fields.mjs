@@ -1,24 +1,22 @@
 // Field-level rules for the nine writing blocks. src/writing.mjs owns the generic shape (a block
 // is present or openly deferred, and every present block carries a check, a source and an
-// author); this file owns what's INSIDE each block once it is present — the schema in
-// constraints.md, block by block. Every finding here still reports under one of the nine core
+// author); this file owns what is INSIDE each block once it is present, block by block, as
+// WRITING.md's schema documents it. Every finding here still reports under one of the nine core
 // tests, with an id prefixed writing-<block>- (or writing-characters-<index>- for a character
 // entry), so writing.mjs's blockStatus (which reads findings by id prefix, not by calling back
 // into this file) keeps attributing brokenness correctly with no change on its side.
 //
-// Scope, stated once rather than re-argued at each block: every field shown in constraints.md's
-// schema without an explicit "optional" annotation is required, and its absence fails test 1 ("a
-// missing block or missing required field"), unless the test-mapping paragraph names a more
-// specific test for that exact violation.
+// Scope, stated once rather than re-argued at each block: every schema field not marked optional
+// is required, and its absence fails test 1 (a missing required field), unless a more specific
+// test owns that exact violation (a golden's why is test 6, goal.conditions is test 2, and so on).
 //
 // Paths (materials/dna/audience/... path-bearing fields) resolve the same way examples do
 // elsewhere in this linter: relative to the spec file. That resolver (here) is supplied by
 // writing.mjs, which already has spec.dir in scope; this file never touches spec directly.
 //
-// Ruling R5 (fix round 1, progress.md): a character's speech.uses, speech.never, wants, fears,
-// hides and arc_state are required (test 1) — the design names them as what makes dialogue
-// hyperspecified. relationships stays optional: a character may genuinely relate to no one yet,
-// and nothing in the schema gives it a closed set or a count to check.
+// A character's speech.uses, speech.never, wants, fears, hides and arc_state are required
+// (test 1), because dialogue cannot be specified without them. relationships stays optional: a
+// character may genuinely relate to no one yet, and nothing gives it a closed set or a count.
 
 import { statSync } from "node:fs";
 import { str } from "./placeholder.mjs";
@@ -159,9 +157,15 @@ function goalFields(raw, d, here, idPrefix) {
   if (!CHANGE_KINDS.includes(kind)) out.push(f(1, `${idPrefix}-change-kind`, "fail", `writing.goal.change.kind is "${kind || "(none)"}"`, "Set change.kind to belief, action or feeling."));
   if (!str(change.text)) out.push(f(1, `${idPrefix}-change-text`, "fail", "writing.goal.change has no text", "Add change.text:."));
 
-  const conditions = list(raw.conditions).map(str).filter(Boolean);
+  const listed = list(raw.conditions).map(str).filter(Boolean);
+  // Distinct ids only: five copies of one requirement are one condition, not five.
+  const conditions = [...new Set(listed)];
+  const repeated = [...new Set(listed.filter((cid, i) => listed.indexOf(cid) !== i))];
+  repeated.forEach((cid) => {
+    out.push(f(2, `${idPrefix}-conditions-duplicate`, "fail", `writing.goal.conditions lists "${cid}" more than once`, "List each requirement id once."));
+  });
   if (conditions.length < 5 || conditions.length > 10) {
-    out.push(f(2, `${idPrefix}-conditions-count`, "fail", `writing.goal.conditions has ${conditions.length} ids, outside 5 to 10`, "List 5 to 10 requirement ids under goal.conditions."));
+    out.push(f(2, `${idPrefix}-conditions-count`, "fail", `writing.goal.conditions has ${conditions.length} distinct ids, outside 5 to 10`, "List 5 to 10 distinct requirement ids under goal.conditions."));
   }
   const reqIds = new Set(list(d.requirements).map((r) => str(r?.id)).filter(Boolean));
   conditions.forEach((cid) => {
@@ -181,12 +185,15 @@ function formFields(raw, d, here, idPrefix) {
   // The YAML reader returns every scalar as a string, min: 600 included, so a numeric field is
   // parsed explicitly here rather than compared as a closed-set string; a non-numeric length is a
   // test 1 fail like any other malformed required field.
+  // Both bounds are whole numbers of at least 1: a length of zero, a negative length or half a
+  // word describes no piece anyone could write.
+  const positiveInt = (s) => /^\d+$/.test(s) && Number(s) >= 1;
   const min = Number(minStr);
   const max = Number(maxStr);
-  const minOk = minStr !== "" && Number.isFinite(min);
-  const maxOk = maxStr !== "" && Number.isFinite(max);
-  if (!minOk) out.push(f(1, `${idPrefix}-length-min`, "fail", `writing.form.length.min "${minStr || "(none)"}" is not a number`, "Set length.min to a number."));
-  if (!maxOk) out.push(f(1, `${idPrefix}-length-max`, "fail", `writing.form.length.max "${maxStr || "(none)"}" is not a number`, "Set length.max to a number."));
+  const minOk = positiveInt(minStr);
+  const maxOk = positiveInt(maxStr);
+  if (!minOk) out.push(f(1, `${idPrefix}-length-min`, "fail", `writing.form.length.min "${minStr || "(none)"}" is not a whole number of at least 1`, "Set length.min to a whole number, 1 or more."));
+  if (!maxOk) out.push(f(1, `${idPrefix}-length-max`, "fail", `writing.form.length.max "${maxStr || "(none)"}" is not a whole number of at least 1`, "Set length.max to a whole number, 1 or more."));
   if (minOk && maxOk && min > max) out.push(f(1, `${idPrefix}-length-range`, "fail", `writing.form.length.min (${min}) is greater than length.max (${max})`, "Set min to no more than max."));
   if (!str(length.unit)) out.push(f(1, `${idPrefix}-length-unit`, "fail", "writing.form.length has no unit", "Add length.unit:, e.g. words."));
   if (!list(raw.required_parts).some((x) => str(x))) out.push(f(1, `${idPrefix}-required-parts`, "fail", "writing.form has no required_parts", "List at least one required part."));
@@ -199,7 +206,22 @@ function spineFields(raw, d, here, idPrefix) {
   const out = [];
   if (!str(raw.kind)) out.push(f(1, `${idPrefix}-kind`, "fail", "writing.spine has no kind", "Add kind:."));
   const claims = list(raw.claims);
-  if (claims.length < 3 || claims.length > 7) out.push(f(1, `${idPrefix}-claims-count`, "fail", `writing.spine has ${claims.length} claims, outside 3 to 7`, "List 3 to 7 claims under spine.claims."));
+  // A repeated claim id is reported once per id and counts once toward 3 to 7: three copies of
+  // one claim are one claim. A claim with no id still counts (its own finding says what is wrong).
+  const seenClaims = new Set();
+  const reportedClaims = new Set();
+  let distinct = 0;
+  claims.forEach((c) => {
+    const id = str(c?.id);
+    if (id && seenClaims.has(id)) {
+      if (!reportedClaims.has(id)) out.push(f(1, `${idPrefix}-claim-id`, "fail", `spine claim id "${id}" is used twice`, "Ids must be unique across spine.claims; rename one, or merge the claims."));
+      reportedClaims.add(id);
+      return;
+    }
+    if (id) seenClaims.add(id);
+    distinct += 1;
+  });
+  if (distinct < 3 || distinct > 7) out.push(f(1, `${idPrefix}-claims-count`, "fail", `writing.spine has ${distinct} distinct claims, outside 3 to 7`, "List 3 to 7 claims, each with its own id, under spine.claims."));
   const materialIds = new Set(list(d.writing?.materials?.items).map((m) => str(m?.id)).filter(Boolean));
   claims.forEach((c, i) => {
     const cid = str(c?.id) || `#${i + 1}`;
@@ -255,10 +277,16 @@ function characterFields(c, here, idPrefix) {
 
   if (!list(c?.golden_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-golden-lines`, "fail", `character "${tag}" has no golden_lines`, "Add at least one golden line."));
   if (!list(c?.rejected_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-rejected-lines`, "fail", `character "${tag}" has no rejected_lines`, "Add at least one rejected line."));
+  // A line cannot be both how the character speaks and how they never would: the consistency
+  // check has nothing to grade against. Compared trimmed and case-folded.
+  const fold = (x) => str(x).toLowerCase();
+  const golden = new Set(list(c?.golden_lines).map(fold).filter(Boolean));
+  const clash = list(c?.rejected_lines).map(fold).filter((x) => x && golden.has(x));
+  if (clash.length) out.push(f(6, `${idPrefix}-line-conflict`, "fail", `character "${tag}" has "${clash[0]}" as both a golden and a rejected line`, "Remove the line from one of golden_lines or rejected_lines."));
 
-  // R5: speech.uses, speech.never, wants, fears, hides and arc_state are what make dialogue
-  // hyperspecified, per the design. relationships is deliberately not required here: a character
-  // may genuinely relate to no one yet.
+  // speech.uses, speech.never, wants, fears, hides and arc_state are what make dialogue
+  // specifiable. relationships is deliberately not required here: a character may genuinely
+  // relate to no one yet.
   const speech = isObj(c?.speech) ? c.speech : {};
   if (!list(speech.uses).some((x) => str(x))) out.push(f(1, `${idPrefix}-speech-uses`, "fail", `character "${tag}" speech.uses is empty`, "List at least one thing the character says."));
   if (!list(speech.never).some((x) => str(x))) out.push(f(1, `${idPrefix}-speech-never`, "fail", `character "${tag}" speech.never is empty`, "List at least one thing the character never says."));

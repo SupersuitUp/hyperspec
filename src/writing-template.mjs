@@ -1,27 +1,18 @@
 // The writing profile's `hyperspec init --profile writing` skeleton.
 //
-// Design (fix round 1, per the design doc's Part 3 item 3, "the ten blocks above as a template
-// with every field's check named"): every required writing block appears in full, in schema
-// order, with every field present as a placeholder value — including dna, persona, audience and
-// goal, which an earlier draft of this file omitted entirely on the theory that a decision alone
-// was enough to stand in for the shape. That was wrong: an operator opening the file is owed the
-// same inline shape for those four that materials/form/spine/sources already get, not a pointer
-// to go read the schema elsewhere. The four still carry their own open decision (id
-// writing-<block>, per the deferral rule in writing.mjs) alongside the placeholder content, naming
-// the real question that has to be answered before the placeholder becomes real — the decision and
-// the shape are not in tension: the block's own placeholder content already fails its field rules
-// (closed-set values outside their set, paths that do not exist, lists one short of their
-// minimum), so the decision never changes whether the spec passes, only what the operator is told
-// to go decide.
+// Every required writing block appears in full, in schema order, with every field present as a
+// placeholder value. An operator opening the file is owed the shape of every block inline, not a
+// pointer to go read the schema elsewhere. dna, persona, audience and goal also carry an open
+// decision (id writing-<block>, the deferral id writing.mjs knows) naming the question that has
+// to be answered before the placeholder means anything. The decision and the shape do not
+// conflict: the placeholder content already fails its own field rules, so the decision never
+// changes whether the spec passes, only what the operator is told to go decide.
 //
-// Every placeholder scalar in this file is the bare word "TODO". That is not decorative: `str()`
-// in src/placeholder.mjs treats a value that IS the whole word todo/tbd/fixme/xxx/placeholder
-// (case-insensitive) as blank, so every presence check on every one of these fields fails on its
-// own, for free, without this file having to hand-pick which specific field to break per block.
-// (Fix round 1, R6: an earlier version of this file relied on "TODO" happening to be a valid,
-// non-empty string, which meant the one block whose checks are all presence-only — characters —
-// lints completely clean the moment init writes it. Fixing the presence check itself, once, in
-// src/placeholder.mjs, closes that for every field in every block, not just characters.)
+// Every placeholder scalar in this file is the bare word "TODO". That is load-bearing: str() in
+// src/placeholder.mjs treats a value that IS a placeholder word as blank, so every presence check
+// on every field here fails on its own, without this file having to pick a field to break per
+// block. Without that rule the character block, whose checks are all presence checks, would lint
+// clean the moment init wrote it.
 //
 // init with no --profile never imports or calls this file: template.mjs's own template() is
 // untouched, so a bare init is still byte-for-byte what it always was.
