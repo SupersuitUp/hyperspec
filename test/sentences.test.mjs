@@ -51,3 +51,23 @@ test("empty and whitespace-only text has no units", () => {
   assert.deepEqual(sentenceUnits(""), []);
   assert.deepEqual(sentenceUnits(" \n\n \t\n"), []);
 });
+
+test("a single capital initial does not end a sentence", () => {
+  assert.deepEqual(texts("J. R. Smith wrote it. Done."), ["J. R. Smith wrote it.", "Done."]);
+});
+
+test("a unit is joined to the next when the next starts lowercase: unlisted abbreviations hold", () => {
+  assert.deepEqual(texts("The U.S. economy grew. Then it slowed."), ["The U.S. economy grew.", "Then it slowed."]);
+  assert.deepEqual(texts("We met at 9 a.m. in the office. Fine."), ["We met at 9 a.m. in the office.", "Fine."]);
+});
+
+test("curly double quotes hold a quotation together like straight ones", () => {
+  // As with straight quotes, the quotation runs on to the next unquoted terminator.
+  assert.deepEqual(texts("\"Wait. Stop.\" She meant it. Then quiet."), ["\"Wait. Stop.\" She meant it.", "Then quiet."]);
+  assert.deepEqual(texts("\u201CWait. Stop. Put the bag down.\u201D She meant it. Then quiet."), ["\u201CWait. Stop. Put the bag down.\u201D She meant it.", "Then quiet."]);
+});
+
+test("each unit names its paragraph and whether it is a heading", () => {
+  const u = sentenceUnits("# H\nBody one. Body two.\n\nNext para.");
+  assert.deepEqual(u.map((x) => [x.text, x.para, x.heading]), [["# H", 0, true], ["Body one.", 0, false], ["Body two.", 0, false], ["Next para.", 1, false]]);
+});

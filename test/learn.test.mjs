@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cli, workspace, storyWorkspace, doctorVerdict, writeVerdict, ledgerLines, prepare as judgePrepare, record as judgeRecord } from "./judge-fixture.mjs";
-import { diffSentences, LEARN_BLOCKS, LEARN_MOVES } from "../src/learn.mjs";
+import { diffSentences, DiffTooLarge, LEARN_BLOCKS, LEARN_MOVES } from "../src/learn.mjs";
 import { BLOCKS } from "../src/writing.mjs";
 
 const FIRST = [
@@ -35,9 +35,7 @@ const APPROVED = [
   "# Evidence",
   "",
   "The nine tests run",
-  "on every spec.",
-  "",
-  "Each one names what fails it.",
+  "on every spec. Each one names what fails it.",
   "",
   "# Close",
   "",
@@ -48,10 +46,10 @@ const APPROVED = [
 ].join("\n");
 
 const HUNKS = [
-  { id: "E1", kind: "replaced", first: "A hyperspec is a contract a linter can check. It is not a prompt.", approved: "A hyperspec is a contract a linter can check, not a prompt someone wrote once." },
-  { id: "E2", kind: "replaced", first: "Honestly, it is amazing.", approved: "Each one names what fails it." },
-  { id: "E3", kind: "deleted", first: "Buy it now.", approved: null },
-  { id: "E4", kind: "inserted", first: null, approved: "Star the repo today." },
+  { id: "E1", kind: "replaced", first: "A hyperspec is a contract a linter can check. It is not a prompt.", approved: "A hyperspec is a contract a linter can check, not a prompt someone wrote once.", sentences: 2 },
+  { id: "E2", kind: "replaced", first: "Honestly, it is amazing.", approved: "Each one names what fails it.", sentences: 1 },
+  { id: "E3", kind: "deleted", first: "Buy it now.", approved: null, sentences: 1 },
+  { id: "E4", kind: "inserted", first: null, approved: "Star the repo today.", sentences: 1 },
 ];
 
 const ESSAY_BLOCKS = ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources", "none"];
@@ -91,11 +89,56 @@ test("diffSentences: identical and reflow-only drafts have no hunks", () => {
   assert.deepEqual(diffSentences("One two.\nThree four.", "One\ntwo.   Three four."), []);
 });
 
-test("diffSentences: a hunk spanning several units carries them as written, blank lines included", () => {
-  const h = diffSentences("Keep.\n\nA one.\n\nB two.\n\nEnd.", "Keep.\n\nEnd.");
-  assert.deepEqual(h, [{ id: "E1", kind: "deleted", first: "A one.\n\nB two.", approved: null }]);
+test("diffSentences: a hunk spanning several units of one paragraph carries them as written", () => {
+  const h = diffSentences("Keep.\n\nA one.\nB two.\n\nEnd.", "Keep.\n\nEnd.");
+  assert.deepEqual(h, [{ id: "E1", kind: "deleted", first: "A one.\nB two.", approved: null, sentences: 2 }]);
   const i = diffSentences("", "New one. New two.");
-  assert.deepEqual(i, [{ id: "E1", kind: "inserted", first: null, approved: "New one. New two." }]);
+  assert.deepEqual(i, [{ id: "E1", kind: "inserted", first: null, approved: "New one. New two.", sentences: 2 }]);
+});
+
+// The reviewer's scenario (F1): four voice sentences rewritten in one paragraph, two jargon
+// sentences replaced in the next.
+const VOICE_FIRST = "# Voice\n\nThis is amazing. Truly epic. Game changer. Wow.\n\n# Terms\n\nWe ship weekly. We use CRDTs. It is fast. The ORM does it.\n";
+const VOICE_APPROVED = "# Voice\n\nThis works. It is steady. It saves time. That is all.\n\n# Terms\n\nWe ship weekly. We use shared documents. It is fast. The database layer does it.\n";
+
+test("diffSentences: a hunk never crosses a paragraph or a heading, and counts its sentences", () => {
+  assert.deepEqual(diffSentences(VOICE_FIRST, VOICE_APPROVED), [
+    { id: "E1", kind: "replaced", first: "This is amazing. Truly epic. Game changer. Wow.", approved: "This works. It is steady. It saves time. That is all.", sentences: 4 },
+    { id: "E2", kind: "replaced", first: "We use CRDTs.", approved: "We use shared documents.", sentences: 1 },
+    { id: "E3", kind: "replaced", first: "The ORM does it.", approved: "The database layer does it.", sentences: 1 },
+  ]);
+  assert.deepEqual(diffSentences("Para one ends here.\n\nPara two starts here. Stays.", "Para one ended here.\n\nPara two began here. Stays."), [
+    { id: "E1", kind: "replaced", first: "Para one ends here.", approved: "Para one ended here.", sentences: 1 },
+    { id: "E2", kind: "replaced", first: "Para two starts here.", approved: "Para two began here.", sentences: 1 },
+  ]);
+  assert.deepEqual(diffSentences("# Old heading\nFirst line changed.", "# New heading\nFirst line edited."), [
+    { id: "E1", kind: "replaced", first: "# Old heading", approved: "# New heading", sentences: 1 },
+    { id: "E2", kind: "replaced", first: "First line changed.", approved: "First line edited.", sentences: 1 },
+  ]);
+  // Paragraphs merged or split with no word changed are still no edit.
+  assert.deepEqual(diffSentences("One here.\n\nTwo here.", "One here.\nTwo here."), []);
+  assert.deepEqual(diffSentences("One here. Two here.", "One here.\n\nTwo here."), []);
+});
+
+test("diffSentences: a rewrap that moves a number or a bullet to the start of a line is no edit", () => {
+  assert.deepEqual(diffSentences("It happened in the year 1984. Then more.", "It happened in the year\n1984. Then more."), []);
+  const para = "Hiring slowed after March 3. We shipped 4 releases in Q2. Churn fell - slowly - all year.";
+  assert.deepEqual(diffSentences(para, "Hiring slowed after March\n3. We shipped 4 releases in Q2. Churn fell\n- slowly - all year."), []);
+  assert.deepEqual(diffSentences(para, "Hiring slowed after March 3. We shipped\n4. releases in Q2? No: 4 releases in Q2. Churn fell - slowly - all year.").length, 1, "a real edit still counts");
+});
+
+test("diffSentences: the common start and end are trimmed, and a span too large to diff is refused", () => {
+  const same = Array.from({ length: 5000 }, (_, k) => `Sentence number ${k} is here.`);
+  // An edit near the end leaves the common start to trim, one near the start the common end:
+  // either way the table untrimmed (5001 x 5001) is past the limit.
+  for (const k of [10, 4990]) {
+    const edited = [...same];
+    edited[k] = "One sentence changed.";
+    assert.deepEqual(diffSentences(same.join(" "), edited.join(" ")), [{ id: "E1", kind: "replaced", first: `Sentence number ${k} is here.`, approved: "One sentence changed.", sentences: 1 }]);
+  }
+  const a = Array.from({ length: 3200 }, (_, k) => `Alpha ${k} line.`).join(" ");
+  const b = Array.from({ length: 3200 }, (_, k) => `Beta ${k} line.`).join(" ");
+  assert.throws(() => diffSentences(a, b), (e) => e instanceof DiffTooLarge && e.firstCount === 3200 && e.approvedCount === 3200 && /3200 sentences of the first draft against 3200 of the approved draft/.test(e.message));
 });
 
 test("the move table has an entry for every block, and none is never a move", () => {
@@ -112,7 +155,7 @@ test("prepare writes learn.packet.json: fixed keys, hunks, the spec's blocks plu
   const w = learnWs();
   const r = prepare(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.equal(r.stdout, `${w.packet}\n4 edits: 2 replaced, 1 deleted, 1 inserted\n`);
+  assert.equal(r.stdout, `${w.packet}\n4 edits over 5 sentences: 2 replaced, 1 deleted, 1 inserted\n`);
   assert.deepEqual(readdirSync(w.out), ["learn.packet.json"]);
   const text = readFileSync(w.packet, "utf8");
   const p = JSON.parse(text);
@@ -211,11 +254,11 @@ test("record tallies the verdict, suggests the move for the top block, and appen
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.equal(r.stdout, [
     "learn: 4 edits classified",
-    "  dna 2",
-    "  persona 1",
-    "  none 1",
-    "next move: dna, 2 of 4 edits: add a golden or a style rule",
-    "verdict: not-improved (edits by block: dna 2, persona 1, none 1; not yet applied to the spec)",
+    "  dna 2 edits, 3 sentences",
+    "  persona 1 edit, 1 sentence",
+    "  none 1 edit, 1 sentence",
+    "next move: dna, 3 of 5 sentences (2 of 4 edits): add a golden or a style rule",
+    "verdict: not-improved (edits by block: dna 2 edits (3 sentences), persona 1 edit (1 sentence), none 1 edit (1 sentence); not yet applied to the spec)",
     "",
   ].join("\n"));
   const lines = ledgerLines(w.ledger);
@@ -230,8 +273,8 @@ test("record tallies the verdict, suggests the move for the top block, and appen
   assert.equal(line.approved_sha256, p.approved_sha256);
   assert.equal(line.spec_sha256, p.spec_sha256);
   assert.equal(line.verdict, "not-improved");
-  assert.equal(line.reason, "edits by block: dna 2, persona 1, none 1; not yet applied to the spec");
-  assert.deepEqual(line.tally, { dna: 2, persona: 1, none: 1 });
+  assert.equal(line.reason, "edits by block: dna 2 edits (3 sentences), persona 1 edit (1 sentence), none 1 edit (1 sentence); not yet applied to the spec");
+  assert.deepEqual(line.tally, { dna: { edits: 2, sentences: 3 }, persona: { edits: 1, sentences: 1 }, none: { edits: 1, sentences: 1 } });
   assert.equal(readFileSync(w.spec, "utf8"), specBefore, "learn never edits the spec");
 });
 
@@ -243,35 +286,48 @@ test("record --json prints the tally and the suggestion", () => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const j = JSON.parse(r.stdout);
   assert.equal(j.edits, 4);
-  assert.deepEqual(j.tally, { dna: 2, persona: 1, none: 1 });
-  assert.deepEqual(j.suggestion, { block: "dna", count: 2, move: "add a golden or a style rule" });
+  assert.equal(j.sentences, 5);
+  assert.deepEqual(j.tally, { dna: { edits: 2, sentences: 3 }, persona: { edits: 1, sentences: 1 }, none: { edits: 1, sentences: 1 } });
+  assert.deepEqual(j.suggestion, { block: "dna", edits: 2, sentences: 3, move: "add a golden or a style rule" });
   assert.equal(j.verdict, "not-improved");
   assert.equal(j.ledgerPath, "runs.jsonl");
 });
 
-test("a tie goes to the block that comes first in the block order, never to the verdict's order", () => {
-  const w = learnWs();
+test("the move goes to the block with the most sentences, not the most edits (the voice/terms scenario)", () => {
+  const w = learnWs({ first: VOICE_FIRST, approved: VOICE_APPROVED });
   prepare(w);
   writeVerdict(w.verdict, { edits: [
-    { id: "E1", block: "audience", why: "a term the reader does not know" },
-    { id: "E2", block: "goal", why: "the condition let it through" },
-    { id: "E3", block: "dna", why: "no golden sells" },
-    { id: "E4", block: "audience", why: "reads on a phone" },
+    { id: "E1", block: "dna", why: "the goldens never hype" },
+    { id: "E2", block: "audience", why: "the reader does not know CRDTs" },
+    { id: "E3", block: "audience", why: "the reader does not know ORM" },
   ] });
-  let r = record(w, "--json");
-  let j = JSON.parse(r.stdout);
-  assert.deepEqual(j.tally, { audience: 2, dna: 1, goal: 1 });
-  assert.deepEqual(j.suggestion, { block: "audience", count: 2, move: LEARN_MOVES.audience });
+  const r = record(w);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^ {2}dna 1 edit, 4 sentences\n {2}audience 2 edits, 2 sentences\nnext move: dna, 4 of 6 sentences \(1 of 3 edits\): add a golden or a style rule$/m);
+});
+
+test("ties: most sentences, then most edits, then the block order, never the verdict's order", () => {
+  const w = learnWs();
+  prepare(w);
+  // E1 is 2 sentences; E2, E3 and E4 are 1 each.
   writeVerdict(w.verdict, { edits: [
-    { id: "E1", block: "goal", why: "x" },
-    { id: "E2", block: "spine", why: "x" },
-    { id: "E3", block: "persona", why: "x" },
-    { id: "E4", block: "none", why: "x" },
+    { id: "E1", block: "goal", why: "the condition let it through" },
+    { id: "E2", block: "audience", why: "a term the reader does not know" },
+    { id: "E3", block: "audience", why: "reads on a phone" },
+    { id: "E4", block: "spine", why: "out of order" },
   ] });
-  r = record(w, "--json");
-  j = JSON.parse(r.stdout);
-  assert.deepEqual(Object.keys(j.tally), ["persona", "goal", "spine", "none"]);
-  assert.equal(j.suggestion.block, "persona");
+  let j = JSON.parse(record(w, "--json").stdout);
+  assert.deepEqual(Object.keys(j.tally), ["audience", "goal", "spine"], "2 sentences each: audience has more edits");
+  assert.deepEqual(j.suggestion, { block: "audience", edits: 2, sentences: 2, move: LEARN_MOVES.audience });
+  writeVerdict(w.verdict, { edits: [
+    { id: "E1", block: "none", why: "x" },
+    { id: "E2", block: "spine", why: "x" },
+    { id: "E3", block: "goal", why: "x" },
+    { id: "E4", block: "persona", why: "x" },
+  ] });
+  j = JSON.parse(record(w, "--json").stdout);
+  assert.deepEqual(Object.keys(j.tally), ["none", "persona", "goal", "spine"]);
+  assert.equal(j.suggestion.block, "persona", "a full tie goes to the block order");
 });
 
 test("none is never suggested, even when it has the most edits", () => {
@@ -280,11 +336,12 @@ test("none is never suggested, even when it has the most edits", () => {
   writeVerdict(w.verdict, { edits: ["E1", "E2", "E3"].map((id) => ({ id, block: "none", why: "taste" })).concat([{ id: "E4", block: "sources", why: "no source for it" }]) });
   const r = record(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /^ {2}none 3\n {2}sources 1\n/m);
-  assert.match(r.stdout, /next move: sources, 1 of 4 edits: add or cite a source in the claims ledger/);
+  assert.match(r.stdout, /^ {2}none 3 edits, 4 sentences\n {2}sources 1 edit, 1 sentence\n/m);
+  assert.match(r.stdout, /next move: sources, 1 of 5 sentences \(1 of 4 edits\): add or cite a source in the claims ledger/);
+  assert.match(r.stdout, /not yet applied to the spec\)$/m);
 });
 
-test("every edit none: the spec explained every edit, and no move is suggested", () => {
+test("every edit none: no block could have prevented any edit, and no move is suggested", () => {
   const w = learnWs();
   prepare(w);
   writeVerdict(w.verdict, { edits: ["E1", "E2", "E3", "E4"].map((id) => ({ id, block: "none", why: "taste" })) });
@@ -292,8 +349,8 @@ test("every edit none: the spec explained every edit, and no move is suggested",
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const j = JSON.parse(r.stdout);
   assert.equal(j.suggestion, null);
-  assert.match(j.next, /every edit is none: the spec explained every edit/);
-  assert.equal(learnLines(w)[0].reason, "edits by block: none 4; not yet applied to the spec");
+  assert.equal(j.next, "none; no block could have prevented any edit, so the spec has nothing to learn from this pair");
+  assert.equal(learnLines(w)[0].reason, "edits by block: none 4 edits (5 sentences); no block could have prevented any edit, so the spec has nothing to learn from this pair");
 });
 
 test("identical drafts: record accepts { edits: [] } and says there was nothing to learn", () => {
@@ -306,6 +363,16 @@ test("identical drafts: record accepts { edits: [] } and says there was nothing 
   const [line] = learnLines(w);
   assert.equal(line.reason, "no edits: the first draft and the approved draft match");
   assert.deepEqual(line.tally, {});
+});
+
+test("drafts too far apart to diff: prepare is a usage error naming both sentence counts", () => {
+  const a = Array.from({ length: 3300 }, (_, k) => `Alpha ${k} line.`).join(" ");
+  const b = Array.from({ length: 3100 }, (_, k) => `Beta ${k} line.`).join(" ");
+  const w = learnWs({ first: a, approved: b });
+  const r = prepare(w);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /3300 sentences of the first draft against 3100 of the approved draft/);
+  assert.deepEqual(readdirSync(w.out), []);
 });
 
 // ---- record: an invalid verdict appends nothing --------------------------------------------------
@@ -369,7 +436,7 @@ test("a file changed since prepare is stale: named, nothing appended, re-run pre
     assert.equal(j.stale, true);
     assert.equal(j.invalid, true);
     assert.equal(j.findings[0].id, "learn-stale");
-    assert.equal(j.findings[0].message, `${name} changed since the packet was prepared`);
+    assert.equal(j.findings[0].message, `${name} does not match the hash the packet recorded: it changed since prepare, or the packet was edited`);
     assert.match(j.findings[0].fix, /learn prepare again/);
     assert.equal(learnLines(w).length, 0);
   }
@@ -380,7 +447,20 @@ test("a file changed since prepare is stale: named, nothing appended, re-run pre
   writeVerdict(w.verdict, VERDICT());
   const r = record(w);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /learn: stale packet, nothing recorded\n {2}fail \[learn-stale\] the first draft and the approved draft changed since the packet was prepared/);
+  assert.match(r.stdout, /learn: stale packet, nothing recorded\n {2}fail \[learn-stale\] the first draft and the approved draft do not match the hashes the packet recorded: they changed since prepare, or the packet was edited/);
+});
+
+test("a forged hash with every file unchanged is reported without claiming the draft changed", () => {
+  const w = learnWs();
+  prepare(w);
+  const p = JSON.parse(readFileSync(w.packet, "utf8"));
+  p.first_sha256 = "0".repeat(64);
+  writeFileSync(w.packet, `${JSON.stringify(p, null, 2)}\n`);
+  writeVerdict(w.verdict, VERDICT());
+  const j = JSON.parse(record(w, "--json").stdout);
+  assert.equal(j.findings[0].id, "learn-stale");
+  assert.equal(j.findings[0].message, "the first draft does not match the hash the packet recorded: it changed since prepare, or the packet was edited");
+  assert.equal(learnLines(w).length, 0);
 });
 
 test("a packet edited after prepare is learn-packet-altered, validated against nothing", () => {
@@ -478,7 +558,7 @@ test("check and judge lines leave learn alone: the same verdict gets the same re
   prepare(w);
   writeVerdict(w.verdict, VERDICT());
   const r = record(w, "--json");
-  assert.equal(JSON.parse(r.stdout).reason, "edits by block: dna 2, persona 1, none 1; not yet applied to the spec");
+  assert.equal(JSON.parse(r.stdout).reason, "edits by block: dna 2 edits (3 sentences), persona 1 edit (1 sentence), none 1 edit (1 sentence); not yet applied to the spec");
   assert.deepEqual(ledgerLines(w.ledger).map((l) => l.kind), ["judge", "check", "learn"]);
 });
 

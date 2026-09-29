@@ -157,7 +157,7 @@ test("a verdict for a draft that changed since the packet is stale: exit 1, name
   const r = record(w);
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout, /judge-stale/);
-  assert.match(r.stdout, /the draft changed since the packet was prepared/);
+  assert.match(r.stdout, /the draft does not match the hash the packet recorded: it changed since prepare, or the packet was edited/);
   assert.deepEqual(ledgerLines(w.ledger), []);
 });
 
@@ -168,10 +168,10 @@ test("a stale verdict names the spec, or both, when those changed", () => {
   writeFileSync(w.spec, `${readFileSync(w.spec, "utf8")}\nA new closing line.\n`);
   let r = record(w);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /the spec changed since the packet was prepared/);
+  assert.match(r.stdout, /the spec does not match the hash the packet recorded: it changed since prepare, or the packet was edited/);
   writeFileSync(w.draft, `${DRAFT}\nOne more line.\n`);
   r = record(w);
-  assert.match(r.stdout, /the spec and the draft changed since the packet was prepared/);
+  assert.match(r.stdout, /the spec and the draft do not match the hashes the packet recorded: they changed since prepare, or the packet was edited/);
   assert.deepEqual(ledgerLines(w.ledger), []);
 });
 

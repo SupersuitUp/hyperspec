@@ -18,7 +18,7 @@ import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_READM
 import { str } from "../src/placeholder.mjs";
 import { runCheck } from "../src/check.mjs";
 import { prepareJudges, recordJudgment } from "../src/judge.mjs";
-import { prepareLearn, recordLearn } from "../src/learn.mjs";
+import { prepareLearn, recordLearn, tallyLine } from "../src/learn.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -507,7 +507,7 @@ if (cmd === "learn") {
       for (const f of result.findings) printFinding(f);
     } else {
       console.log(`learn: ${result.edits} edit${result.edits === 1 ? "" : "s"} classified`);
-      for (const [block, count] of Object.entries(result.tally)) console.log(`  ${block} ${count}`);
+      for (const [block, c] of Object.entries(result.tally)) console.log(`  ${block} ${tallyLine(c)}`);
       console.log(`next move: ${result.next}`);
       if (result.verdict) console.log(`verdict: ${result.verdict} (${result.reason})`);
       if (result.ledgerWarning) console.log(`warn: ${result.ledgerWarning}`);

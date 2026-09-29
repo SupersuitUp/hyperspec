@@ -5,9 +5,13 @@
 // paragraphs first (a blank line always ends a unit, punctuation or not), then, inside each
 // paragraph, every heading line on its own and every run of other lines through the sentence
 // splitter (". ! ?" followed by whitespace, never inside a quotation on the same line, each list
-// item on its own). On top of that one rule of its own: a unit that ends in a common abbreviation
-// ("Dr.", "e.g.", an initial) is joined to the next unit of the same run, since the period there
-// ends a word, not a sentence.
+// item on its own). Three rules of its own on top:
+//   - curly double quotes count as quotes, the same as straight ones (the shared splitter only
+//     knows '"'; each curly mark is one UTF-16 unit, so mapping them keeps every offset);
+//   - a unit that ends in a common abbreviation ("Dr.", "e.g.", an initial like "J.") is joined
+//     to the next unit of the same run, since that period ends a word, not a sentence;
+//   - so is any unit followed by one that starts with a lowercase letter ("the U.S. economy",
+//     "9 a.m. in"), since a sentence does not start lowercase.
 
 import { splitSegments } from "./segments.mjs";
 
@@ -21,6 +25,8 @@ function endsInAbbreviation(text) {
   const word = last.replace(/^[^\p{L}]+/u, "");
   return ABBREVIATIONS.has(word.toLowerCase()) || /^\p{Lu}\.$/u.test(word);
 }
+
+const startsLowercase = (text) => /^\p{Ll}/u.test(text);
 
 // The lines of text[start, end) as { start, end } spans, a CRLF line's "\r" outside its span.
 function lines(text, start, end) {
@@ -37,31 +43,35 @@ function lines(text, start, end) {
   return out;
 }
 
-// Sentences of text[start, end), abbreviation splits joined back.
-function sentencesOf(text, start, end) {
-  const units = splitSegments(text.slice(start, end), { by: "sentence" }).map((s) => ({ start: start + s.start, end: start + s.end }));
+// Sentences of text[start, end), split on `scan` (the text with curly double quotes straightened,
+// same offsets), with abbreviation and lowercase splits joined back.
+function sentencesOf(text, scan, start, end) {
+  const units = splitSegments(scan.slice(start, end), { by: "sentence" }).map((s) => ({ start: start + s.start, end: start + s.end }));
   const out = [];
   for (const u of units) {
     const prev = out.at(-1);
-    if (prev && endsInAbbreviation(text.slice(prev.start, prev.end))) prev.end = u.end;
+    if (prev && (endsInAbbreviation(text.slice(prev.start, prev.end)) || startsLowercase(text.slice(u.start, u.end)))) prev.end = u.end;
     else out.push({ ...u });
   }
   return out;
 }
 
-// sentenceUnits(text): [{ text, start, end }] in document order, text exactly text.slice(start, end).
+// sentenceUnits(text): [{ text, start, end, para, heading }] in document order, text exactly
+// text.slice(start, end). para is the 0-based index of the paragraph the unit is in; heading is
+// true for a markdown heading line.
 export function sentenceUnits(text) {
+  const scan = text.replace(/[“”]/g, '"');
   const out = [];
-  for (const para of splitSegments(text)) {
+  splitSegments(text).forEach((para, p) => {
     let run = null;
-    const flush = () => { if (run) out.push(...sentencesOf(text, run.start, run.end)); run = null; };
+    const flush = () => { if (run) out.push(...sentencesOf(text, scan, run.start, run.end).map((u) => ({ ...u, para: p, heading: false }))); run = null; };
     for (const line of lines(text, para.start, para.end)) {
-      if (HEADING.test(text.slice(line.start, line.end))) { flush(); out.push({ start: line.start, end: line.end }); continue; }
+      if (HEADING.test(text.slice(line.start, line.end))) { flush(); out.push({ start: line.start, end: line.end, para: p, heading: true }); continue; }
       if (run) run.end = line.end; else run = { ...line };
     }
     flush();
-  }
-  return out.map((u) => ({ text: text.slice(u.start, u.end), start: u.start, end: u.end }));
+  });
+  return out.map((u) => ({ text: text.slice(u.start, u.end), start: u.start, end: u.end, para: u.para, heading: u.heading }));
 }
 
 // The form two units are compared in: every whitespace run one space, trimmed. For comparison

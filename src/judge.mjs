@@ -105,6 +105,16 @@ function toolsFor(stationName, draft) {
   };
 }
 
+// The message for files whose bytes no longer match the hashes a packet recorded. Nothing on disk
+// can tell a file changed since prepare from a packet whose hash (or path) was edited, so it claims
+// neither (rulings R10, R21). `names` lists the files, e.g. ["the spec", "the draft"]. Shared with
+// `learn record`.
+export function hashMismatchMessage(names) {
+  const one = names.length === 1;
+  const what = one ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${what} ${one ? "does" : "do"} not match the ${one ? "hash" : "hashes"} the packet recorded: ${one ? "it" : "they"} changed since prepare, or the packet was edited`;
+}
+
 const packetJson = (packet) => `${JSON.stringify(packet, null, 2)}\n`;
 
 // The packet one judge gets for this spec and draft, built the one way both commands build it:
@@ -239,8 +249,8 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   const draftChanged = draft.sha256 !== packet.draft_sha256;
   const specChanged = specSha !== packet.spec_sha256;
   if (draftChanged || specChanged) {
-    const what = draftChanged && specChanged ? "the spec and the draft" : specChanged ? "the spec" : "the draft";
-    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${what} changed since the packet was prepared`, "Run judge prepare again (with --force) and judge the new packet.")], code: 1 };
+    const names = [specChanged && "the spec", draftChanged && "the draft"].filter(Boolean);
+    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", hashMismatchMessage(names), "Run judge prepare again (with --force) and judge the new packet.")], code: 1 };
   }
 
   // record never trusts the packet file: it rebuilds the packet (and any answer key) from the spec
