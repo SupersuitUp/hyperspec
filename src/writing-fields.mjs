@@ -273,9 +273,8 @@ function spineFields(raw, d, here, idPrefix) {
   const materialIds = new Set(itemsById.keys());
   // A material whose segments cannot be resolved at all (no segments: field, a segments file that
   // cannot be read, or one with no segment lines) makes every #segment ref against it equally
-  // unresolvable. Report that
-  // once per material, not once per ref: two claims both pointing at "m1#s1" and "m1#s2" when m1
-  // is unmarked are the same underlying problem, not two.
+  // unresolvable. Report that once per material, not once per ref: two claims both pointing at
+  // "m1#s1" and "m1#s2" when m1 is unmarked are the same underlying problem, not two.
   const segmentsCache = new Map();
   const segmentsFor = (mid) => {
     if (!segmentsCache.has(mid)) segmentsCache.set(mid, resolveMaterialSegments(itemsById.get(mid), here));
