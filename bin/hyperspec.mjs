@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
@@ -12,6 +12,8 @@ import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
 import { regenerate } from "../src/regenerate.mjs";
 import { compare } from "../src/compare.mjs";
+import { splitSegments } from "../src/segments.mjs";
+import { sha256 } from "../src/hash.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -29,6 +31,15 @@ const HELP = `hyperspec <command> [options]
                                linter does not know, --fiction or --form without --profile
                                writing, --kind with it (use --form), or a folder that does not
                                exist
+
+  segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]
+                               split a material into candidate segments, written as JSONL to
+                               <material>.segments.jsonl by default; every segment starts
+                               label: unlabeled, never valid in lint — label each one by hand
+                               (claim, story, quote, stance, question, aside, private), then run
+                               hyperspec lint on the spec; refuses to overwrite an existing file
+                               (exit 2); exit 2 for a missing material or a --by outside
+                               paragraph/sentence
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json
@@ -96,6 +107,38 @@ if (cmd === "init") {
   catch (e) { usage(`could not write ${file}: ${e.code === "EACCES" ? "permission denied" : e.message}`); }
   console.log(`wrote ${file}; run: hyperspec lint ${file}`);
   process.exit(0);
+}
+
+if (cmd === "segments") {
+  const sub = argv[1];
+
+  if (sub === "init") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--id", "--out", "--by"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [material] = parsed.positionals;
+    if (!material) { console.error("segments init needs a material path"); process.exit(2); }
+    if (!parsed.values["--id"]) { console.error("segments init needs --id <material id>"); process.exit(2); }
+    const id = parsed.values["--id"];
+    const by = parsed.values["--by"] ?? "paragraph";
+    if (by !== "paragraph" && by !== "sentence") { console.error(`--by must be paragraph or sentence, not "${by}"`); process.exit(2); }
+    let materialStat;
+    try { materialStat = statSync(material); } catch { materialStat = null; }
+    if (!materialStat || !materialStat.isFile()) { console.error(`material not found: ${material}`); process.exit(2); }
+    const out = parsed.values["--out"] ?? `${material}.segments.jsonl`;
+    if (existsSync(out)) { console.error(`refusing to overwrite ${out}`); process.exit(2); }
+
+    const buf = readFileSync(material);
+    const text = buf.toString("utf8");
+    const segments = splitSegments(text, { by });
+    const header = { material: id, path: material, sha256: sha256(buf) };
+    const lines = [JSON.stringify(header), ...segments.map((s) => JSON.stringify(s))];
+    writeFileSync(out, `${lines.join("\n")}\n`);
+    console.log(`${segments.length} segments written to ${out}. Label every segment (claim, story, quote, stance, question, aside, private), then run hyperspec lint on the spec.`);
+    process.exit(0);
+  }
+
+  console.error(`unknown segments subcommand: ${sub}\n\n${HELP}`);
+  process.exit(2);
 }
 
 if (cmd === "lint") {
