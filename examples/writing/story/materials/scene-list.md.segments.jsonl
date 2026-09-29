@@ -1,0 +1,14 @@
+{"material":"scene-list","path":"story/materials/scene-list.md","sha256":"8181cdb35cd1afad01809367de15b3233f24fc7bede5b7b89c022f05e3d655e0"}
+{"id":"s1","start":0,"end":51,"label":"aside","text":"Scene list, agreed with the editor before drafting."}
+{"id":"s2","start":52,"end":63,"label":"aside","text":"Considered."}
+{"id":"s3","start":65,"end":95,"label":"claim","own":true,"text":"- scene-1, 3:40: Theo arrives."}
+{"id":"s4","start":96,"end":119,"label":"claim","own":true,"text":"Ines is already mixing."}
+{"id":"s5","start":120,"end":135,"label":"claim","own":true,"text":"The oven noise."}
+{"id":"s6","start":136,"end":162,"label":"claim","own":true,"text":"No one says anything real."}
+{"id":"s7","start":163,"end":188,"label":"claim","own":true,"text":"- scene-2, 4:30: shaping."}
+{"id":"s8","start":189,"end":259,"label":"claim","own":true,"text":"Ines lets Theo shape the rye for the first time, and does not say why."}
+{"id":"s9","start":260,"end":286,"label":"claim","own":true,"text":"- scene-3, 5:50: the bake."}
+{"id":"s10","start":287,"end":344,"label":"claim","own":true,"text":"Ines tells Theo the bakery is sold, while turning a tray."}
+{"id":"s11","start":345,"end":384,"label":"claim","own":true,"text":"- scene-4, 6:55: before the doors open."}
+{"id":"s12","start":385,"end":418,"label":"claim","own":true,"text":"Theo tells Ines about the school."}
+{"id":"s13","start":419,"end":451,"label":"claim","own":true,"text":"She hands him the\n  starter jar."}

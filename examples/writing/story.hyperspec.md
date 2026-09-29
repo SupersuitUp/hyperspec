@@ -74,7 +74,7 @@ examples:
   - path: story/goldens/dialogue.md
     why: three short lines carry a ritual both characters know, without either of them naming it
 resume:
-  next_action: mark the three materials into labeled segments, then draft scene-1 from the scene list with Theo's knowledge as of scene-1
+  next_action: draft scene-1 from the scene list with Theo's knowledge as of scene-1
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes
@@ -85,24 +85,27 @@ writing:
     items:
       - id: notes
         path: story/materials/notes.md
+        segments: story/materials/notes.md.segments.jsonl
         produced_by: example-author
         captured: "2026-08-20"
         how: typed notes
         trust: raw
       - id: bakery-visit
         path: story/materials/bakery-visit.md
+        segments: story/materials/bakery-visit.md.segments.jsonl
         produced_by: example-author
         captured: "2026-08-28"
         how: notes taken on site, corrected by the bakery owner afterwards
         trust: considered
       - id: scene-list
         path: story/materials/scene-list.md
+        segments: story/materials/scene-list.md.segments.jsonl
         produced_by: example-author
         captured: "2026-09-02"
         how: scene list agreed with the editor
         trust: considered
     check:
-      station: every segment of every material carries a label from the closed set
+      station: every segment of every material carries a label from the closed set, matches its source verbatim, and the markings are current
     source: capture step
     author: agent:claude
   dna:
@@ -184,13 +187,13 @@ writing:
     claims:
       - id: c1
         text: each of them hides their news to protect the other, and the hiding is the thing they share
-        materials: [notes, scene-list]
+        materials: [notes#s2, scene-list#s10, scene-list#s12]
       - id: c2
         text: people who love each other at work say it through the work
-        materials: [notes, bakery-visit]
+        materials: [notes#s5, bakery-visit#s8, scene-list#s8]
       - id: c3
         text: a craft outlives the room it was practiced in
-        materials: [notes, scene-list]
+        materials: [notes#s5, scene-list#s13]
     check:
       rubric: each claim lands, in order, through what the characters do, and the story argues nothing outside the chain
     source: spine interview

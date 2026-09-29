@@ -8,6 +8,8 @@ autumn. Each thinks they are protecting the other.
 The story is four scenes, one morning, 3:40 to 7:00. The oven has a noise. The rye is the thing
 she has never let him do alone.
 
+Open question: does she tell him about the sale before she lets him shape the rye, or after?
+
 What it is about, I think: a craft outlives the room it was practiced in. And: people who love
 each other in a work setting say it through the work.
 

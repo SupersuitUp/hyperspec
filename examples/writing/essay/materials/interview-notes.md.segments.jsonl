@@ -1,0 +1,10 @@
+{"material":"interview","path":"essay/materials/interview-notes.md","sha256":"3c4fd3ff19435027b1bb9584e648128d59feb3184f67eeaf6b09ed9fa8bcfaeb"}
+{"id":"s1","start":0,"end":118,"label":"aside","text":"Interview notes, a thirty-minute call with an engineering manager of eight years, taken by the\nauthor during the call."}
+{"id":"s2","start":119,"end":199,"label":"aside","text":"Considered: the manager reviewed these notes afterwards and corrected two\nlines."}
+{"id":"s3","start":201,"end":240,"label":"claim","source":"interview with an engineering manager of eight years","text":"- Her rule: the report owns the agenda."}
+{"id":"s4","start":241,"end":356,"label":"claim","source":"interview with an engineering manager of eight years","text":"She keeps a shared document per person; they add items\n  before the meeting, and she adds hers last, at the bottom."}
+{"id":"s5","start":357,"end":448,"label":"quote","speaker":"the engineering manager interviewed","text":"- \"If I have something urgent, it is not a one-on-one topic. I send it the day it happens.\""}
+{"id":"s6","start":449,"end":617,"label":"claim","source":"interview with an engineering manager of eight years","text":"- The first one-on-one with a new report is always the same: she asks how they like to receive\n  feedback, in writing or out loud, right away or at the end of the week."}
+{"id":"s7","start":618,"end":673,"label":"claim","source":"interview with an engineering manager of eight years","text":"- Her warning: new managers treat silence as a problem."}
+{"id":"s8","start":674,"end":733,"label":"quote","speaker":"the engineering manager interviewed","text":"\"Wait. Count to five. The real answer is\n  the second one.\""}
+{"id":"s9","start":734,"end":812,"label":"claim","source":"interview with an engineering manager of eight years","text":"- She cancels a one-on-one only when the report asks her to, never on her own."}
