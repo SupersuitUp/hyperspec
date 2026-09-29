@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
 import { getBlob, storeRoot, verifyBlob } from "./blobs.mjs";
+import { insideDir, writeFileAtomic } from "./fsutil.mjs";
 import { readRecipe, stageKey } from "./recipe.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
@@ -21,10 +22,17 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
   const root = storeRoot({ from: dir, store });
 
   const steps = [];
+  // Every step's ok/why is decided through setStep, including its own creation (addStep). One
+  // path for every mutation, so a step is never left with a stale why after a later change.
+  function setStep(step, ok, why) {
+    step.ok = ok;
+    if (ok || !why) delete step.why;
+    else step.why = why;
+  }
   function addStep(ref, sha256Value, ok, why) {
-    const step = { ref, sha256: sha256Value ?? null, ok };
-    if (!ok && why) step.why = why;
+    const step = { ref, sha256: sha256Value ?? null, ok: true };
     steps.push(step);
+    setStep(step, ok, why);
     return step;
   }
 
@@ -86,32 +94,51 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
 
   // 5. The output file on disk, if present, hashes to output.sha256. Absent is vacuously fine:
   // reproduce doesn't require the file to already exist, only that it agrees when it does.
+  //
+  // The recipe is a plain JSON file on disk — exactly the kind of claim reproduce exists to
+  // distrust — so output.path is never trusted blind. A hand-edited or corrupted recipe could
+  // name a path outside the recipe's own directory (a `../` climb, or an absolute path); refuse
+  // before touching disk at all, rather than reading from or (worse, under --restore) writing to
+  // wherever it points.
   const outputPath = recipe.output?.path;
-  const outputAbs = present(outputPath) ? resolve(dir, outputPath) : null;
-  const fileStep = addStep("output:file", outputSha, true);
   let restored = false;
-  if (outputAbs) {
-    const fileExists = existsSync(outputAbs);
-    let matches = true;
-    if (fileExists) {
-      const bytes = readFileSync(outputAbs);
-      matches = present(outputSha) && sha256(bytes) === outputSha;
-      if (!matches) {
-        fileStep.ok = false;
-        fileStep.why = "output file does not match output.sha256";
+  if (present(outputPath) && !insideDir(dir, outputPath)) {
+    addStep("output:file", outputSha, false, "output path escapes the recipe directory");
+  } else {
+    const outputAbs = present(outputPath) ? resolve(dir, outputPath) : null;
+    const fileStep = addStep("output:file", outputSha, true);
+    if (outputAbs) {
+      const fileExists = existsSync(outputAbs);
+      let matches = true;
+      if (fileExists) {
+        const bytes = readFileSync(outputAbs);
+        matches = present(outputSha) && sha256(bytes) === outputSha;
+        if (!matches) setStep(fileStep, false, "output file does not match output.sha256");
       }
-    }
-    // restore: true writes the output file from its blob, but only when the output blob itself
-    // verifies (step 4) — restoring from an unverified blob would just write different wrong
-    // bytes. Covers both a lost file (never existed / deleted) and an edited one.
-    const needsRestore = !fileExists || !matches;
-    if (restore && needsRestore && outputBlobOk) {
-      const blob = getBlob(root, outputSha);
-      if (blob !== null) {
-        writeFileSync(outputAbs, blob);
-        restored = true;
-        fileStep.ok = true;
-        delete fileStep.why;
+
+      // restore: true writes the output file from its blob, but only when the output blob
+      // itself verified (step 4) — restoring from an unverified blob would just write
+      // different wrong bytes. Covers both a lost file (never existed / deleted) and an
+      // edited one. The write is atomic (temp file + rename, same pattern as putBlob), so a
+      // crash mid-write never leaves the file in a state that is neither the old nor the new
+      // content, and a write failure is caught and reported as a failing step rather than
+      // thrown out of reproduce() — this function always returns a structured result.
+      const needsRestore = !fileExists || !matches;
+      if (restore && needsRestore && outputBlobOk) {
+        const blob = getBlob(root, outputSha);
+        if (blob !== null) {
+          try {
+            writeFileAtomic(outputAbs, blob);
+            restored = true;
+            // Re-evaluate for real: read back what actually landed on disk and hash it, rather
+            // than assuming the write did what it intended.
+            const writtenBytes = readFileSync(outputAbs);
+            const writtenOk = present(outputSha) && sha256(writtenBytes) === outputSha;
+            setStep(fileStep, writtenOk, "restored output file does not match output.sha256");
+          } catch (e) {
+            setStep(fileStep, false, `failed to restore the output file: ${e.message}`);
+          }
+        }
       }
     }
   }

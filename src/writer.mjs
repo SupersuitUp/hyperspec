@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
+import { writeFileAtomic } from "./fsutil.mjs";
 import { storeRoot, putBlob, getBlob } from "./blobs.mjs";
 import { checkRecipe, readRecipe, stageKey, writeRecipe } from "./recipe.mjs";
 import { loadSpec } from "./load.mjs";
@@ -95,7 +96,7 @@ export function startRecipe({ output, factory, spec, clicker, store } = {}) {
           throw new Error(`${output} does not match the recipe's last stage output`);
         }
       } else {
-        writeFileSync(outputAbs, getBlob(root, last.output.sha256));
+        writeFileAtomic(outputAbs, getBlob(root, last.output.sha256));
       }
       writeRecipe(recipePath, recipe);
       return { path: recipePath, findings: checkRecipe(recipe, { root }) };

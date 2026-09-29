@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { blobPath } from "../src/blobs.mjs";
 import { readRecipe, writeRecipe } from "../src/recipe.mjs";
 import { approve, startRecipe } from "../src/writer.mjs";
@@ -219,6 +219,86 @@ test("reproduce() reports ok:false with an error when the recipe file is not val
   assert.match(result.error, /invalid JSON/);
   assert.deepEqual(result.steps, []);
   assert.equal(result.firstMismatch, null);
+});
+
+// ---- key-only mismatch (bytes fine, the record of what produced them is stale) ----
+
+test("reproduce() fails only the #key step when a stage's recorded key is edited but its blob is untouched", () => {
+  const dir = project();
+  const { recipePath } = buildRecipe(dir);
+
+  const { data } = readRecipe(recipePath);
+  // A different, still well-formed hex string — not derived from the stage's actual reads.
+  data.stages[0].key = "f".repeat(64);
+  writeRecipe(recipePath, data);
+
+  const result = reproduce(recipePath);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.firstMismatch, "stage:outline#key");
+  assert.equal(result.steps.find((s) => s.ref === "stage:outline").ok, true);
+  const keyStep = result.steps.find((s) => s.ref === "stage:outline#key");
+  assert.equal(keyStep.ok, false);
+  assert.match(keyStep.why, /does not match the recomputed key/);
+});
+
+// ---- path containment: restore refuses to read or write outside the recipe directory ----
+
+test("reproduce() refuses a relative output.path that climbs out of the recipe directory", () => {
+  const dir = project();
+  const { recipePath } = buildRecipe(dir);
+
+  const { data } = readRecipe(recipePath);
+  data.output.path = join("..", "outside.md");
+  writeRecipe(recipePath, data);
+  const escapeTarget = resolve(dir, "..", "outside.md");
+
+  const plain = reproduce(recipePath);
+  assert.equal(plain.ok, false);
+  assert.equal(plain.firstMismatch, "output:file");
+  const step = plain.steps.find((s) => s.ref === "output:file");
+  assert.equal(step.ok, false);
+  assert.equal(step.why, "output path escapes the recipe directory");
+
+  const withRestore = reproduce(recipePath, { restore: true });
+  assert.equal(withRestore.ok, false);
+  assert.equal(withRestore.restored, false);
+  assert.equal(existsSync(escapeTarget), false, "restore must never write outside the recipe directory");
+});
+
+test("reproduce() refuses an absolute output.path pointing outside the recipe directory", () => {
+  const dir = project();
+  const { recipePath } = buildRecipe(dir);
+
+  const elsewhere = mkdtempSync(join(tmpdir(), "hs-reproduce-elsewhere-"));
+  const escapeTarget = join(elsewhere, "outside.md");
+
+  const { data } = readRecipe(recipePath);
+  data.output.path = escapeTarget;
+  writeRecipe(recipePath, data);
+
+  const withRestore = reproduce(recipePath, { restore: true });
+  assert.equal(withRestore.ok, false);
+  assert.equal(withRestore.restored, false);
+  const step = withRestore.steps.find((s) => s.ref === "output:file");
+  assert.equal(step.ok, false);
+  assert.equal(step.why, "output path escapes the recipe directory");
+  assert.equal(existsSync(escapeTarget), false, "restore must never write outside the recipe directory");
+});
+
+// ---- restore is atomic: no leftover temp file ----
+
+test("reproduce() with restore leaves no .tmp-* file behind", () => {
+  const dir = project();
+  const { recipePath, outputPath } = buildRecipe(dir);
+
+  writeFileSync(outputPath, "edited");
+  const result = reproduce(recipePath, { restore: true });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.restored, true);
+  const leftovers = readdirSync(dir).filter((f) => f.includes(".tmp-"));
+  assert.deepEqual(leftovers, []);
 });
 
 // ---- store resolution: explicit --store honored ----
