@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const TESTS = Object.freeze([
@@ -35,11 +35,22 @@ const list = (v) => (Array.isArray(v) ? v : []);
 const PLACEHOLDER = /^(null|~)$/is;
 const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
+// The versions of the format this linter knows. A spec naming any other may follow rules it
+// cannot check, so it is warned about rather than failed.
+export const KNOWN_VERSIONS = Object.freeze(["0.1"]);
+// "file", "other" (a directory or a device), or null when nothing is there.
+const kind = (p) => { try { return statSync(p).isFile() ? "file" : "other"; } catch { return null; } };
+const UNIQUE_IDS = "Ids must be unique across decisions and requirements; rename one.";
 
-export function lintSpec(spec, { exists = existsSync } = {}) {
+export function lintSpec(spec) {
   const d = spec.data || {};
   const out = [];
   const here = (p) => resolve(spec.dir || ".", p);
+
+  // The format version. Not one of the nine tests: a stranger resuming the spec (test 7) needs to
+  // know which standard it was written against, so an unknown one is a warning there.
+  const version = str(d.hyperspec);
+  if (!KNOWN_VERSIONS.includes(version)) out.push(f(7, "hyperspec-version", "warn", `hyperspec version "${version}" is not one this linter knows (${KNOWN_VERSIONS.join(", ")})`, "Set hyperspec: to a version this linter knows, or upgrade @supersuit/hyperspec."));
 
   // 1 and 4, decisions
   const decisions = list(d.decisions);
@@ -48,7 +59,7 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   decisions.forEach((x, i) => {
     const id = str(x?.id) || `#${i + 1}`;
     if (!str(x?.id)) out.push(f(1, "decision-id", "fail", `decision ${id} has no id`, "Give it a short id."));
-    else if (seen.has(id)) out.push(f(1, "decision-id", "fail", `decision id "${id}" is used twice`, "Make every id unique."));
+    else if (seen.has(id)) out.push(f(1, "decision-id", "fail", `decision id "${id}" is used twice`, UNIQUE_IDS));
     seen.add(id);
     const st = str(x?.state);
     if (!["decided", "delegated", "open"].includes(st)) out.push(f(1, "decision-state", "fail", `decision "${id}" has state "${st || "(none)"}"`, "Set state to decided, delegated or open."));
@@ -63,8 +74,17 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   // 2, 3 and 4, requirements
   const reqs = list(d.requirements);
   if (!reqs.length) out.push(f(2, "requirements", "fail", "no requirements are listed", "List what the finished work must meet under requirements:."));
+  // One id namespace across decisions and requirements: a recipe maps every id to its author, so
+  // a shared id would silently lose one of them. Reported under test 1.
+  const decisionIds = new Set(decisions.map((x) => str(x?.id)).filter(Boolean));
+  const reqSeen = new Set();
   reqs.forEach((r, i) => {
     const id = str(r?.id) || `#${i + 1}`;
+    if (str(r?.id)) {
+      if (reqSeen.has(id)) out.push(f(1, "requirement-id", "fail", `requirement id "${id}" is used twice`, UNIQUE_IDS));
+      else if (decisionIds.has(id)) out.push(f(1, "requirement-id", "fail", `id "${id}" is used by a decision and a requirement`, UNIQUE_IDS));
+      reqSeen.add(id);
+    }
     if (!str(r?.text)) out.push(f(2, "requirement-text", "fail", `requirement "${id}" has no text`, "Write the requirement."));
     const fw = str(r?.fails_when);
     if (!fw) out.push(f(2, "fails-when", "fail", `requirement "${id}" does not say what would show it failed`, "Add fails_when: something a person or a check could observe."));
@@ -89,7 +109,12 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   ex.forEach((e, i) => {
     const p = str(e?.path);
     if (!p) out.push(f(6, "example-path", "fail", `example ${i + 1} has no path`, "Add path: to the example."));
-    else if (!/^https?:\/\//.test(p) && !exists(here(p))) out.push(f(6, "example-missing", "fail", `example "${p}" does not exist`, "Fix the path, or add the example file."));
+    else if (!/^https?:\/\//.test(p)) {
+      const k = kind(here(p));
+      if (!k) out.push(f(6, "example-missing", "fail", `example "${p}" does not exist`, "Fix the path, or add the example file."));
+      else if (k !== "file") out.push(f(6, "example-not-file", "fail", `example "${p}" is not a file`, "Point path: at one example file, not a folder."));
+      else if (spec.path && here(p) === resolve(spec.path)) out.push(f(6, "example-self", "fail", `example "${p}" is this spec itself`, "Point at a real example of the work, not the spec that describes it."));
+    }
     if (!str(e?.why)) out.push(f(6, "example-why", "fail", `example ${p || i + 1} does not say why it is an example`, "Add why: what it shows that an adjective could not."));
   });
 
@@ -108,11 +133,13 @@ export function lintSpec(spec, { exists = existsSync } = {}) {
   const led = str(d.improvement?.ledger);
   if (!led) out.push(f(9, "ledger", "fail", "no improvement.ledger", "Name the file each run writes its verdict to."));
   else {
-    // A declared ledger not yet written is fine. One that exists must be a readable file.
+    // A declared ledger not yet written is a warning: the first run may create it. One that
+    // exists must be a readable file.
     let st = null;
     try { st = statSync(here(led)); } catch { /* not written yet */ }
     let text = null;
-    if (st && !st.isFile()) out.push(f(9, "ledger-not-file", "fail", `ledger path ${led} is not a file`, "Point improvement.ledger at a file, one JSON object per line."));
+    if (!st) out.push(f(9, "ledger-missing", "warn", `ledger ${led} does not exist yet`, "Create it as an empty file, so the first run has somewhere to write its verdict."));
+    else if (!st.isFile()) out.push(f(9, "ledger-not-file", "fail", `ledger path ${led} is not a file`, "Point improvement.ledger at a file, one JSON object per line."));
     else if (st) {
       try { text = readFileSync(here(led), "utf8"); } catch (e) { out.push(f(9, "ledger-unreadable", "fail", `ledger ${led} cannot be read (${e.code || e.message})`, "Make the ledger file readable.")); }
     }

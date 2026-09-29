@@ -4,12 +4,40 @@ import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
 import { score, exitCode } from "../src/score.mjs";
 import { template } from "../src/template.mjs";
+import { readRecipe, checkRecipe } from "../src/recipe.mjs";
+import { approve } from "../src/writer.mjs";
+import { reproduce } from "../src/reproduce.mjs";
+import { regenerate } from "../src/regenerate.mjs";
+import { compare } from "../src/compare.mjs";
 
 const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
+
+  recipe check <output-or-recipe> [--json]
+                               check a recipe's completeness (a path not ending .recipe.json
+                               means <path>.recipe.json)
+                               exit 0 ok (warns only), 1 no recipe found or a check failed,
+                               2 unreadable/invalid recipe JSON
+  recipe approve <recipe> --by <slug> [--json]
+                               set the recipe's approver, print remaining findings
+                               exit 0 once --by and the recipe are valid, 2 missing --by or
+                               unreadable recipe
+  reproduce <recipe> [--restore] [--store d] [--json]
+                               replay a recipe's hash checks against the blob store; never
+                               runs a model
+                               exit 0 reproduces cleanly, 1 a check failed, 2 unreadable recipe
+  regenerate <recipe> --out <path> --clicker <slug>
+             (--add-input n=p [--reads id]... | --swap-input n=p | --factory-version v)
+             [--run cmd] [--change text] [--store d] [--json]
+                               make a child recipe from a parent plus exactly one change
+                               exit 0 ok, 1 a stage failed or the child has failing verdicts,
+                               2 usage, 3 pending a runner
+  compare <child-recipe> --doctor cmd [--parent r] [--spec s] [--json]
+                               grade a child and its parent through one doctor against one spec
+                               exit 0 not regressed, 1 regressed, 2 usage or unreadable input
 
 Spec: SPEC.md`;
 
@@ -55,6 +83,255 @@ if (cmd === "lint") {
     for (const f of r.findings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
   }
   process.exit(worst);
+}
+
+// Generic flag/positional parser for the recipe verbs below. A value-taking flag (valueFlags,
+// repeatableFlags) never swallows a following --flag as its value (missing value is an error, not
+// a silent grab); a bool flag never eats the next token as a positional; any --flag not declared
+// for this verb is an error. This is the same discipline lint's own hand-rolled parser follows
+// above (a stray flag never swallows a file), generalized once repeated-flag verbs (regenerate's
+// --reads) and value flags (--out, --by, --doctor, ...) showed up.
+function parseArgs(args, { valueFlags = [], boolFlags = [], repeatableFlags = [] } = {}) {
+  const positionals = [];
+  const values = {};
+  for (const f of boolFlags) values[f] = false;
+  for (const f of repeatableFlags) values[f] = [];
+  let i = 0;
+  while (i < args.length) {
+    const a = args[i];
+    if (a.startsWith("--")) {
+      if (repeatableFlags.includes(a)) {
+        const v = args[i + 1];
+        if (v === undefined || v.startsWith("--")) return { error: `${a} needs a value` };
+        values[a].push(v);
+        i += 2;
+        continue;
+      }
+      if (valueFlags.includes(a)) {
+        const v = args[i + 1];
+        if (v === undefined || v.startsWith("--")) return { error: `${a} needs a value` };
+        values[a] = v;
+        i += 2;
+        continue;
+      }
+      if (boolFlags.includes(a)) { values[a] = true; i += 1; continue; }
+      return { error: `unknown flag: ${a}` };
+    }
+    positionals.push(a);
+    i += 1;
+  }
+  return { positionals, values };
+}
+
+// name=path, split on the FIRST =, so a path that itself contains = survives intact. A value with
+// no = is a usage error (exit 2).
+function namePath(flagName, raw) {
+  const eq = raw.indexOf("=");
+  if (eq === -1) { console.error(`${flagName} needs name=path`); process.exit(2); }
+  return { name: raw.slice(0, eq), path: raw.slice(eq + 1) };
+}
+
+function printFindings(findings) {
+  if (!findings.length) { console.log("ok"); return; }
+  for (const f of findings) console.log(`${f.severity === "fail" ? "fail" : "warn"} [${f.field}] ${f.message}`);
+}
+
+function printPlan(plan) {
+  for (const p of plan ?? []) console.log(`  ${p.id}: ${p.action}${p.reason ? ` (${p.reason})` : ""}`);
+}
+
+if (cmd === "recipe") {
+  const sub = argv[1];
+
+  if (sub === "check") {
+    const parsed = parseArgs(argv.slice(2), { boolFlags: ["--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [target] = parsed.positionals;
+    const json = parsed.values["--json"];
+    if (!target) { console.error("recipe check needs a recipe or output path"); process.exit(2); }
+    const recipePath = target.endsWith(".recipe.json") ? target : `${target}.recipe.json`;
+
+    if (!existsSync(recipePath)) {
+      const msg = `no recipe beside ${target}`;
+      if (json) console.log(JSON.stringify({ recipe: recipePath, error: msg }, null, 2));
+      else console.error(msg);
+      process.exit(1);
+    }
+
+    const loaded = readRecipe(recipePath);
+    if (loaded.error) {
+      if (json) console.log(JSON.stringify({ recipe: recipePath, error: loaded.error }, null, 2));
+      else console.error(loaded.error);
+      process.exit(2);
+    }
+
+    const findings = checkRecipe(loaded.data);
+    const hasFail = findings.some((f) => f.severity === "fail");
+    if (json) console.log(JSON.stringify({ recipe: recipePath, findings }, null, 2));
+    else { console.log(`${recipePath}:`); printFindings(findings); }
+    process.exit(hasFail ? 1 : 0);
+  }
+
+  if (sub === "approve") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--by"], boolFlags: ["--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [recipePath] = parsed.positionals;
+    const json = parsed.values["--json"];
+    if (!recipePath) { console.error("recipe approve needs a recipe path"); process.exit(2); }
+    if (!parsed.values["--by"]) { console.error("recipe approve needs --by <slug>"); process.exit(2); }
+
+    let findings;
+    try {
+      findings = approve(recipePath, parsed.values["--by"]);
+    } catch (e) {
+      if (json) console.log(JSON.stringify({ recipe: recipePath, error: e.message }, null, 2));
+      else console.error(e.message);
+      process.exit(2);
+    }
+
+    if (json) console.log(JSON.stringify({ recipe: recipePath, approver: parsed.values["--by"], findings }, null, 2));
+    else { console.log(`${recipePath}: approver set to ${parsed.values["--by"]}`); printFindings(findings); }
+    process.exit(0);
+  }
+
+  console.error(`unknown recipe subcommand: ${sub}\n\n${HELP}`);
+  process.exit(2);
+}
+
+if (cmd === "reproduce") {
+  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--store"], boolFlags: ["--restore", "--json"] });
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [recipePath] = parsed.positionals;
+  const json = parsed.values["--json"];
+  if (!recipePath) { console.error("reproduce needs a recipe path"); process.exit(2); }
+
+  const result = reproduce(recipePath, { store: parsed.values["--store"], restore: parsed.values["--restore"] });
+  if (json) console.log(JSON.stringify(result, null, 2));
+
+  if (result.error) {
+    if (!json) console.error(result.error);
+    process.exit(2);
+  }
+  if (!result.ok) {
+    if (!json) {
+      console.error(`first mismatch: ${result.firstMismatch}`);
+      for (const step of result.steps) console.log(`  ${step.ok ? "ok  " : "FAIL"} ${step.ref}${step.why ? `: ${step.why}` : ""}`);
+      if (result.restored) console.log("restored the output file from its blob");
+    }
+    process.exit(1);
+  }
+  if (!json) {
+    for (const step of result.steps) console.log(`  ok   ${step.ref}`);
+    if (result.restored) console.log("restored the output file from its blob");
+    console.log("reproduces cleanly");
+  }
+  process.exit(0);
+}
+
+if (cmd === "regenerate") {
+  const parsed = parseArgs(argv.slice(1), {
+    valueFlags: ["--out", "--clicker", "--add-input", "--swap-input", "--factory-version", "--run", "--change", "--store"],
+    boolFlags: ["--json"],
+    repeatableFlags: ["--reads"],
+  });
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [recipePath] = parsed.positionals;
+  const json = parsed.values["--json"];
+  if (!recipePath) { console.error("regenerate needs a parent recipe path"); process.exit(2); }
+  if (parsed.values["--reads"].length && parsed.values["--add-input"] === undefined) {
+    console.error("--reads is only valid with --add-input");
+    process.exit(2);
+  }
+
+  const change = {};
+  if (parsed.values["--add-input"] !== undefined) {
+    const pair = namePath("--add-input", parsed.values["--add-input"]);
+    change.addInput = { ...pair, reads: parsed.values["--reads"] };
+  }
+  if (parsed.values["--swap-input"] !== undefined) {
+    change.swapInput = namePath("--swap-input", parsed.values["--swap-input"]);
+  }
+  if (parsed.values["--factory-version"] !== undefined) change.factoryVersion = parsed.values["--factory-version"];
+
+  const result = regenerate(recipePath, {
+    out: parsed.values["--out"],
+    clicker: parsed.values["--clicker"],
+    change,
+    run: parsed.values["--run"],
+    changeText: parsed.values["--change"],
+    store: parsed.values["--store"],
+  });
+  if (json) console.log(JSON.stringify(result, null, 2));
+
+  if (result.usage) {
+    if (!json) console.error(result.error);
+    process.exit(2);
+  }
+  if (!result.ok) {
+    if (!json) {
+      console.error(result.failedStage ? `stage ${result.failedStage} failed: ${result.error}` : result.error);
+      if (result.plan?.length) printPlan(result.plan);
+    }
+    process.exit(1);
+  }
+  if (result.pending) {
+    if (!json) {
+      const waiting = result.plan.filter((p) => p.action === "rerun").map((p) => p.id);
+      console.log(`pending; stages waiting for a runner: ${waiting.join(", ") || "(none)"}`);
+      printPlan(result.plan);
+      console.log(`child recipe: ${result.childRecipe}`);
+      console.log("a pending child cannot be finished in place yet; to produce the output, rerun regenerate on the parent with --run <command> and a new --out");
+    }
+    process.exit(3);
+  }
+  if (result.failedVerdicts?.length) {
+    if (!json) {
+      console.log(`child written despite failing verdict(s): ${result.failedVerdicts.join(", ")}`);
+      printPlan(result.plan);
+      console.log(`child recipe: ${result.childRecipe}`);
+      console.log(`output: ${result.output}`);
+    }
+    process.exit(1);
+  }
+  if (!json) {
+    printPlan(result.plan);
+    console.log(`child recipe: ${result.childRecipe}`);
+    console.log(`output: ${result.output}`);
+  }
+  process.exit(0);
+}
+
+if (cmd === "compare") {
+  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--doctor", "--parent", "--spec"], boolFlags: ["--json"] });
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [childRecipePath] = parsed.positionals;
+  const json = parsed.values["--json"];
+  if (!childRecipePath) { console.error("compare needs a child recipe path"); process.exit(2); }
+
+  const result = compare(childRecipePath, {
+    doctor: parsed.values["--doctor"],
+    parent: parsed.values["--parent"],
+    spec: parsed.values["--spec"],
+  });
+  if (json) console.log(JSON.stringify(result, null, 2));
+
+  // Both a usage error and a check-failed error (missing output, escaping path, ...) map to
+  // 2 here — compare's own ok:false without a usage flag is still "could not grade", i.e. an
+  // unreadable-input class failure, not a graded-but-worse-1 class one.
+  if (!result.ok) {
+    if (!json) console.error(result.error);
+    process.exit(2);
+  }
+  if (!json) {
+    for (const w of result.warnings) console.log(`warn: ${w}`);
+    if (result.ledger) console.log(`ledger: ${result.ledger}`);
+  }
+  if (result.regressed) {
+    if (!json) console.log(`regression: child scored ${result.child.score} vs parent ${result.parent.score}; suspect: ${result.suspect ?? "unknown"}`);
+    process.exit(1);
+  }
+  if (!json) console.log(`child scored ${result.child.score} vs parent ${result.parent.score} (delta ${result.delta})`);
+  process.exit(0);
 }
 
 console.error(`unknown command: ${cmd}\n\n${HELP}`);
