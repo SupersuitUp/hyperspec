@@ -74,7 +74,7 @@ examples:
   - path: essay/goldens/opening.md
     why: the claim lands in the first sentence, and the second sentence turns it into an instruction
 resume:
-  next_action: mark the three materials into labeled segments, then outline the four spine claims against the form's required parts
+  next_action: outline the four spine claims against the form's required parts, citing the segments each claim points at
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes
@@ -85,24 +85,27 @@ writing:
     items:
       - id: voice-memo
         path: essay/materials/voice-memo.md
+        segments: essay/materials/voice-memo.md.segments.jsonl
         produced_by: example-author
         captured: "2026-09-12"
         how: voice memo, transcribed
         trust: raw
       - id: interview
         path: essay/materials/interview-notes.md
+        segments: essay/materials/interview-notes.md.segments.jsonl
         produced_by: example-author
         captured: "2026-09-15"
         how: notes taken during a call, reviewed by the person interviewed
         trust: considered
       - id: survey
         path: essay/materials/team-survey.md
+        segments: essay/materials/team-survey.md.segments.jsonl
         produced_by: example-author
         captured: "2026-05-30"
         how: survey summary, figures checked against the raw export by a second person
         trust: verified
     check:
-      station: every segment of every material carries a label from the closed set
+      station: every segment of every material carries a label from the closed set, matches its source verbatim, and the markings are current
     source: capture step
     author: agent:claude
   dna:
@@ -186,16 +189,16 @@ writing:
     claims:
       - id: c1
         text: the first one-on-one is the one meeting where the report should set the agenda
-        materials: [voice-memo, interview]
+        materials: [voice-memo#s3, interview#s3]
       - id: c2
         text: status belongs in the tracker, and a one-on-one spent on it teaches the manager nothing new
-        materials: [voice-memo, survey]
+        materials: [voice-memo#s2, voice-memo#s5, survey#s4]
       - id: c3
         text: three questions are enough to hand the meeting over
-        materials: [voice-memo]
+        materials: [voice-memo#s4]
       - id: c4
         text: the answer worth having comes after a silence the manager does not fill
-        materials: [interview]
+        materials: [interview#s7, interview#s8]
     check:
       rubric: each claim lands, in order, and the draft argues nothing outside the chain
     source: spine interview

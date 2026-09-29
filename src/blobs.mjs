@@ -41,7 +41,7 @@ export function blobPath(root, hex) {
 // Atomic: bytes land in a temp file in the same directory first, then a single renameSync
 // (atomic on one filesystem) puts them at the final path. A process killed mid-write leaves
 // only the orphaned temp file, never a partially-written file sitting at the content-addressed
-// path — the failure mode a plain writeFileSync(path, bytes) would otherwise leave behind, and
+// path. That is the failure mode a plain writeFileSync(path, bytes) would otherwise leave behind, and
 // which nothing short of an explicit verifyBlob would ever catch afterward.
 export function putBlob(root, bytes) {
   const hex = sha256(bytes);

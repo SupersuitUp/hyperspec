@@ -18,10 +18,10 @@ const f = (test, id, severity, message, fix) => ({ test, id, severity, message, 
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
 
-// The closed vocabulary a later version will enforce on every segment of a material file. This
-// version does not read segment files; the export exists so the vocabulary is defined once, here,
-// rather than copied into whatever later reads it.
-export const MATERIAL_LABELS = Object.freeze(["claim", "story", "quote", "stance", "question", "aside", "private"]);
+// The closed vocabulary every segment of a material is labeled from. Defined once, in the leaf
+// module src/labels.mjs (see there for why it is not defined here), and re-exported so existing
+// imports from this file keep working.
+export { MATERIAL_LABELS } from "./labels.mjs";
 
 // The nine writing blocks, in schema order. "characters" is the one block that is not always
 // required: it is required only when fiction: true, everywhere else in this file and in

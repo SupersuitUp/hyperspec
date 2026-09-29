@@ -2,7 +2,7 @@ import { renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { relative, resolve, sep } from "node:path";
 
-// True when `target`, resolved against `dir`, stays inside `dir` — refuses a `..`-escape and an
+// True when `target`, resolved against `dir`, stays inside `dir`. It refuses a `..`-escape and an
 // absolute path pointing elsewhere. Both a relative `target` (including one that climbs out via
 // `../`) and an already-absolute `target` are handled the same way, since `path.resolve(dir,
 // target)` already treats an absolute second argument as overriding the first: either way, the

@@ -14,6 +14,12 @@
 // block. Without that rule the character block, whose checks are all presence checks, would lint
 // clean the moment init wrote it.
 //
+// Two values are not placeholders. The material item's segments: names the file `hyperspec
+// segments init materials/TODO.md` would write, so it follows the path placeholder beside it and
+// fails as a segments file that does not exist yet (every material must be marked). And the
+// materials check.station is the marking station itself, since that check is the same for every
+// writing spec: the linter enforces it, and there is nothing for the operator to decide there.
+//
 // init with no --profile never imports or calls this file: template.mjs's own template() is
 // untouched, so a bare init is still byte-for-byte what it always was.
 import { scalar } from "./template.mjs";
@@ -93,12 +99,13 @@ writing:
     items:
       - id: m1
         path: materials/TODO.md
+        segments: materials/TODO.md.segments.jsonl
         produced_by: TODO
         captured: TODO
         how: TODO
         trust: TODO
     check:
-      station: TODO
+      station: every segment of every material carries a label from the closed set, matches its source verbatim, and the markings are current
     source: TODO
     author: TODO
   dna:

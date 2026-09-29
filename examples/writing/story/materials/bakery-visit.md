@@ -6,3 +6,4 @@ Considered: the owner read these notes and corrected the proofing times.
 - The doors open to customers at 7:00. The first person in is usually a regular.
 - The owner does not talk while shaping. Talking happens at the mixer and at the till.
 - Flour is weighed, never scooped. Water temperature is checked every batch.
+- Said in confidence, not for the story: the lease ends next spring, and she has not told her staff.

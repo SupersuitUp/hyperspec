@@ -1,0 +1,13 @@
+{"material":"bakery-visit","path":"story/materials/bakery-visit.md","sha256":"5eb09f7c0ad8836378c549392d939f0b070669e972c9e4d94e1f81f27465a19b"}
+{"id":"s1","start":0,"end":90,"label":"aside","text":"Notes from a morning spent at a working bakery, 3:30 to 7:30, with the owner's permission."}
+{"id":"s2","start":91,"end":163,"label":"aside","text":"Considered: the owner read these notes and corrected the proofing times."}
+{"id":"s3","start":165,"end":185,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"- First mix at 3:45."}
+{"id":"s4","start":186,"end":255,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"Rye sourdough proofs about three hours at room temperature in winter."}
+{"id":"s5","start":256,"end":346,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"- Trays are turned halfway through the bake because the back left of a deck oven runs hot."}
+{"id":"s6","start":347,"end":385,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"- The doors open to customers at 7:00."}
+{"id":"s7","start":386,"end":427,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"The first person in is usually a regular."}
+{"id":"s8","start":428,"end":468,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"- The owner does not talk while shaping."}
+{"id":"s9","start":469,"end":514,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"Talking happens at the mixer and at the till."}
+{"id":"s10","start":515,"end":549,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"- Flour is weighed, never scooped."}
+{"id":"s11","start":550,"end":591,"label":"claim","source":"a morning observed at a working bakery, notes corrected by the owner","text":"Water temperature is checked every batch."}
+{"id":"s12","start":592,"end":692,"label":"private","text":"- Said in confidence, not for the story: the lease ends next spring, and she has not told her staff."}

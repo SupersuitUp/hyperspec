@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, readFileSync, cpSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, cpSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -263,6 +263,7 @@ test("materials: two items sharing an id fail test 1", () => {
       "        trust: raw",
       "      - id: m1",
       "        path: materials/call-2026-09-28.md",
+      "        segments: materials/call-2026-09-28.md.segments.jsonl",
       "        produced_by: gary-sheng",
       '        captured: "2026-09-28"',
       "        how: voice memo transcript",
@@ -466,6 +467,181 @@ test("spine: a claim materials ref with a #segment still resolves against the ma
     "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#claim-2]\n",
   ));
   assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-spine")), []);
+});
+
+// =============================================================================================
+// Task 2: readSegments wired into lint (src/writing-fields.mjs). The valid fixture's m1 material
+// now carries a real, fully labeled segments file (materials/call-2026-09-28.md.segments.jsonl:
+// s1 "aside", claim-2 "claim" with own: true). These tests break exactly the item's segments:
+// field, the segments file itself, or a spine ref, the same way the rest of this suite breaks
+// exactly one thing at a time.
+// =============================================================================================
+
+const SEGMENTS_FILE = join("materials", "call-2026-09-28.md.segments.jsonl");
+
+// Like variant(), but also lets the real segments file be rewritten in the temp copy, for tests
+// that need to break a segment's own label or shape rather than the spec.md item that points at it.
+function segmentsVariant(specEdit, segmentsEdit) {
+  const d = tempDir("hs-writing-segs-");
+  cpSync(VALID, d, { recursive: true });
+  const specPath = join(d, "spec.md");
+  if (specEdit) writeFileSync(specPath, specEdit(readFileSync(specPath, "utf8")));
+  const segPath = join(d, SEGMENTS_FILE);
+  if (segmentsEdit) writeFileSync(segPath, segmentsEdit(readFileSync(segPath, "utf8")));
+  return loadSpec(specPath);
+}
+
+test("materials: an item with no segments field fails test 1 as writing-materials-unmarked, naming the material and hyperspec segments init", () => {
+  const s = variant((t) => t.replace("        segments: materials/call-2026-09-28.md.segments.jsonl\n", ""));
+  const found = fails(s).find((x) => x.id === "writing-materials-unmarked");
+  assert.ok(found, JSON.stringify(fails(s)));
+  assert.equal(found.test, 1);
+  assert.match(found.message, /\bm1\b/);
+  assert.match(found.fix, /hyperspec segments init/);
+});
+
+test("materials: a still-unlabeled segment in the real segments file surfaces as a materials finding, and the block is not complete", () => {
+  const s = segmentsVariant(null, (t) => t.replace('"label":"aside"', '"label":"unlabeled"'));
+  const f = fails(s);
+  assert.ok(f.some((x) => x.id === "writing-materials-label-s1" && x.test === 1), JSON.stringify(f));
+  const sc = score(lintSpec(s), s.data);
+  assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
+});
+
+test("spine: a bare material ref (no #segment) stays valid even when the material is unmarked", () => {
+  const s = variant((t) => t.replace("        segments: materials/call-2026-09-28.md.segments.jsonl\n", ""));
+  const f = fails(s);
+  assert.deepEqual(f.filter((x) => x.id.startsWith("writing-spine")), []);
+  assert.ok(f.some((x) => x.id === "writing-materials-unmarked"));
+});
+
+test("spine: a materials ref naming a segment id that does not exist in the real segments file fails test 4", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s9]\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials-segment-unknown"]]);
+});
+
+test("spine: a materials ref with an empty segment id (m1#) fails test 4 as an unknown segment, never passing as a bare ref", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#]\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials-segment-unknown"]]);
+});
+
+test("spine: m1# never resolves to a segment that has no id of its own", () => {
+  const s = segmentsVariant(
+    (t) => t.replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#]\n",
+    ),
+    (t) => t.replace('{"id":"s1",', "{"),
+  );
+  assert.ok(fails(s).some((x) => x.id === "writing-spine-claim-0-materials-segment-unknown"), JSON.stringify(fails(s).map((x) => x.id)));
+});
+
+test("materials: marking findings print paths as the spec gives them, never the absolute folder the spec sits in", () => {
+  const d = tempDir("hs-writing-relpaths-");
+  cpSync(VALID, d, { recursive: true });
+  const segPath = join(d, SEGMENTS_FILE);
+  // Break it every way that names a path: a malformed segment line, a changed material (stale,
+  // verbatim, coverage), and a second material whose segments file does not exist.
+  writeFileSync(segPath, `${readFileSync(segPath, "utf8")}not json\n`);
+  const materialPath = join(d, "materials", "call-2026-09-28.md");
+  writeFileSync(materialPath, `${readFileSync(materialPath, "utf8")}\nAn added line nobody marked.\n`);
+  const specPath = join(d, "spec.md");
+  const spec = readFileSync(specPath, "utf8");
+  const m1 = spec.slice(spec.indexOf("      - id: m1\n"), spec.indexOf("    check:", spec.indexOf("      - id: m1\n")));
+  const m2 = m1.replace("id: m1", "id: m2").replace("segments: materials/call-2026-09-28.md.segments.jsonl", "segments: materials/nope.segments.jsonl");
+  writeFileSync(specPath, spec.replace(m1, m1 + m2));
+  const all = lintSpec(loadSpec(specPath)).filter((x) => x.id.startsWith("writing-materials-"));
+  const idsSeen = all.map((x) => x.id);
+  for (const id of ["writing-materials-json-line-4", "writing-materials-stale", "writing-materials-coverage", "writing-materials-segments-missing"]) {
+    assert.ok(idsSeen.includes(id), `${id} in ${JSON.stringify(idsSeen)}`);
+  }
+  const real = realpathSync(d);
+  for (const x of all) {
+    assert.ok(!x.message.includes(d) && !x.message.includes(real), x.message);
+    assert.ok(!x.fix.includes(d) && !x.fix.includes(real), x.fix);
+  }
+  assert.ok(all.some((x) => x.message.includes('"materials/call-2026-09-28.md.segments.jsonl"')), JSON.stringify(all.map((x) => x.message)));
+  assert.ok(all.some((x) => x.message.includes('"materials/nope.segments.jsonl"')));
+  assert.ok(all.some((x) => x.message.includes('"materials/call-2026-09-28.md"')));
+});
+
+test("spine: a materials ref to a segment labeled private fails test 5, naming private", () => {
+  const s = segmentsVariant(
+    (t) => t.replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s1]\n",
+    ),
+    (t) => t.replace('"label":"aside"', '"label":"private"'),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-spine-claim-0-materials-segment-private"]]);
+  assert.match(f[0].message, /private/);
+});
+
+test("spine: a materials ref to a segment labeled question fails test 5, naming question", () => {
+  const s = segmentsVariant(
+    (t) => t.replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s1]\n",
+    ),
+    (t) => t.replace('"label":"aside"', '"label":"question"'),
+  );
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[5, "writing-spine-claim-0-materials-segment-question"]]);
+  assert.match(f[0].message, /question/);
+});
+
+test("spine: two claims referencing the same unmarked material's segments report the unresolvable ref once, not once per ref", () => {
+  const s = variant((t) => t
+    .replace("        segments: materials/call-2026-09-28.md.segments.jsonl\n", "")
+    .replace(
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+      "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s1]\n",
+    )
+    .replace(
+      "      - id: c2\n        text: the nine tests generalize to a profile without adding a tenth\n        materials: [m1]\n",
+      "      - id: c2\n        text: the nine tests generalize to a profile without adding a tenth\n        materials: [m1#s2]\n",
+    ));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-materials-unmarked", "writing-spine-materials-segments-unresolvable-m1"]);
+});
+
+// The unresolvable-segments spine finding names WHY the refs could not be resolved, since the three
+// causes need three different fixes: no segments: field at all, a segments file that could not be
+// read, and a segments file that was read but holds no segment lines.
+const C1_BARE = "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n";
+const C1_SEG = "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s1]\n";
+const unresolvable = (s) => lintSpec(s).find((x) => x.id === "writing-spine-materials-segments-unresolvable-m1");
+
+test("spine: an unresolvable-segments finding for an unmarked material says it is not marked", () => {
+  const s = variant((t) => t.replace("        segments: materials/call-2026-09-28.md.segments.jsonl\n", "").replace(C1_BARE, C1_SEG));
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /not marked/);
+  assert.doesNotMatch(u.message, /could not be read|has no segments/);
+});
+
+test("spine: an unresolvable-segments finding for a segments file that does not exist says it could not be read", () => {
+  const s = variant((t) => t
+    .replace("segments: materials/call-2026-09-28.md.segments.jsonl", "segments: materials/nowhere.segments.jsonl")
+    .replace(C1_BARE, C1_SEG));
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /could not be read/);
+});
+
+test("spine: an unresolvable-segments finding for a segments file with a header and no segment lines says it has no segments, not that it could not be read", () => {
+  const s = segmentsVariant((t) => t.replace(C1_BARE, C1_SEG), (t) => `${t.split("\n")[0]}\n`);
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /has no segments/);
+  assert.doesNotMatch(u.message, /could not be read/);
 });
 
 test("sources: unsourced_claim outside fail/warn fails test 1", () => {
@@ -784,12 +960,14 @@ test("materials: three items sharing an id produce exactly one duplicate finding
       "        trust: raw",
       "      - id: m1",
       "        path: materials/call-2026-09-28.md",
+      "        segments: materials/call-2026-09-28.md.segments.jsonl",
       "        produced_by: gary-sheng",
       '        captured: "2026-09-28"',
       "        how: voice memo transcript",
       "        trust: raw",
       "      - id: m1",
       "        path: materials/call-2026-09-28.md",
+      "        segments: materials/call-2026-09-28.md.segments.jsonl",
       "        produced_by: gary-sheng",
       '        captured: "2026-09-28"',
       "        how: voice memo transcript",

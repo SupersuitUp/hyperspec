@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.4.0 (2026-09-29)
+
+Marking materials. Before a writing spec can pass, every material it draws on (a brain dump, a
+transcript, a set of interview notes) is split into segments, and each segment is labeled with
+what a draft may use it as: a claim with its source, the author's own claim, a story with its
+teller, a quote with its speaker, a stance, an open question, an aside, or something private.
+The spine then cites segments rather than whole files, so every claim points at the exact words
+behind it. hyperspec splits and checks; an agent or a person labels. It still calls no model.
+
+**Behavior change for 0.3 writing specs:** a writing spec's materials must now be marked. A
+material item with no `segments:` field fails test 1, so a writing spec that passed 0.3.0 fails
+until each of its materials has a segments file, written with `hyperspec segments init` and
+labeled. Specs with no profile are unaffected.
+
+- `hyperspec segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]`
+  writes `<material>.segments.jsonl`: a header naming the material, its path and the SHA-256 of
+  its bytes, then one line per segment with character offsets, the verbatim text, and the label
+  `unlabeled`. Paragraph mode is the default. It refuses to overwrite a file, and exits 2 with a
+  plain message on a missing material, a material with nothing in it, an `--out` folder that
+  does not exist, or an unknown `--by`.
+- In sentence mode, a new line that opens on a list marker (`-`, `*`, `+`, or a number followed
+  by `.` or `)`, then a space) starts a new segment, and a numbered item's own `1.` is not read
+  as a sentence ending. A bullet that is entirely a quotation ending in `."` used to run into the
+  next bullet; it now stands on its own. Paragraph mode is unchanged.
+- Seven labels, a closed set: `claim` (needs `source`, or `own: true`), `story` (needs
+  `teller`), `quote` (needs `speaker`), `stance`, `question`, `aside` and `private`. `unlabeled`
+  is never accepted. A placeholder word (`TODO`, `n/a`, `tbd`, `...`, `???` and the rest) counts
+  as missing in these fields, in the header, and in segment ids, as it does everywhere else in
+  the linter.
+- What `lint` checks on each segments file, under test 1: the file exists and parses, its header
+  names the right material, every label is from the set, ids are unique, and segments never
+  overlap and cover every character that is not whitespace (the finding quotes the first
+  uncovered text and gives its offset), and the material has some text to mark. Under test 4: every segment's text
+  matches the material word for word, each label carries the field it needs, and the material
+  has not changed since it was marked (its SHA-256 still matches). A changed material fails as
+  stale until it is marked again.
+- A spine claim may cite `material#segment`. The segment must exist (test 4), and citing a
+  `private` or `question` segment fails test 5. A bare material id still cites the whole
+  material; `material#` with nothing after the `#` fails as an unknown segment.
+- Every marking finding id starts `writing-materials-` or `writing-spine-`, and every message
+  names the material, and the segment where there is one. Paths in messages read as the spec
+  wrote them, never resolved to a folder on your machine, so `--json` output is the same
+  everywhere. WRITING.md lists every finding with its test.
+- A new export, `@supersuit/hyperspec/writing`, gives your own tools `MATERIAL_LABELS` and
+  `readSegments`, the same parse-and-check lint runs. `readSegments` returns
+  `{ header, segments, findings }` and never throws; `displayPath` and `materialDisplayPath` set
+  how the files are named in its messages.
+- `hyperspec init --profile writing` names a segments file for its placeholder material, and the
+  materials check reads "every segment of every material carries a label from the closed set,
+  matches its source verbatim, and the markings are current".
+- Both writing examples ship with every material marked. Between them they use all seven labels,
+  and every spine claim cites segments.
+- WRITING.md gains a Marking materials section: the file format with a worked sample, the labels
+  and what each needs, coverage, staleness (including a line-ending conversion, which changes the
+  hash), citing segments, every finding with its test, and the import. README and SPEC.md point
+  at it.
+- The repository's `.gitattributes` keeps example materials and test fixtures LF on every
+  checkout, so the hashes their segments files pin still match on a Windows clone.
+
 ## 0.3.0 (2026-09-29)
 
 The writing profile. A piece of writing can now carry a hyperspec that names everything an

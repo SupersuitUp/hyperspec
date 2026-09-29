@@ -45,6 +45,8 @@ test("init --profile <unknown> is a usage error (exit 2) naming the known profil
 // check on its own; dna/persona/audience/goal additionally each carry an open decision naming the
 // real judgment call the operator has to make, but that decision is not what makes the spec fail
 // — the placeholder content already does, the same as materials/form/spine/sources.
+// Two fields are real on purpose: the material item's segments: path (it names a segments file
+// that does not exist yet, so the item fails as not marked) and the materials check.station.
 //
 // The skeleton always exits 1 (fail), never 3 (blocked): resume/feedback/rejects/examples/
 // requirements are left exactly as template.mjs's own base skeleton leaves them (empty, or blank
@@ -80,6 +82,8 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
   }
   // A sample of the specific, real rules each placeholder trips (not merely "something failed"):
   assert.ok(ids.includes("writing-materials-item-0-path-missing"), "materials path placeholder must not exist");
+  assert.ok(ids.includes("writing-materials-segments-missing"), "the material's segments placeholder must not exist, so the item reads as not marked");
+  assert.ok(!ids.includes("writing-materials-unmarked"), "the item carries a segments: field, so it is never reported as having none");
   assert.ok(ids.includes("writing-dna-writer"), "dna.writer placeholder must be blank");
   assert.ok(ids.includes("writing-persona-facts-from"), "persona.facts_from placeholder must fail closed-set");
   assert.ok(ids.includes("writing-audience-reader"), "audience.reader placeholder must fail closed-set");
@@ -91,6 +95,15 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
 
 // ---------------------------------------------------------------------------------------------
 // --form sets both the kind: line and writing.form.name; default is essay.
+
+test("the skeleton's material placeholder names a segments file beside it, and its check is the marking station", () => {
+  const p = join(tempDir("hs-init-writing-"), "spec.md");
+  run("init", p, "--profile", "writing");
+  const materials = loadSpec(p).data.writing.materials;
+  assert.equal(materials.items[0].path, "materials/TODO.md");
+  assert.equal(materials.items[0].segments, "materials/TODO.md.segments.jsonl");
+  assert.equal(materials.check.station, "every segment of every material carries a label from the closed set, matches its source verbatim, and the markings are current");
+});
 
 test("--form sets both kind: and writing.form.name; the default is essay", () => {
   const p1 = join(tempDir("hs-init-writing-"), "spec.md");
@@ -178,13 +191,15 @@ function dottedKeys(value, prefix = "") {
   return [prefix];
 }
 
-test("the skeleton's eight required blocks each have exactly the fixture's keys: none extra, none missing", () => {
+test("the skeleton's eight required blocks each have exactly the fixture's keys: none extra, none missing", async (t) => {
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   run("init", p, "--profile", "writing");
   const skeleton = loadSpec(p).data.writing;
   const fixture = loadSpec(WRITING_VALID).data.writing;
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
-    assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
+    await t.test(block, () => {
+      assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
+    });
   }
 });
 

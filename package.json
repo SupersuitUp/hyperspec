@@ -1,6 +1,6 @@
 {
   "name": "@supersuit/hyperspec",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A hyperspec is a spec written for an agent: every decision accounted for, every requirement failable and checked, every field traced. The standard and its linter.",
   "type": "module",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "exports": {
     "./recipe": "./src/writer.mjs",
+    "./writing": "./src/writing-exports.mjs",
     "./package.json": "./package.json"
   },
   "files": [

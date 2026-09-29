@@ -1,0 +1,6 @@
+{"material":"survey","path":"essay/materials/team-survey.md","sha256":"ae2c821b1731ad02eb3280c28872aa9d2163728b868f262554d0cbfd3da19b97"}
+{"id":"s1","start":0,"end":139,"label":"aside","text":"Summary of an internal survey the author's team ran in the spring, 41 responses, figures checked\nagainst the raw export by a second person."}
+{"id":"s2","start":140,"end":149,"label":"aside","text":"Verified."}
+{"id":"s3","start":151,"end":261,"label":"claim","source":"team survey, spring, 41 responses, figures checked against the raw export","text":"- 29 of 41 said their most useful one-on-one in the last quarter was one where they brought the\n  first topic."}
+{"id":"s4","start":262,"end":358,"label":"claim","source":"team survey, spring, 41 responses, figures checked against the raw export","text":"- 11 of 41 said at least one of their one-on-ones in the last quarter was mostly project status."}
+{"id":"s5","start":359,"end":449,"label":"claim","source":"team survey, spring, 41 responses, figures checked against the raw export","text":"- The most common free-text request, in 9 responses: \"ask me what I want to work on next.\""}

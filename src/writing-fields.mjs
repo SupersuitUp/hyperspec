@@ -20,11 +20,12 @@
 
 import { statSync } from "node:fs";
 import { str } from "./placeholder.mjs";
+import { readSegments } from "./segments.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
-// "file", "other" (a directory or a device), or null when nothing is there at all — the same
+// "file", "other" (a directory or a device), or null when nothing is there at all. This is the same
 // three-way classification the core examples rule uses (src/rules.mjs's kind()), so a real
 // directory is reported as "is not a file" rather than the misleading "does not exist".
 const pathKind = (here, p) => { try { return statSync(here(p)).isFile() ? "file" : "other"; } catch { return null; } };
@@ -72,9 +73,61 @@ function materialsFields(raw, d, here, idPrefix) {
     const p = str(it?.path);
     if (!p) out.push(f(1, `${idPrefix}-item-${i}-path`, "fail", `material ${tag} has no path`, "Add path: to the material."));
     else out.push(...pathFindings(here, p, `${idPrefix}-item-${i}-path`, "material", "Fix the path, or add the material file."));
+
+    // Marking is required from 0.4 on. A material item with no segments: field is not
+    // marked at all (the design puts marking before specifying), so it fails on its own, distinct
+    // from the segments file existing but being broken (readSegments' own findings below). The
+    // material's text-dependent checks (verbatim, coverage, overlap, staleness) only run when the
+    // path itself already resolved to a real file, so a broken path is never reported twice: once
+    // here for the path field and again for the material readSegments could not read.
+    const segPath = str(it?.segments);
+    if (!segPath) {
+      out.push(f(1, "writing-materials-unmarked", "fail",
+        `material ${tag} is not marked (no segments field)`,
+        "Run `hyperspec segments init <material> --id <id>`, then add segments: to the material item."));
+    } else {
+      const { findings: segFindings } = readSegments(here(segPath), { materialPath: materialFilePath(it, here), materialId: id || undefined, ...shownPaths(it, segPath) });
+      out.push(...segFindings);
+    }
   });
   return out;
 }
+
+// The material file readSegments checks segment text against, or undefined when the item's own
+// path is missing or is not a file. That broken path is already reported by pathFindings (test 6);
+// passing it on would make readSegments report the same root cause a second time, under test 1.
+// materialsFields and resolveMaterialSegments both resolve through here, so they cannot disagree.
+function materialFilePath(item, here) {
+  const p = str(item?.path);
+  return p && pathKind(here, p) === "file" ? here(p) : undefined;
+}
+
+// The paths readSegments' messages print: exactly as the spec wrote them, the way every other path
+// finding in the linter reads, never resolved against the spec's folder. A finding pasted into a
+// public issue then names no one's home folder, and --json is the same on every machine.
+function shownPaths(item, segPath) {
+  return { displayPath: segPath, materialDisplayPath: str(item?.path) || undefined };
+}
+
+// Resolves ONE material item's segments (for spine ref resolution below). Never pushes
+// readSegments' own findings: those are already reported once, by materialsFields, under the
+// materials block; this is read-only lookup. When nothing resolves, `why` says which of the three
+// causes it was, because each needs a different fix: "unmarked" (no segments: field), "unreadable"
+// (the segments file does not exist or cannot be read) or "empty" (read, but no segment lines).
+function resolveMaterialSegments(item, here) {
+  const segPath = str(item?.segments);
+  if (!segPath) return { segments: [], loaded: false, why: "unmarked" };
+  const { segments, findings } = readSegments(here(segPath), { materialPath: materialFilePath(item, here), materialId: str(item?.id) || undefined, ...shownPaths(item, segPath) });
+  if (segments.length > 0) return { segments, loaded: true };
+  const unreadable = findings.some((x) => x.id === "writing-materials-segments-missing");
+  return { segments, loaded: false, why: unreadable ? "unreadable" : "empty" };
+}
+
+const UNRESOLVABLE_BECAUSE = {
+  unmarked: "it is not marked (no segments field)",
+  unreadable: "its segments file could not be read",
+  empty: "its segments file has no segments",
+};
 
 // ---------------------------------------------------------------- 2. dna ----------------------
 
@@ -222,7 +275,19 @@ function spineFields(raw, d, here, idPrefix) {
     distinct += 1;
   });
   if (distinct < 3 || distinct > 7) out.push(f(1, `${idPrefix}-claims-count`, "fail", `writing.spine has ${distinct} distinct claims, outside 3 to 7`, "List 3 to 7 claims, each with its own id, under spine.claims."));
-  const materialIds = new Set(list(d.writing?.materials?.items).map((m) => str(m?.id)).filter(Boolean));
+  const items = list(d.writing?.materials?.items);
+  const itemsById = new Map(items.map((m) => [str(m?.id), m]).filter(([id]) => id));
+  const materialIds = new Set(itemsById.keys());
+  // A material whose segments cannot be resolved at all (no segments: field, a segments file that
+  // cannot be read, or one with no segment lines) makes every #segment ref against it equally
+  // unresolvable. Report that once per material, not once per ref: two claims both pointing at
+  // "m1#s1" and "m1#s2" when m1 is unmarked are the same underlying problem, not two.
+  const segmentsCache = new Map();
+  const segmentsFor = (mid) => {
+    if (!segmentsCache.has(mid)) segmentsCache.set(mid, resolveMaterialSegments(itemsById.get(mid), here));
+    return segmentsCache.get(mid);
+  };
+  const reportedUnresolvable = new Set();
   claims.forEach((c, i) => {
     const cid = str(c?.id) || `#${i + 1}`;
     if (!str(c?.id)) out.push(f(1, `${idPrefix}-claim-${i}-id`, "fail", `spine claim ${cid} has no id`, "Give it a short id, e.g. c1."));
@@ -232,8 +297,44 @@ function spineFields(raw, d, here, idPrefix) {
       out.push(f(4, `${idPrefix}-claim-${i}-materials`, "fail", `spine claim "${cid}" has no materials`, "Point materials: at one or more material ids."));
     } else {
       refs.forEach((ref) => {
-        const mid = ref.split("#")[0];
-        if (!materialIds.has(mid)) out.push(f(4, `${idPrefix}-claim-${i}-materials-unknown`, "fail", `spine claim "${cid}" points at material "${ref}", which is not in writing.materials.items`, "Point materials: at an id that exists in writing.materials.items."));
+        const hashIdx = ref.indexOf("#");
+        const mid = hashIdx === -1 ? ref : ref.slice(0, hashIdx);
+        const segId = hashIdx === -1 ? "" : ref.slice(hashIdx + 1);
+        if (!materialIds.has(mid)) {
+          out.push(f(4, `${idPrefix}-claim-${i}-materials-unknown`, "fail", `spine claim "${cid}" points at material "${ref}", which is not in writing.materials.items`, "Point materials: at an id that exists in writing.materials.items."));
+          return;
+        }
+        // A bare material id (no "#") stays valid on its own; only a ref naming a specific segment
+        // needs resolving against that material's segments file. "m1#" names an empty segment id,
+        // which is not a bare ref, so it goes on to fail as an unknown segment.
+        if (hashIdx === -1) return;
+        const { segments, loaded, why } = segmentsFor(mid);
+        if (!loaded) {
+          if (!reportedUnresolvable.has(mid)) {
+            out.push(f(4, `${idPrefix}-materials-segments-unresolvable-${mid}`, "fail",
+              `spine claims point at material "${mid}"'s segments, but ${UNRESOLVABLE_BECAUSE[why]}`,
+              "Run `hyperspec segments init` on the material, label every segment, then re-check the spine refs."));
+            reportedUnresolvable.add(mid);
+          }
+          return;
+        }
+        const seg = segId ? segments.find((s) => str(s?.id) === segId) : undefined;
+        if (!seg) {
+          out.push(f(4, `${idPrefix}-claim-${i}-materials-segment-unknown`, "fail",
+            `spine claim "${cid}" points at material "${ref}", which is not a segment in "${mid}"'s segments file`,
+            "Point materials: at a segment id that exists in the material's segments file, or drop the #segment suffix to reference the whole material."));
+          return;
+        }
+        const label = typeof seg.label === "string" ? seg.label : "";
+        if (label === "private") {
+          out.push(f(5, `${idPrefix}-claim-${i}-materials-segment-private`, "fail",
+            `spine claim "${cid}" points at material "${ref}", which is labeled private (private is never used)`,
+            "Point materials: at a different segment, or drop this ref."));
+        } else if (label === "question") {
+          out.push(f(5, `${idPrefix}-claim-${i}-materials-segment-question`, "fail",
+            `spine claim "${cid}" points at material "${ref}", which is labeled question (a question is never an assertion)`,
+            "Point materials: at a different segment, or drop this ref."));
+        }
       });
     }
   });
@@ -266,7 +367,7 @@ function characterFields(c, here, idPrefix) {
   if (!str(c?.id)) out.push(f(1, `${idPrefix}-id`, "fail", "character has no id", "Give it a short id."));
 
   // Raw array length, matching dnaFields' goldens.length check: a present-but-malformed entry
-  // (missing by or knows) must not ALSO trigger "has no knowledge" — that's only true when the
+  // (missing by or knows) must not ALSO trigger "has no knowledge"; that is only true when the
   // list is literally empty.
   const knowledge = list(c?.knowledge);
   if (!knowledge.length) out.push(f(1, `${idPrefix}-knowledge`, "fail", `character "${tag}" has no knowledge`, "Add at least one { by, knows } entry under knowledge."));

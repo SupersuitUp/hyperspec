@@ -5,6 +5,9 @@ import { cpSync, readdirSync, readFileSync, statSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
+import { loadSpec } from "../src/load.mjs";
+import { readSegments, splitSegments } from "../src/segments.mjs";
+import { MATERIAL_LABELS } from "../src/labels.mjs";
 
 // The two worked examples WRITING.md points at. They are the documentation's proof: each one has
 // to lint clean, with every block complete and not one warning, exactly as shipped.
@@ -85,4 +88,88 @@ test("a writing spec written with inline maps and a commented inline list lints 
   const r = lint([p]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(r.stdout.includes("  writing: 9/9 blocks complete\n"), r.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Materials marking: both examples are marked the way an adopter would mark them, so between them
+// they show every label in use, and every spine claim cites the segments that support it.
+
+function markedMaterials() {
+  const out = [];
+  for (const name of EXAMPLES) {
+    const d = loadSpec(join(BASE, name)).data;
+    for (const it of d.writing.materials.items) {
+      assert.ok(it.segments, `${name}: material ${it.id} names a segments file`);
+      const r = readSegments(join(BASE, it.segments), { materialPath: join(BASE, it.path), materialId: it.id });
+      out.push({ example: name, id: it.id, ...r });
+    }
+  }
+  return out;
+}
+
+test("every material in both examples is marked, and every segments file is valid on its own", () => {
+  const all = markedMaterials();
+  assert.equal(all.length, 6);
+  for (const m of all) {
+    assert.deepEqual(m.findings, [], `${m.example}: ${m.id}`);
+    assert.equal(m.header.material, m.id);
+    assert.ok(m.segments.length >= 2, `${m.example}: ${m.id} is split into more than one segment`);
+  }
+});
+
+test("every example segments file keeps the spans segments init writes, so an adopter can reproduce the marking", () => {
+  // Only the labels (and the fields they need) are hand work; the boundaries are the splitter's,
+  // in paragraph mode or sentence mode. No example needs a hand split.
+  for (const name of EXAMPLES) {
+    const d = loadSpec(join(BASE, name)).data;
+    for (const it of d.writing.materials.items) {
+      const text = readFileSync(join(BASE, it.path), "utf8");
+      const r = readSegments(join(BASE, it.segments), {});
+      const spans = (segs) => segs.map((s) => `${s.start}-${s.end}`).join(",");
+      const want = spans(r.segments);
+      const modes = ["paragraph", "sentence"].filter((by) => spans(splitSegments(text, { by })) === want);
+      assert.ok(modes.length > 0, `${name}: material ${it.id} matches neither splitter mode`);
+    }
+  }
+});
+
+test("between them, the two examples use every label, each with the field it needs", () => {
+  const segs = markedMaterials().flatMap((m) => m.segments);
+  const used = new Set(segs.map((s) => s.label));
+  assert.deepEqual([...MATERIAL_LABELS].filter((l) => !used.has(l)), [], "every label appears at least once");
+  assert.ok(segs.some((s) => s.label === "claim" && typeof s.source === "string" && s.source.trim()), "a claim with a source");
+  assert.ok(segs.some((s) => s.label === "claim" && s.own === true && s.source === undefined), "a claim marked own");
+  assert.ok(segs.some((s) => s.label === "story" && s.teller), "a story with a teller");
+  assert.ok(segs.some((s) => s.label === "quote" && s.speaker), "a quote with a speaker");
+  // A quote is words someone actually said, so its text carries the quotation marks it was
+  // recorded in.
+  for (const s of segs.filter((x) => x.label === "quote")) assert.match(s.text, /"[^"]+"/, s.id);
+});
+
+test("every spine claim in both examples cites segments, never a private or question segment", () => {
+  for (const name of EXAMPLES) {
+    const d = loadSpec(join(BASE, name)).data;
+    const byMaterial = new Map(markedMaterials().filter((m) => m.example === name).map((m) => [m.id, m.segments]));
+    for (const c of d.writing.spine.claims) {
+      assert.ok(c.materials.length >= 1, `${name}: ${c.id}`);
+      for (const ref of c.materials) {
+        const [mid, sid] = ref.split("#");
+        assert.ok(sid, `${name}: ${c.id} cites "${ref}", a whole material rather than a segment`);
+        const seg = byMaterial.get(mid)?.find((s) => s.id === sid);
+        assert.ok(seg, `${name}: ${c.id} cites "${ref}", which does not resolve`);
+        assert.ok(!["private", "question"].includes(seg.label), `${name}: ${c.id} cites ${seg.label} segment "${ref}"`);
+      }
+    }
+  }
+});
+
+test("npm pack ships every file under examples/, segments files included", () => {
+  const r = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const packed = new Set(JSON.parse(r.stdout)[0].files.map((f) => f.path));
+  const shipped = readdirSync(join(ROOT, "examples"), { recursive: true })
+    .filter((f) => statSync(join(ROOT, "examples", f)).isFile())
+    .map((f) => join("examples", f).split("\\").join("/"));
+  assert.ok(shipped.filter((f) => f.endsWith(".segments.jsonl")).length === 6, "six segments files exist");
+  assert.deepEqual(shipped.filter((f) => !packed.has(f)), []);
 });
