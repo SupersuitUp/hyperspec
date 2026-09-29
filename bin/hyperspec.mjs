@@ -407,7 +407,7 @@ if (cmd === "compare") {
   if (json) console.log(JSON.stringify(result, null, 2));
 
   // Both a usage error and a check-failed error (missing output, escaping path, ...) map to
-  // 2 here — compare's own ok:false without a usage flag is still "could not grade", i.e. an
+  // 2 here: compare's own ok:false without a usage flag is still "could not grade", i.e. an
   // unreadable-input class failure, not a graded-but-worse-1 class one.
   if (!result.ok) {
     if (!json) console.error(result.error);

@@ -11,7 +11,7 @@ const MALFORMED = "recorded hash is not a SHA-256 hash (64 lowercase hex charact
 const blobWhy = (hex, why) => (present(hex) && !isSha256(hex) ? MALFORMED : why);
 
 // Spec requirement `reproduce`: replay the record and hash-check it. Never invokes a model,
-// never runs a command, never regenerates a byte of content — every blob this looks at already
+// never runs a command, never regenerates a byte of content. Every blob this looks at already
 // exists in the store, and this only confirms the recipe's own claims about it still hold.
 //
 // Checks, in order (and every one is reported, nothing stops the walk early): every input blob
@@ -98,8 +98,8 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
   // 5. The output file on disk, if present, hashes to output.sha256. Absent is vacuously fine:
   // reproduce doesn't require the file to already exist, only that it agrees when it does.
   //
-  // The recipe is a plain JSON file on disk — exactly the kind of claim reproduce exists to
-  // distrust — so output.path is never trusted blind. A hand-edited or corrupted recipe could
+  // The recipe is a plain JSON file on disk, exactly the kind of claim reproduce exists to
+  // distrust, so output.path is never trusted blind. A hand-edited or corrupted recipe could
   // name a path outside the recipe's own directory (a `../` climb, or an absolute path); refuse
   // before touching disk at all, rather than reading from or (worse, under --restore) writing to
   // wherever it points.
@@ -120,12 +120,12 @@ export function reproduce(recipePath, { store, restore = false } = {}) {
       }
 
       // restore: true writes the output file from its blob, but only when the output blob
-      // itself verified (step 4) — restoring from an unverified blob would just write
+      // itself verified (step 4); restoring from an unverified blob would just write
       // different wrong bytes. Covers both a lost file (never existed / deleted) and an
       // edited one. The write is atomic (temp file + rename, same pattern as putBlob), so a
       // crash mid-write never leaves the file in a state that is neither the old nor the new
       // content, and a write failure is caught and reported as a failing step rather than
-      // thrown out of reproduce() — this function always returns a structured result.
+      // thrown out of reproduce(): this function always returns a structured result.
       const needsRestore = !fileExists || !matches;
       if (restore && needsRestore && outputBlobOk) {
         const blob = getBlob(root, outputSha);

@@ -25,7 +25,7 @@ import { readSegments } from "./segments.mjs";
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
 const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
-// "file", "other" (a directory or a device), or null when nothing is there at all — the same
+// "file", "other" (a directory or a device), or null when nothing is there at all. This is the same
 // three-way classification the core examples rule uses (src/rules.mjs's kind()), so a real
 // directory is reported as "is not a file" rather than the misleading "does not exist".
 const pathKind = (here, p) => { try { return statSync(here(p)).isFile() ? "file" : "other"; } catch { return null; } };
@@ -367,7 +367,7 @@ function characterFields(c, here, idPrefix) {
   if (!str(c?.id)) out.push(f(1, `${idPrefix}-id`, "fail", "character has no id", "Give it a short id."));
 
   // Raw array length, matching dnaFields' goldens.length check: a present-but-malformed entry
-  // (missing by or knows) must not ALSO trigger "has no knowledge" — that's only true when the
+  // (missing by or knows) must not ALSO trigger "has no knowledge"; that is only true when the
   // list is literally empty.
   const knowledge = list(c?.knowledge);
   if (!knowledge.length) out.push(f(1, `${idPrefix}-knowledge`, "fail", `character "${tag}" has no knowledge`, "Add at least one { by, knows } entry under knowledge."));

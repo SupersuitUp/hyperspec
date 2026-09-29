@@ -66,7 +66,7 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
   const specHash = sha256(readFileSync(specAbs));
   // specChanged is about the PARENT's record, not the child's: it tells the caller the spec being
   // graded against now differs from what the parent was made under. Both outputs still get graded
-  // against this one spec file either way — never each against its own.
+  // against this one spec file either way, never each against its own.
   const specChanged = parentRecipe.spec?.sha256 !== specHash;
   if (specChanged) warnings.push("spec changed since the parent was made; both outputs graded against the current file");
 
@@ -114,14 +114,14 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
       const ledgerAbs = resolve(specDir, ledgerDecl);
       const ledgerDir = dirname(ledgerAbs);
       // The child's own `change` is null whenever it has no genealogical parent of its own (a root
-      // recipe compared against an explicit, unrelated --parent — compare's usage check allows
+      // recipe compared against an explicit, unrelated --parent; compare's usage check allows
       // this: it only requires *either* the child's recorded parent.path *or* an explicit
       // override). Fall back to naming what was actually compared against, so `change` and the
-      // not-improved `reason` below are never "after null" — both a broken persisted record and,
+      // not-improved `reason` below are never "after null", which would be both a broken persisted record and,
       // for the "improved" verdict, a lint failure (rules.mjs's verdict-change: `!str(v.change)`).
       const childChange = child.change ?? `compared against ${relative(ledgerDir, parentRecipeAbs)}`;
       // A compare line must satisfy test 9 ("it improves itself"), which only knows the
-      // verdict vocabulary one-shot/improved/not-improved — never a new "compare" verdict. A
+      // verdict vocabulary one-shot/improved/not-improved, never a new "compare" verdict. A
       // strictly higher child score is improved (and already carries change, which doubles as
       // that verdict's required field). Equal or lower is not-improved, with a reason a later
       // session can argue with; when it's a genuine regression (strictly lower, not merely tied)
@@ -162,8 +162,8 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
 
 // Runs the doctor command once, via /bin/sh -c, over one output against the one spec. stdin is
 // { output, spec } (absolute paths); the last non-empty stdout line must be JSON with a numeric
-// score. Nothing recipe-derived is ever interpolated into the command string — only passed on
-// stdin — so the same command string is reused verbatim for the parent and the child.
+// score. Nothing recipe-derived is ever interpolated into the command string; it is only passed on
+// stdin, so the same command string is reused verbatim for the parent and the child.
 function runDoctor(doctorCmd, outputAbs, specAbs) {
   const res = spawnSync("/bin/sh", ["-c", doctorCmd], {
     input: JSON.stringify({ output: outputAbs, spec: specAbs }),

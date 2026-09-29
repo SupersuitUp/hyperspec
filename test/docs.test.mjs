@@ -41,3 +41,14 @@ test("no workflow echoes backticks inside double quotes, where the shell would r
     assert.deepEqual(bad, [], f);
   }
 });
+
+test("no em dash in any shipped code or example file", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const walk = (dir) => readdirSync(join(ROOT, dir)).flatMap((name) => {
+    const rel = `${dir}/${name}`;
+    return statSync(join(ROOT, rel)).isDirectory() ? walk(rel) : [rel];
+  });
+  const files = ["bin", "src", "examples"].flatMap(walk);
+  assert.ok(files.length > 20, `walked ${files.length} files`);
+  assert.deepEqual(files.filter((f) => read(f).includes("—")), []);
+});
