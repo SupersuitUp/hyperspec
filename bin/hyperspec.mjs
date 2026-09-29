@@ -18,6 +18,7 @@ import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_READM
 import { str } from "../src/placeholder.mjs";
 import { runCheck } from "../src/check.mjs";
 import { prepareJudges, recordJudgment } from "../src/judge.mjs";
+import { prepareLearn, recordLearn } from "../src/learn.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -62,6 +63,26 @@ const HELP = `hyperspec <command> [options]
                                the packet keeps the spec and draft paths as they were given
                                exit 0 the station passed, 1 it failed or the verdict is invalid
                                or stale, 2 usage
+  learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force] [--json]
+                               needs a writing spec that passes lint (exits with lint's own code
+                               otherwise); diffs the first draft a factory produced against the
+                               draft a person approved, sentence by sentence, and writes
+                               <dir>/learn.packet.json: each edit as a hunk (E1..En: deleted,
+                               inserted or replaced, with both texts), the spec's block names plus
+                               none, fixed instructions and the verdict shape, for an outside judge
+                               to name the block that should have prevented each edit; the same
+                               files give a byte-identical packet; refuses to overwrite it without
+                               --force
+                               exit 0 written, 2 usage
+  learn record <packet> --verdict <file> [--json]
+                               rebuild the packet from the files on disk (a changed file is stale,
+                               an edited packet is refused), validate the verdict (every hunk id
+                               exactly once, a block the spec has or none, a why), print the edits
+                               per block and one next move for the block with the most, and append
+                               one learn line to the spec's improvement.ledger (not-improved: the
+                               spec has not changed yet); learn never edits the spec
+                               exit 0 recorded, 1 the verdict is invalid or stale (nothing
+                               appended), 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
   init <file> --profile writing [--title T] [--form F] [--fiction]
                                write a writing-profile skeleton: every required block (materials,
@@ -402,17 +423,7 @@ if (cmd === "judge") {
     }
     const result = prepareJudges(specPath, parsed.values["--draft"], parsed.values["--out"], { only, force: parsed.values["--force"] });
     if (result.usage) usage(result.error);
-    if (result.lintBlocked) {
-      if (json) console.log(JSON.stringify(result, null, 2));
-      else {
-        const r = result.lintScore;
-        console.log(`${result.specPath}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
-        for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
-        for (const f of result.lintFindings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
-        console.log("no packets written: the spec is not ready (run `hyperspec lint` on it for details)");
-      }
-      process.exit(result.code);
-    }
+    if (result.lintBlocked) printLintBlocked(result, json, "no packets written");
     if (json) console.log(JSON.stringify(result, null, 2));
     else {
       for (const w of result.written) console.log(w.path);
@@ -455,6 +466,71 @@ if (cmd === "judge") {
 
   console.error(`unknown judge subcommand: ${sub ?? "(none)"}\n\n${HELP}`);
   process.exit(2);
+}
+
+if (cmd === "learn") {
+  const sub = argv[1];
+  const printFinding = (f) => console.log(`  ${f.severity === "fail" ? "fail" : "warn"} [${f.id}] ${f.message}\n    fix: ${f.fix}`);
+
+  if (sub === "prepare") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--first", "--approved", "--out"], boolFlags: ["--force", "--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [specPath] = parsed.positionals;
+    const json = parsed.values["--json"];
+    const opts = { first: parsed.values["--first"], approved: parsed.values["--approved"], out: parsed.values["--out"], force: parsed.values["--force"] };
+    const result = prepareLearn(specPath, opts);
+    if (result.usage) {
+      if (json) console.log(JSON.stringify({ spec: specPath ?? null, first: opts.first ?? null, approved: opts.approved ?? null, out: opts.out ?? null, error: result.error }, null, 2));
+      else console.error(result.error);
+      process.exit(2);
+    }
+    if (result.lintBlocked) printLintBlocked(result, json, "no packet written");
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else console.log(`${result.path}\n${result.summary}`);
+    process.exit(result.code);
+  }
+
+  if (sub === "record") {
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--verdict"], boolFlags: ["--json"] });
+    if (parsed.error) { console.error(parsed.error); process.exit(2); }
+    const [packetPath] = parsed.positionals;
+    const json = parsed.values["--json"];
+    const result = recordLearn(packetPath, parsed.values["--verdict"]);
+    if (result.usage) {
+      if (json) console.log(JSON.stringify({ packet: packetPath ?? null, verdict: parsed.values["--verdict"] ?? null, error: result.error }, null, 2));
+      else console.error(result.error);
+      process.exit(2);
+    }
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else if (result.invalid) {
+      console.log(`learn: ${result.stale ? "stale packet" : "invalid verdict"}, nothing recorded`);
+      for (const f of result.findings) printFinding(f);
+    } else {
+      console.log(`learn: ${result.edits} edit${result.edits === 1 ? "" : "s"} classified`);
+      for (const [block, count] of Object.entries(result.tally)) console.log(`  ${block} ${count}`);
+      console.log(`next move: ${result.next}`);
+      if (result.verdict) console.log(`verdict: ${result.verdict} (${result.reason})`);
+      if (result.ledgerWarning) console.log(`warn: ${result.ledgerWarning}`);
+    }
+    process.exit(result.code);
+  }
+
+  console.error(`unknown learn subcommand: ${sub ?? "(none)"}\n\n${HELP}`);
+  process.exit(2);
+}
+
+// A spec that does not lint clean: print what lint would, say nothing was written, and exit with
+// lint's own code. Shared by judge prepare and learn prepare.
+function printLintBlocked(result, json, nothingWritten) {
+  if (json) console.log(JSON.stringify(result, null, 2));
+  else {
+    const r = result.lintScore;
+    console.log(`${result.specPath}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
+    for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
+    for (const f of result.lintFindings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
+    console.log(`${nothingWritten}: the spec is not ready (run \`hyperspec lint\` on it for details)`);
+  }
+  process.exit(result.code);
 }
 
 // Generic flag/positional parser for the recipe verbs below. A value-taking flag (valueFlags,
