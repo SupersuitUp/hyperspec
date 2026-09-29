@@ -46,7 +46,7 @@ thinking out loud, `considered` for something someone has reviewed, `verified` f
 checked against its source. A brain dump is the most valuable input and the least structured, so
 marking it is the step that turns thinking into something an agent can cite. Each material is
 split into segments and each segment gets a label saying what it may be used as (see
-[Materials labels](#materials-labels)).
+[Marking materials](#marking-materials)).
 
 ### 2. Writer DNA: who is writing, and how they sound, for this purpose
 
@@ -104,8 +104,8 @@ chapters around it, a wiki article checks its links, a text message checks bubbl
 ### 7. Spine: what it argues
 
 The kind of argument (thesis, testimony, primer, letter, story; the set is open) and the claim
-chain: the three to seven claims the piece has to land, in order, each pointing at the materials
-that support it.
+chain: the three to seven claims the piece has to land, in order, each pointing at the marked
+segments that support it.
 
 ### 8. Sources and claims: what lets another agent pick it up
 
@@ -159,12 +159,13 @@ writing:
     items:                           # at least one
       - id: voice-memo               # unique across items
         path: materials/voice-memo.md
+        segments: materials/voice-memo.md.segments.jsonl   # written by hyperspec segments init, then labeled
         produced_by: example-author
         captured: "2026-09-12"
         how: voice memo, transcribed
         trust: raw                   # raw | considered | verified
     check:
-      station: every segment of every material carries a label from the closed set
+      station: every segment of every material carries a label from the closed set, matches its source verbatim, and the markings are current
     source: capture step
     author: agent:claude
   dna:
@@ -246,16 +247,17 @@ writing:
     claims:                          # 3 to 7, in order, each with its own id
       - id: c1
         text: the first one-on-one is the one meeting the report should set the agenda for
-        materials:                   # ids from materials.items; voice-memo#segment is accepted
-          - voice-memo
+        materials:                   # material#segment cites one segment; never a private or question one
+          - voice-memo#s3
       - id: c2
         text: status belongs in the tracker
-        materials:
+        materials:                   # a bare material id cites the whole material
           - voice-memo
       - id: c3
         text: three questions are enough to hand the meeting over
         materials:
-          - voice-memo
+          - voice-memo#s2
+          - voice-memo#s4
     check:
       rubric: each claim lands, in order, and nothing is argued outside the chain
     source: spine interview
@@ -317,11 +319,11 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
-| 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items` |
-| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources` |
+| 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker` |
+| 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment |
 | 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded) |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
@@ -342,25 +344,164 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 `form.name` and `spine.kind` are open: name the form and the kind of argument in your own words.
 
-## Materials labels
+## Marking materials
 
-Before a material is used, it is split into segments, and each segment gets one of seven labels.
-The label decides what the segment may become in the draft.
+A brain dump mixes things a draft may use with things it may not: a checked fact, an opinion, a
+story from the author's own week, a line said in confidence. Marking tells them apart before an
+agent drafts anything. Each material is split into segments, each segment gets one label saying
+what it may be used as, and the spine cites segments, so every claim in the piece points at the
+exact words that support it.
 
-| Label | Means | May be used as |
+hyperspec never decides a label. `segments init` splits a material the same way every time, an
+agent or a person labels each segment by editing the file it wrote, and `lint` checks everything
+a rule can check: every segment carries a label from the closed set and the field that label
+needs, matches its material word for word, and was marked against the material as it reads now.
+
+A material item with no `segments` field fails test 1. Marking comes before specifying, so a
+writing spec cannot pass until every material it draws on is marked.
+
+### Marking a material
+
+```bash
+npx @supersuit/hyperspec segments init materials/voice-memo.md --id voice-memo
+```
+
+`hyperspec segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]` writes
+`<material>.segments.jsonl`, or the path `--out` names. `--by paragraph`, the default, makes one
+segment per paragraph. `--by sentence` makes one per sentence, and a new line that opens on a list
+marker (`-`, `*`, `+`, `1.` or `1)`, then a space) also starts a segment, so each bullet in a set
+of notes stands on its own. Every segment starts as `unlabeled`, which lint never accepts. `init`
+refuses to overwrite a file that exists, and exits 2 on a material that does not exist or a
+`--by` it does not know.
+
+Then name the file on the material item, as `segments:` beside `path:`, and label every segment.
+You may also move a boundary by hand, splitting one segment in two or joining two, as long as
+the rules under [Coverage](#coverage) still hold.
+
+### The segments file
+
+JSON Lines: one object per line. Line 1 is a header, and every later line is one segment. For this
+material, `materials/voice-memo.md`:
+
+```text
+Voice memo, recorded on a walk. Raw thinking.
+
+My first one-on-one as a manager was a disaster. I ran it from my own list.
+
+The first one-on-one is the one meeting the report should set the agenda for.
+
+My first manager, in my second week: "Ask what they want to talk about, then stop talking."
+```
+
+`segments init` writes four segments, and once they are labeled the file reads:
+
+```jsonl
+{"material":"voice-memo","path":"materials/voice-memo.md","sha256":"8691f5ae7421487668cf67252ac179ecc7d8e876acfc7bf0cc5651993d0b645e"}
+{"id":"s1","start":0,"end":45,"label":"aside","text":"Voice memo, recorded on a walk. Raw thinking."}
+{"id":"s2","start":47,"end":122,"label":"story","teller":"example-author","text":"My first one-on-one as a manager was a disaster. I ran it from my own list."}
+{"id":"s3","start":124,"end":201,"label":"claim","own":true,"text":"The first one-on-one is the one meeting the report should set the agenda for."}
+{"id":"s4","start":203,"end":294,"label":"quote","speaker":"the author's first manager","text":"My first manager, in my second week: \"Ask what they want to talk about, then stop talking.\""}
+```
+
+- **Header.** `material` is the item's id and must match it. `path` records the material path
+  given to `segments init`; lint reads the material from the item's own `path`. `sha256` is the
+  SHA-256 of the material file's bytes when it was marked.
+- **`id`** is unique within the file. `init` writes `s1`, `s2` and so on; any id works, and it is
+  what the spine cites.
+- **`start` and `end`** are character offsets into the material's text read as UTF-8, counted as
+  JavaScript string indices (UTF-16 code units), with `end` exclusive.
+- **`text`** is exactly the material's characters from `start` to `end`.
+- **`label`**, plus the one field some labels need (below). Those fields are strings, except `own`.
+
+### The labels
+
+| Label | Means | May be used as | Needs |
+|---|---|---|---|
+| `claim` | a statement of fact about the world | only with a source, or as the author's own claim said as such | `source`, non-empty, or `own: true` |
+| `story` | something that happened, told by someone who was there | testimony, with the teller named | `teller` |
+| `quote` | words someone said, verbatim | quoted exactly, never paraphrased inside quotation marks | `speaker` |
+| `stance` | an opinion or conviction | the author's position | nothing more |
+| `question` | something open | a prompt for the interview, never an assertion | nothing more |
+| `aside` | true but off the thread | held back unless the spine needs it | nothing more |
+| `private` | not for this audience | never used; kept for context | nothing more |
+
+`own` counts when it is `true` or the string `"true"`. Any other value, `false` included, leaves
+it unset, and a claim with no `source` then fails.
+
+### Coverage
+
+Taken in order of `start`, whatever order the lines are in, segments never overlap, and between
+them they cover every character of the material that is not whitespace. Whitespace between
+segments may be left out, which is what `init` does. Segment ids are unique within a file.
+
+### When a material changes
+
+The header's `sha256` pins the material as it was when it was marked. If the material changes,
+lint fails the segments file as stale (test 4), because its offsets and labels describe text that
+is no longer there. Mark it again: run `segments init` with `--out` to a new file, point the
+material item at it, and label every segment, carrying labels over from the old file wherever the
+text did not change.
+
+### Citing segments in the spine
+
+A spine claim cites a segment as `<material>#<segment>`, such as `voice-memo#s3`. The segment has
+to exist in that material's segments file (test 4). A `private` segment is never used and a
+`question` is never an assertion, so a claim citing either fails test 5. A bare material id, such
+as `voice-memo`, still cites the whole material. When a claim cites a segment of a material whose
+segments cannot be read at all (the material is not marked, its file is missing, or the file
+holds no segments), lint says so once for that material rather than once per citation.
+
+### Findings
+
+Every marking finding fails the test in its row. `<segment>` is the segment's id, or its
+position when it has none; `<line>` is a line number in the segments file; `<n>` is the claim's
+position in `spine.claims`, counting from 0. Every message names the material, and the segment
+where there is one.
+
+| Id | Test | Fails when |
 |---|---|---|
-| `claim` | a statement of fact about the world | only with a source, or as the author's own claim said as such |
-| `story` | something that happened, told by someone who was there | testimony, with the teller named |
-| `quote` | words someone said, verbatim | quoted exactly, never paraphrased inside quotation marks |
-| `stance` | an opinion or conviction | the author's position |
-| `question` | something open | a prompt for the interview, never an assertion |
-| `aside` | true but off the thread | held back unless the spine needs it |
-| `private` | not for this audience | never used; kept for context |
+| `writing-materials-unmarked` | 1 | a material item has no `segments` field |
+| `writing-materials-segments-missing` | 1 | the segments file does not exist or cannot be read |
+| `writing-materials-material-missing` | 1 | the material file cannot be read. Lint reports a missing material path under test 6 instead, so this comes only from `readSegments` |
+| `writing-materials-header` | 1 | line 1 is not a JSON object, or has no `material`, `path` or `sha256` |
+| `writing-materials-header-material` | 1 | the header names a different material from the item |
+| `writing-materials-json-line-<line>` | 1 | a segment line is not a JSON object |
+| `writing-materials-segment-id-<line>` | 1 | a segment has no id |
+| `writing-materials-segment-id` | 1 | two segments share an id |
+| `writing-materials-label-<segment>` | 1 | a label outside the seven, `unlabeled` included |
+| `writing-materials-segment-shape-<segment>` | 1 | `start` and `end` are not whole numbers with `start` at least 0, `end` greater than `start`, and `end` no further than the material's length |
+| `writing-materials-overlap` | 1 | two segments overlap |
+| `writing-materials-coverage` | 1 | text that is not whitespace lies outside every segment |
+| `writing-materials-text-<segment>` | 4 | `text` is not the material's characters from `start` to `end` |
+| `writing-materials-stale` | 4 | the material's SHA-256 no longer matches the header |
+| `writing-materials-claim-source-<segment>` | 4 | a claim has no `source` and no `own` |
+| `writing-materials-story-teller-<segment>` | 4 | a story has no `teller` |
+| `writing-materials-quote-speaker-<segment>` | 4 | a quote has no `speaker` |
+| `writing-spine-materials-segments-unresolvable-<material>` | 4 | a claim cites a segment of a material whose segments cannot be read |
+| `writing-spine-claim-<n>-materials-segment-unknown` | 4 | a claim cites a segment that is not in the file |
+| `writing-spine-claim-<n>-materials-segment-private` | 5 | a claim cites a `private` segment |
+| `writing-spine-claim-<n>-materials-segment-question` | 5 | a claim cites a `question` segment |
 
-The linter defines the set once, as `MATERIAL_LABELS` in `src/writing.mjs`. This release checks
-the materials list itself; it does not yet read segment files or check their labels. A spine
-claim may point at a segment as `m1#segment`, and today only the material id before the `#` is
-checked.
+### Reading segments from your own tool
+
+A tool that labels materials, such as an agent's capture step or an editor, can import the label
+set and the same parse-and-check lint runs:
+
+```js
+import { MATERIAL_LABELS, readSegments } from "@supersuit/hyperspec/writing";
+
+const { header, segments, findings } = readSegments("materials/voice-memo.md.segments.jsonl", {
+  materialPath: "materials/voice-memo.md",
+  materialId: "voice-memo",
+});
+```
+
+`readSegments` never throws. It returns the parsed header (or `null`), every segment line that
+parsed as a JSON object, and findings in the shape lint reports: `test`, `id`, `severity`,
+`message` and `fix`. Without `materialPath` it runs only the checks that need no material text
+(the header, ids, labels and label fields); with it, it also checks verbatim text, coverage,
+overlap and staleness. `materialId`, when given, has to match the header's `material`.
+`MATERIAL_LABELS` is the seven labels, in the order of the table above.
 
 ## Deferring a block
 
@@ -394,7 +535,9 @@ npx @supersuit/hyperspec init story.hyperspec.md --profile writing --form "short
 The skeleton shows every required block in schema order with every field present as a `TODO`
 placeholder. `dna`, `persona`, `audience` and `goal` also carry an open decision whose question
 says what you have to answer before the placeholder means anything. `--form` sets both `kind:`
-and `writing.form.name`, and defaults to `essay`. `--fiction` sets `fiction: true` and adds one
+and `writing.form.name`, and defaults to `essay`. The material item names
+`materials/TODO.md.segments.jsonl`, the file `segments init` writes for `materials/TODO.md`, so
+materials keeps failing until a real material is marked. `--fiction` sets `fiction: true` and adds one
 character with the same treatment. The skeleton never passes: it lints `fail`, with
 `writing: 1/9 blocks complete` (or `0/9` with `--fiction`), until the placeholders and the open
 decisions are replaced with real content.
@@ -415,12 +558,16 @@ names:
   Each character has speech rules, a knowledge timeline by scene, and golden and rejected lines
   in a voice you can tell apart from the other's.
 
+Every material in both is marked. Between them the two examples use all seven labels, each with
+the field it needs, and every spine claim cites the segments that support it. Each segments file
+keeps the boundaries `segments init` wrote, in paragraph mode for prose and sentence mode for
+bulleted notes, so you can re-run it and compare.
+
 Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. A test runs them on
 every release, so they cannot drift from the linter.
 
 ## What later versions add
 
-This release is the schema and its lint. Later versions build on it in order: marking materials
-(a brain dump or transcript in, labeled segments out, with the labels above enforced), scoped
-DNA with annotated goldens filed by form, audience and purpose, and the stations themselves,
-running the checks each block names and grading drafts against the goal.
+This release is the schema, its lint, and marked materials. Later versions build on it in order:
+scoped DNA with annotated goldens filed by form, audience and purpose, and the stations
+themselves, running the checks each block names and grading drafts against the goal.

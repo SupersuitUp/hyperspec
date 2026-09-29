@@ -25,13 +25,14 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec lint <file...> [--json]` | Score each hyperspec against the nine tests. |
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
 | `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
+| `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence]` | Split a material into segments to label. Refuses to overwrite an existing file. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
 | `hyperspec recipe approve <recipe> --by <slug>` | Record who approved the output. |
 | `hyperspec reproduce <recipe> [--restore]` | Re-check every hash the recipe recorded. Never runs a model. |
 | `hyperspec regenerate <recipe> --out <path> --clicker <slug> <one change> [--run cmd]` | Make a child recipe from a parent and one named change, rerunning only the stages it reaches. |
 | `hyperspec compare <child-recipe> --doctor cmd` | Grade a child and its parent through one doctor against one spec. |
 
-Every command except `init` takes `--json`. `hyperspec --help` prints every flag.
+Every command except `init` and `segments init` takes `--json`. `hyperspec --help` prints every flag.
 
 ## Exit codes
 
@@ -130,6 +131,26 @@ who speaks, who reads, what changes) are answered. The blocks, every field, and 
 each rule reports under are in [WRITING.md](WRITING.md). Two complete specs that pass with
 nothing to warn ship in `examples/writing/`: an essay for new managers, and a short story with
 two characters whose voices a judge can tell apart.
+
+### Marking materials
+
+Every material a writing spec draws on is marked before the spec can pass: split into segments,
+and each segment labeled with what it may be used as (claim, story, quote, stance, question,
+aside, private). hyperspec does the splitting and the checking; an agent or a person does the
+labeling.
+
+```bash
+npx @supersuit/hyperspec segments init materials/voice-memo.md --id voice-memo
+npx @supersuit/hyperspec lint essay.hyperspec.md
+```
+
+The first writes `materials/voice-memo.md.segments.jsonl`, every segment `unlabeled`. Name that
+file as `segments:` on the material item, label every segment, and `lint` checks that each label
+is from the set and carries what it needs, that each segment matches the material word for word,
+that the material has not changed since, and that no spine claim cites a private or question
+segment. The file format, the labels, and every finding are in
+[WRITING.md](WRITING.md#marking-materials). A tool of your own can run the same check with
+`import { readSegments } from "@supersuit/hyperspec/writing"`.
 
 ## The format
 
