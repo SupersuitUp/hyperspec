@@ -161,6 +161,20 @@ test("a verdict for a draft that changed since the packet is stale: exit 1, name
   assert.deepEqual(ledgerLines(w.ledger), []);
 });
 
+test("a stale refusal has learn record's shape: { invalid, stale } in --json, \"stale packet\" on the terminal", () => {
+  const w = workspace();
+  prepare(w);
+  writeVerdict(w.verdict, doctorVerdict());
+  writeFileSync(w.draft, `${DRAFT}\nOne more line.\n`);
+  const j = JSON.parse(record(w, "--json").stdout);
+  assert.equal(j.ok, false);
+  assert.equal(j.invalid, true, "a script testing result.invalid treats judge and learn alike");
+  assert.equal(j.stale, true);
+  assert.equal(j.findings[0].id, "judge-stale");
+  assert.match(record(w).stdout, /^doctor: stale packet, nothing recorded$/m);
+  assert.deepEqual(ledgerLines(w.ledger), []);
+});
+
 test("a stale verdict names the spec, or both, when those changed", () => {
   const w = workspace();
   prepare(w);
@@ -198,7 +212,7 @@ test("a passing verdict: exit 0, one judge line, one-shot", () => {
   assert.match(r.stdout, /^verdict: one-shot$/m);
   const [line, ...rest] = ledgerLines(w.ledger);
   assert.equal(rest.length, 0);
-  assert.deepEqual(Object.keys(line), ["at", "kind", "station", "draft", "draft_sha256", "spec_sha256", "status", "verdict"]);
+  assert.deepEqual(Object.keys(line), ["at", "kind", "station", "draft", "draft_sha256", "spec_sha256", "packet_sha256", "status", "verdict"]);
   assert.equal(line.kind, "judge");
   assert.equal(line.station, "doctor");
   assert.equal(line.draft, "draft.md", "relative to the spec's folder");
@@ -207,9 +221,12 @@ test("a passing verdict: exit 0, one judge line, one-shot", () => {
   const packet = JSON.parse(readFileSync(w.packet, "utf8"));
   assert.equal(line.draft_sha256, packet.draft_sha256);
   assert.equal(line.spec_sha256, packet.spec_sha256);
+  // The packet's hash is taken with its paths as the ledger writes them; prepared with those paths,
+  // it is the file's own hash.
+  assert.equal(line.packet_sha256, createHash("sha256").update(`${JSON.stringify({ ...packet, spec: "spec.md", draft: "draft.md" }, null, 2)}\n`).digest("hex"));
 });
 
-test("fail then pass with draft and spec unchanged is not-improved: only the verdict changed", () => {
+test("fail then pass on an identical packet is not-improved: only the verdict changed", () => {
   const w = workspace();
   prepare(w);
   writeVerdict(w.verdict, doctorVerdict((v) => { v.would_take_next_step = false; }));
@@ -219,14 +236,14 @@ test("fail then pass with draft and spec unchanged is not-improved: only the ver
   writeVerdict(w.verdict, doctorVerdict());
   r = record(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /verdict: not-improved \(the verdict changed; draft and spec unchanged\)/);
+  assert.match(r.stdout, /verdict: not-improved \(the verdict changed; nothing the judge was shown changed\)/);
   r = record(w);
-  assert.match(r.stdout, /verdict: not-improved \(no change since the last passing check\)/);
+  assert.match(r.stdout, /verdict: not-improved \(no change since the last passing judgment\)/);
   const lines = ledgerLines(w.ledger);
   assert.deepEqual(lines.map((l) => l.verdict), ["not-improved", "not-improved", "not-improved"]);
   assert.equal(lines[0].reason, "failing stations: doctor");
-  assert.equal(lines[1].reason, "the verdict changed; draft and spec unchanged");
-  assert.equal(lines[2].reason, "no change since the last passing check");
+  assert.equal(lines[1].reason, "the verdict changed; nothing the judge was shown changed");
+  assert.equal(lines[2].reason, "no change since the last passing judgment");
 });
 
 test("fail, then a revised draft that passes, is improved", () => {
@@ -239,8 +256,8 @@ test("fail, then a revised draft that passes, is improved", () => {
   writeVerdict(w.verdict, doctorVerdict());
   const r = record(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /verdict: improved \(stations now pass: doctor\)/);
-  assert.equal(ledgerLines(w.ledger)[1].change, "stations now pass: doctor");
+  assert.match(r.stdout, /verdict: improved \(draft changed; stations now pass: doctor\)/);
+  assert.equal(ledgerLines(w.ledger)[1].change, "draft changed; stations now pass: doctor");
 });
 
 test("draft bytes judged before under another name never earn one-shot", () => {
@@ -280,7 +297,7 @@ test("failing twice with nothing changed says still failing", () => {
   writeVerdict(w.verdict, doctorVerdict((v) => { v.would_take_next_step = false; }));
   record(w);
   const r = record(w);
-  assert.match(r.stdout, /verdict: not-improved \(no change since the last check; still failing: doctor\)/);
+  assert.match(r.stdout, /verdict: not-improved \(no change since the last judgment; still failing: doctor\)/);
 });
 
 test("judge history is its own: a check line for the same draft does not change the first judgment's verdict", () => {
@@ -308,7 +325,7 @@ test("relative paths: the packet keeps them as given, and ./draft.md and draft.m
   r = cli(["judge", "prepare", "spec.md", "--draft", "draft.md", "--out", "judge", "--force"], { cwd: w.dir });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   r = cli(["judge", "record", "judge/doctor.packet.json", "--verdict", "doctor.verdict.json"], { cwd: w.dir });
-  assert.match(r.stdout, /no change since the last passing check/, "draft.md continues the ./draft.md history");
+  assert.match(r.stdout, /verdict: not-improved \(no change since the last passing judgment\)/, "draft.md continues the ./draft.md history, and the path's spelling is no change");
   assert.ok(!readFileSync(w.ledger, "utf8").includes(w.dir), "no absolute path in the ledger");
 });
 

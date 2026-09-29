@@ -129,7 +129,7 @@ test("knowledge lines keep their own history: fail, then a revised draft passes 
   writeVerdict(w.verdict, { leaks: [] });
   r = record(w);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /verdict: improved \(stations now pass: knowledge\)/);
+  assert.match(r.stdout, /verdict: improved \(draft changed; stations now pass: knowledge\)/);
   const lines = ledgerLines(w.ledger).filter((l) => l.kind === "judge");
   assert.deepEqual(lines.map((l) => [l.station, l.status, l.verdict]), [["knowledge", "fail", "not-improved"], ["knowledge", "pass", "improved"]]);
   assert.match(cli(["lint", w.spec]).stdout, /pass \(9\/9\)/);

@@ -52,8 +52,9 @@ const HELP = `hyperspec <command> [options]
                                and knowledge (each character's knowledge timeline);
                                the same spec and draft give byte-identical packets; refuses to
                                overwrite an existing packet without --force
-                               exit 0 written, 2 usage (a missing or non-folder --out, an existing
-                               packet without --force, an unknown --only name)
+                               exit 0 written, 1 a station could not build its packet (the rest
+                               are written), 2 usage (a missing or non-folder --out, an existing
+                               packet without --force, an unknown --only name), or lint's own code
   judge record <packet> --verdict <file> [--json]
                                validate the judge's verdict against its packet (every evidence
                                span must appear in the draft; a draft or spec changed since the
@@ -448,8 +449,8 @@ if (cmd === "judge") {
     const result = recordJudgment(packetPath, parsed.values["--verdict"]);
     if (result.usage) usage(result.error);
     if (json) console.log(JSON.stringify(result, null, 2));
-    else if (result.stale || result.invalid) {
-      console.log(`${result.station}: ${result.stale ? "stale" : "invalid"} verdict, nothing recorded`);
+    else if (result.invalid) {
+      console.log(`${result.station}: ${result.stale ? "stale packet" : "invalid verdict"}, nothing recorded`);
       for (const f of result.findings) printFinding(f);
     } else {
       console.log(`${result.station}: ${result.status}`);

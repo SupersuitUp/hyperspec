@@ -243,6 +243,26 @@ test("a quote split by a speech tag is one line; two tagged quotes in one paragr
   assert.deepEqual(left(r), [["Turn them.", EXCLUDED.noTag], ["First,", EXCLUDED.noTag]]);
 });
 
+test("a split quote whose joining narration names a second speaker is a conflict, left out, never keyed to the first", () => {
+  const cast = [{ ...INES, name: "Ines" }, { ...THEO, name: "Theo" }];
+  for (const draft of [
+    "\"Leave it there,\" Ines said, and Theo said, \"No chance at all.\"",
+    "\"Leave it there,\" Ines said, then Theo replied, \"No chance at all.\"",
+    "\"Leave it there,\" Ines said to Theo, who said, \"No chance at all.\"",
+  ]) {
+    const r = dialogueLines(`${draft}\n`, cast, { narrator: null });
+    assert.deepEqual(keyed(r), [], draft);
+    assert.deepEqual(left(r), [["Leave it there, No chance at all.", EXCLUDED.conflict]], draft);
+  }
+  // One speaker's split quote, with a beat inside the tag, is still one line keyed to her.
+  const one = dialogueLines("\"Twenty minutes,\" Ines said, \"then we fold it.\"\n\n\"Twenty minutes,\" Ines said, wiping her hands, \"then we fold it.\"\n", cast, { narrator: null });
+  assert.deepEqual(keyed(one), [["Twenty minutes, then we fold it.", "ines"], ["Twenty minutes, then we fold it.", "ines"]]);
+});
+
+test("the attribution instructions tell the judge to stay inside the packet", () => {
+  assert.match(ATTRIBUTION_INSTRUCTIONS, /Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names\./);
+});
+
 test("a line of three or more words inside, or containing, a golden or rejected line is left out", () => {
   const r = lines([
     "\"Sold means sold,\" Ines said.",

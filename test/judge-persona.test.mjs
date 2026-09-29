@@ -197,7 +197,7 @@ test("a claims ledger changed after prepare makes the packet stale, naming the l
   assert.deepEqual(ids(j.findings), ["judge-stale"]);
   assert.match(j.findings[0].message, /the claims ledger \(essay\.claims\.jsonl\) changed since the packet was prepared, or the packet was edited/);
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
-  assert.match(record(w).stdout, /^persona: stale verdict, nothing recorded$/m);
+  assert.match(record(w).stdout, /^persona: stale packet, nothing recorded$/m);
 });
 
 test("a claims ledger deleted after prepare is stale too: the station no longer applies, and the ledger is named", () => {

@@ -11,12 +11,15 @@
 // closest to the same target, skipping any that is already a golden paragraph word for word
 //, since a lineup of two identical passages tests nothing. Ties go to the earliest.
 //
-// The shuffle is seeded from the draft's sha256, so the same draft always gets the same labels and
-// a revised draft gets a fresh draw. The draft's label is the hidden answer: it goes only in the
-// station's key, which prepare writes to lineup.key.json for a person to read and record rebuilds
-// rather than reading.
+// The shuffle is seeded from the draft's full text (lineupSeed below), so the same draft always gets
+// the same labels and a revised draft gets a fresh draw. The seed is never a value the packet
+// carries: the packet holds the draft's hash and one paragraph of it, and a seed taken from the
+// hash would let anyone holding the packet rerun the shuffle and read off the answer. The draft's
+// label is the hidden answer: it goes only in the station's key, which prepare writes to
+// lineup.key.json for a person to read and record rebuilds rather than reading.
 
 import { resolve } from "node:path";
+import { sha256 } from "../hash.mjs";
 import { str } from "../placeholder.mjs";
 import { readScope } from "../dna.mjs";
 import { splitLines } from "../draft.mjs";
@@ -31,6 +34,7 @@ export const LINEUP_INSTRUCTIONS = [
   "All but one were written by the writer of inputs.scope, for this form, audience and purpose, and approved by a person; exactly one comes from a new draft.",
   "Pick the label of the passage you believe comes from the new draft, judging by voice alone: rhythm, diction, sentence shape, what this writer would and would not say.",
   "Give your confidence from 0 (a guess) to 1 (certain), and in reason say what in the candidates decided it.",
+  "Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names.",
   "Answer only in the verdict shape given in verdict_schema.",
 ].join(" ");
 
@@ -136,6 +140,13 @@ export function seededShuffle(items, sha256Hex) {
   return out;
 }
 
+// lineupSeed(draftText): the hash the shuffle is seeded with. It is taken from the draft's whole
+// text under a fixed prefix, never from draft_sha256 or anything else the packet carries, since the
+// packet does not carry the draft's text: a judge holding only the packet cannot recompute the
+// order, while the same draft always gets the same labels.
+export const LINEUP_SEED_PREFIX = "hyperspec lineup seed\n";
+export const lineupSeed = (draftText) => sha256(LINEUP_SEED_PREFIX + String(draftText));
+
 // ---- the station ---------------------------------------------------------------------------------
 
 // Every prose paragraph of a text, reflowed to one line: [{ line, text }].
@@ -192,7 +203,7 @@ export function sourceSkip(spec, draft) {
 // packet's inputs no longer match while neither hash changed.
 export function inputSources(spec) {
   const dir = str(spec.data?.writing?.dna?.scope_dir);
-  return dir ? `the DNA scope's goldens (${dir}/goldens)` : null;
+  return dir ? `the DNA scope (${dir}: scope.md and goldens)` : null;
 }
 
 // The packet's rubric (dna.check.rubric, verbatim), inputs (the scope and the labelled candidates,
@@ -201,7 +212,7 @@ export function inputSources(spec) {
 export function packet(spec, draft) {
   const { scope, goldens, passage } = lineupPlan(spec, draft);
   const pool = [...goldens, { source: "draft", text: passage.text }];
-  const order = seededShuffle(pool, draft.sha256);
+  const order = seededShuffle(pool, lineupSeed(draft.text));
   const labels = LABELS.slice(0, order.length);
   return {
     rubric: spec.data.writing.dna.check.rubric,

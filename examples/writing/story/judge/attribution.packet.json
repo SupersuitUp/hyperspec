@@ -6,7 +6,7 @@
   "draft": "story/draft.md",
   "draft_sha256": "fdf8dd1ee311a376e45cca31b50f0b01f1157a889cb332620cbd178e9c510306",
   "rubric": "blind attribution test, knowledge-leak check against the timeline, consistency against golden and rejected lines",
-  "instructions": "Each entry in inputs.lines is one line of dialogue from the draft, with its speaker and the narration around it removed. Using only how each character in inputs.characters speaks (their speech block, golden_lines and rejected_lines), name who says each line. Answer in lines: one { id, speaker } per line id, each id exactly once, where speaker is a character id from inputs.characters. Answer only in the verdict shape given in verdict_schema.",
+  "instructions": "Each entry in inputs.lines is one line of dialogue from the draft, with its speaker and the narration around it removed. Using only how each character in inputs.characters speaks (their speech block, golden_lines and rejected_lines), name who says each line. Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names. Answer in lines: one { id, speaker } per line id, each id exactly once, where speaker is a character id from inputs.characters. Answer only in the verdict shape given in verdict_schema.",
   "inputs": {
     "characters": [
       {

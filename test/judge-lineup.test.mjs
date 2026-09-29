@@ -1,5 +1,6 @@
 // The lineup station: up to three goldens from the spec's DNA scope and one passage of the draft,
-// shuffled by the draft's hash and labelled; the draft's label is kept out of the packet (it goes
+// shuffled by a seed taken from the draft's whole text (never a hash the packet carries) and
+// labelled; the draft's label is kept out of the packet (it goes
 // only to lineup.key.json, and record rebuilds it rather than reading that file). Passes when the
 // judge picks a golden, i.e. could not tell the draft from the writer.
 
@@ -10,7 +11,7 @@ import { join } from "node:path";
 import { ROOT, cli, workspace, forStation, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
 import { tempDir } from "./tmp.mjs";
 import { createHash } from "node:crypto";
-import { LINEUP_INSTRUCTIONS, proseParagraphs, pickPassage, reflow, seededShuffle, skipReason } from "../src/judges/lineup.mjs";
+import { LINEUP_INSTRUCTIONS, LINEUP_SEED_PREFIX, lineupSeed, proseParagraphs, pickPassage, reflow, seededShuffle, skipReason } from "../src/judges/lineup.mjs";
 
 const PASSAGE = "A hyperspec is a contract a linter can check, not a prompt someone wrote once.";
 const CLOSING = "A hyperspec is a contract you can check today, and a contract you can keep tomorrow.";
@@ -35,6 +36,7 @@ function recordJson(w, verdict) {
   return { r, j: JSON.parse(r.stdout) };
 }
 const ids = (findings) => findings.map((f) => f.id);
+const LABELS_OF = (n) => ["A", "B", "C", "D"].slice(0, n);
 
 // Rewrites the fixture spec, asserting the edit took.
 function editSpec(w, from, to) {
@@ -135,7 +137,46 @@ test("the seeded shuffle is deterministic per hash and moves with it", () => {
   assert.ok(orders.size > 4, `16 hashes gave only ${orders.size} orders`);
 });
 
+// ---- the seed: nothing the packet carries -----------------------------------------------------------
+
+test("the shuffle's seed is the draft's whole text under a fixed prefix, which the packet does not carry", () => {
+  const text = "One paragraph.\n\nAnother.\n";
+  assert.equal(LINEUP_SEED_PREFIX, "hyperspec lineup seed\n");
+  assert.equal(lineupSeed(text), createHash("sha256").update(`hyperspec lineup seed\n${text}`).digest("hex"));
+  assert.notEqual(lineupSeed(text), createHash("sha256").update(text).digest("hex"), "never the draft's own hash, which the packet carries as draft_sha256");
+});
+
+test("the key's order is the shuffle seeded from the draft's text, and seeding from anything in the packet does not recover it", () => {
+  let hashSeedWouldDiffer = 0;
+  for (let i = 0; i < 8; i++) {
+    const draft = DRAFT.replace("Read the schema section next.", `Read the schema section next, part ${i}.`);
+    const w = ready({ draft });
+    const p = json(w.packet);
+    const key = json(w.key);
+    const packetText = readFileSync(w.packet, "utf8");
+    // The pool is the goldens by file name, then the draft; the key says where each label came from.
+    const pool = [...key.candidates.map((c) => c.source).filter((s) => s !== "draft").sort(), "draft"];
+    assert.deepEqual(key.candidates.map((c) => c.source), seededShuffle(pool, lineupSeed(readFileSync(w.draft, "utf8"))), `draft ${i}`);
+    // The seed's input is not in the packet: the draft's text is not there whole, and neither is the
+    // seed or any hash of the packet's own.
+    assert.ok(!packetText.includes(JSON.stringify(draft).slice(1, -1)), "the packet does not carry the draft's text");
+    const seed = lineupSeed(readFileSync(w.draft, "utf8"));
+    for (const h of [p.draft_sha256, p.spec_sha256]) assert.notEqual(h.slice(0, 8), seed.slice(0, 8));
+    assert.ok(!packetText.includes(seed.slice(0, 8)), "the seed is nowhere in the packet");
+    // Rerunning the shuffle from the packet's own draft hash (the attack: the draft is last in the
+    // pool) is only ever right by chance; count the drafts where it is wrong.
+    const n = p.inputs.candidates.length;
+    const guess = LABELS_OF(n)[seededShuffle([...Array(n).keys()], p.draft_sha256).indexOf(n - 1)];
+    if (guess !== key.draft_label) hashSeedWouldDiffer += 1;
+  }
+  assert.ok(hashSeedWouldDiffer > 0, "a seed taken from draft_sha256 would give the same labels for every draft here, so this test could not catch a revert");
+});
+
 // ---- the packet and the key ----------------------------------------------------------------------
+
+test("the lineup instructions tell the judge to stay inside the packet", () => {
+  assert.match(LINEUP_INSTRUCTIONS, /Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names\./);
+});
 
 test("the lineup packet: the dna rubric verbatim, fixed instructions, the scope and labelled candidates", () => {
   const w = ready();
@@ -356,9 +397,9 @@ test("record rebuilds the key: an edited lineup.key.json changes nothing", () =>
   assert.equal(j.status, "fail", "still the draft's real label");
 });
 
-const STALE_INPUTS = "fail [judge-stale] the packet's inputs no longer match what the spec, the draft and the DNA scope's goldens (dna-scope/goldens) produce now: the DNA scope's goldens (dna-scope/goldens) changed since the packet was prepared, or the packet was edited";
+const STALE_INPUTS = "fail [judge-stale] the packet's inputs no longer match what the spec, the draft and the DNA scope (dna-scope: scope.md and goldens) produce now: the DNA scope (dna-scope: scope.md and goldens) changed since the packet was prepared, or the packet was edited";
 
-const STALE_FIX = "fix: Run judge prepare again (with --force) so the packet is built from the spec, the draft and the DNA scope's goldens (dna-scope/goldens) as they are now, and judge the new packet.";
+const STALE_FIX = "fix: Run judge prepare again (with --force) so the packet is built from the spec, the draft and the DNA scope (dna-scope: scope.md and goldens) as they are now, and judge the new packet.";
 
 test("a golden changed after prepare is stale, and the message names the goldens (R9)", () => {
   const w = ready();
@@ -367,7 +408,7 @@ test("a golden changed after prepare is stale, and the message names the goldens
   writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
   const r = record(w);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
+  assert.match(r.stdout, /^lineup: stale packet, nothing recorded$/m);
   assert.ok(r.stdout.includes(STALE_INPUTS), r.stdout);
   assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
@@ -379,9 +420,9 @@ test("goldens removed after prepare so lineup no longer applies: stale, naming t
   writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
   const r = record(w);
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m);
-  assert.match(r.stdout, /fail \[judge-stale\] lineup no longer applies \(writing\.dna\.scope_dir "dna-scope"[^\n]*\): the DNA scope's goldens \(dna-scope\/goldens\) changed since the packet was prepared, or the packet was edited$/m);
-  assert.ok(r.stdout.includes("fix: Restore the DNA scope's goldens (dna-scope/goldens) and record this verdict again; as they are now, judge prepare skips lineup for this spec and draft."), r.stdout);
+  assert.match(r.stdout, /^lineup: stale packet, nothing recorded$/m);
+  assert.match(r.stdout, /fail \[judge-stale\] lineup no longer applies \(writing\.dna\.scope_dir "dna-scope"[^\n]*\): the DNA scope \(dna-scope: scope\.md and goldens\) changed since the packet was prepared, or the packet was edited$/m);
+  assert.ok(r.stdout.includes("fix: Restore the DNA scope (dna-scope: scope.md and goldens) and record this verdict again; as they are now, judge prepare skips lineup for this spec and draft."), r.stdout);
   assert.ok(!r.stdout.includes("judge the new packet"), "prepare writes no new lineup packet");
   assert.deepEqual(ledgerLines(w.ledger).filter((l) => l.kind === "judge"), []);
 });
@@ -395,7 +436,7 @@ test("an edited draft with the packet's hash forged to match is refused, and the
   writeVerdict(w.verdict, { pick: "A", confidence: 0.5, reason: "a guess" });
   const r = record(w);
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stdout, /^lineup: stale verdict, nothing recorded$/m, "only the shuffle moved, so only inputs differ");
+  assert.match(r.stdout, /^lineup: stale packet, nothing recorded$/m, "only the shuffle moved, so only inputs differ");
   assert.ok(r.stdout.includes(STALE_INPUTS), r.stdout);
   assert.ok(r.stdout.includes(STALE_FIX), r.stdout);
   assert.ok(!/unchanged/.test(r.stdout), "never claims the spec or the draft is unchanged");

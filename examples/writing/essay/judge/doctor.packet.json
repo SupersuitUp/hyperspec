@@ -2,7 +2,7 @@
   "hyperspec_judge": "0.1",
   "station": "doctor",
   "spec": "essay.hyperspec.md",
-  "spec_sha256": "65022fe47218fd72a057dc948417ee282f3295280a7b3e08e4dd29863b50f132",
+  "spec_sha256": "e03dfac6b445ae779000f7fc109a9d713df2e5cf8967faf8e808fe87d63e40e9",
   "draft": "essay/draft.md",
   "draft_sha256": "aa4a1d99604f7b2b398b67305b368abbb72651356c38bfffad1452db6be62f65",
   "rubric": "the doctor grades the draft against every condition; the simulated reader is asked whether it would copy the questions now",
@@ -11,7 +11,7 @@
     "goal": {
       "from": "plans to run the first one-on-one from their own list",
       "to": "hands the first one-on-one to the report and asks the three questions",
-      "next_if_worked": "copies the three questions into their calendar invite",
+      "next_if_worked": "writes the three questions on a card before the meeting",
       "change": {
         "kind": "action",
         "text": "the reader asks the three questions in their next one-on-one and waits after each"

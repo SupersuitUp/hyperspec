@@ -48,27 +48,37 @@ export function ledgerDraftKey(specDir, draftPathArg) {
 // continues (the caller picks it: check uses the last full check of the same draft, judge the last
 // judgment of the same station and draft). `last` is normalized to { stations, draft_sha256,
 // spec_sha256 }, stations mapping each station name to its status then; statusNow maps each
-// station run now to its status. "Changed" means the draft's bytes or the spec's bytes.
+// station run now to its status. "Changed" means the draft's bytes or the spec's bytes, unless the
+// caller says more (what, below).
 //
 //   none, and every station passes              -> one-shot
 //   none, and a station fails                   -> not-improved "failing stations: X"
 //   it failed, every station passes now         -> improved "stations now pass: X", exactly the
 //                                                  stations that failed then and pass now
-//   it passed, nothing changed, passing         -> not-improved "no change since the last passing check"
+//   it passed, nothing changed, passing         -> not-improved "no change since the last passing <noun>"
 //   it passed, something changed, passing       -> not-improved "<what> changed; every station still passes"
 //   failing now                                 -> not-improved "[<what> changed; |no change since
-//                                                  the last check; ]still failing: X" when every
+//                                                  the last <noun>; ]still failing: X" when every
 //                                                  failing station also failed then, else
 //                                                  "[<what> changed; ]failing stations: X"
 //
 // Returns { verdict, detail }, detail holding either change (improved) or reason (not-improved),
 // or nothing (one-shot). Every reason is literally true of the two lines compared.
 //
-// unchangedImprovedReason: a caller whose station can flip from fail to pass with neither the
-// draft nor the spec changed (a judge answering differently; check cannot, being deterministic
-// over the same files) passes the reason to record instead: "improved" then requires a changed
-// draft or spec hash since the failing line, and an unchanged flip is not-improved with this reason.
-export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImprovedReason }) {
+// noun: what a line records, in the reasons that say nothing changed ("no change since the last
+// passing check"); a judge line passes "judgment". Default "check".
+//
+// what: the caller's own account of what changed since `last`, when the draft and spec hashes are
+// not the whole of it (a judge's packet also reads the DNA goldens or the claims ledger); a string
+// such as "draft" or "the claims ledger (claims.jsonl)", or null for nothing. Omitted, it is worked
+// out from the two hashes.
+//
+// unchangedImprovedReason: a caller whose station can flip from fail to pass with nothing changed
+// (a judge answering differently; check cannot, being deterministic over the same files) passes the
+// reason to record instead: "improved" then requires something changed since the failing line, an
+// unchanged flip is not-improved with this reason, and an improved line's change names what
+// changed ("draft changed; stations now pass: doctor").
+export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImprovedReason, noun = "check", what: whatGiven }) {
   const list = (names) => names.join(", ");
   const failing = Object.entries(statusNow).filter(([, st]) => st === "fail").map(([n]) => n);
   const passedNow = failing.length === 0;
@@ -80,18 +90,19 @@ export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImp
   const failedThen = Object.entries(last.stations ?? {}).filter(([, st]) => st === "fail").map(([n]) => n);
   const draftChanged = last.draft_sha256 !== draftSha;
   const specChanged = last.spec_sha256 !== specSha;
-  const what = draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : draftChanged ? "draft" : null;
+  const what = whatGiven !== undefined ? whatGiven
+    : draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : draftChanged ? "draft" : null;
 
   if (passedNow && failedThen.length) {
     const nowPass = failedThen.filter((n) => statusNow[n] === "pass");
     if (nowPass.length && !what && unchangedImprovedReason) return { verdict: "not-improved", detail: { reason: unchangedImprovedReason } };
-    if (nowPass.length) return { verdict: "improved", detail: { change: `stations now pass: ${list(nowPass)}` } };
+    if (nowPass.length) return { verdict: "improved", detail: { change: `${unchangedImprovedReason ? `${what} changed; ` : ""}stations now pass: ${list(nowPass)}` } };
     return { verdict: "not-improved", detail: { reason: `${what ? `${what} changed; ` : ""}stations that failed last time now skip: ${list(failedThen)}` } };
   }
   if (passedNow) {
-    return { verdict: "not-improved", detail: { reason: what ? `${what} changed; every station still passes` : "no change since the last passing check" } };
+    return { verdict: "not-improved", detail: { reason: what ? `${what} changed; every station still passes` : `no change since the last passing ${noun}` } };
   }
   const still = failing.every((n) => failedThen.includes(n));
-  const prefix = what ? `${what} changed; ` : still ? "no change since the last check; " : "";
+  const prefix = what ? `${what} changed; ` : still ? `no change since the last ${noun}; ` : "";
   return { verdict: "not-improved", detail: { reason: `${prefix}${still ? "still failing" : "failing stations"}: ${list(failing)}` } };
 }

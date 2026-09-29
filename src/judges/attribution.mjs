@@ -10,7 +10,10 @@
 // paired within one paragraph with code masked first: the quotes station's own quotedSpans
 // (src/stations/quotes.mjs). A span with no letter or digit is not a line. A quote split by a
 // speech tag ("Twenty minutes," Ines said, "then we fold it.") is one line: the first part ends in
-// a comma, and the narration between the parts is a speech tag ending in a comma.
+// a comma, and the narration between the parts is a speech tag ending in a comma. That narration is
+// read as a tag in both directions, after the part it follows and before the part it precedes, and
+// it may hold only one speech verb, so a second speaker in it ("Ines said, and Theo said,", "Ines
+// said to Theo, who said,") makes the merged line a conflict, left out.
 // Lines keep draft order and are numbered L1..Ln over the lines that are attributed.
 //
 // The true speaker comes ONLY from a speech tag: narration in the same paragraph that
@@ -67,6 +70,7 @@ export const EXCLUDED = Object.freeze({
 export const ATTRIBUTION_INSTRUCTIONS = [
   "Each entry in inputs.lines is one line of dialogue from the draft, with its speaker and the narration around it removed.",
   "Using only how each character in inputs.characters speaks (their speech block, golden_lines and rejected_lines), name who says each line.",
+  "Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names.",
   "Answer in lines: one { id, speaker } per line id, each id exactly once, where speaker is a character id from inputs.characters.",
   "Answer only in the verdict shape given in verdict_schema.",
 ].join(" ");
@@ -79,10 +83,15 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const verbAlternation = (verbs) => `(?:${verbs.map((v) => v.split(" ").map(escapeRe).join("\\s+")).join("|")})`;
 const VERB = verbAlternation(SPEECH_VERBS);
 const INVERTED = verbAlternation(INVERTED_VERBS);
+// A second speaker, as tagged() cannot resolve it: two speech verbs in the narration joining the
+// parts of a split quote mean two tags, whoever the second names ("who said").
+const SECOND_SPEAKER = Symbol("second speaker");
 // A name or verb ends at a non-word character, and an apostrophe is not an end: "Ines's" is not "Ines".
 const END = `(?![${WORD}'’])`;
 const START = `(?<![${WORD}'’])`;
 const UNKNOWN = Symbol("unknown speaker");
+const SPEECH_VERB_ANYWHERE = new RegExp(`${START}${VERB}${END}`, "giu");
+const speechVerbCount = (narration) => (narration.match(SPEECH_VERB_ANYWHERE) ?? []).length;
 
 // A character's id or name as the pattern source of its words (split on anything that is not a
 // letter or digit, so the id "old-man" reads as "old man"), joined in the text by whitespace,
@@ -164,6 +173,13 @@ export function dialogueLines(draftText, cast, { narrator = null } = {}) {
         && /,\s*$/.test(narrationAfter(j)) && tagged(matchers, narrationAfter(j), "after").length) j += 1;
       const speakers = new Set([...tagged(matchers, narrationBefore(i), "before")]);
       for (let k = i; k <= j; k++) for (const s of tagged(matchers, narrationAfter(k), "after")) speakers.add(s);
+      // The narration joining two merged parts also sits before the later part, so it is read as a
+      // tag for that part too; and one speech verb is all a joining tag may hold.
+      for (let k = i + 1; k <= j; k++) {
+        const joining = narrationBefore(k);
+        for (const s of tagged(matchers, joining, "before")) speakers.add(s);
+        if (speechVerbCount(joining) > 1) speakers.add(SECOND_SPEAKER);
+      }
       const text = spans.slice(i, j + 1).map((s) => s.inner.replace(/\s+/g, " ").trim()).join(" ");
       const line = lineAt(draftText, spans[i].start);
       let reason = null;

@@ -423,7 +423,7 @@ test("the page's packet field table names every field of a real packet, and no o
   }
 });
 
-test("the page's judge record samples are exactly what record prints for the essay's doctor and the story's attribution samples", () => {
+test("the page's judge record samples are exactly what record prints for the essay's lineup and the story's attribution samples", () => {
   const recording = subsOf("Judging a draft").find((s) => s.heading === "Recording a verdict").body;
   const d = exampleCopy("hs-doc-judge-record-");
   const r = run(d, bashLines(recording)[0]);
@@ -439,7 +439,7 @@ test("the page's judge ledger line has exactly the fields record writes", () => 
   const body = subsOf("Judging a draft").find((s) => s.heading === "Judge lines in the runs ledger").body;
   const sample = JSON.parse(fence(body, "json"));
   const d = exampleCopy("hs-doc-judge-ledger-");
-  spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", "essay/judge/doctor.packet.json", "--verdict", "essay/sample-verdicts/doctor.verdict.json"], { cwd: d, encoding: "utf8" });
+  spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", "essay/judge/lineup.packet.json", "--verdict", "essay/sample-verdicts/lineup.verdict.json"], { cwd: d, encoding: "utf8" });
   const written = JSON.parse(readFileSync(join(d, "essay", "runs.jsonl"), "utf8").trim().split("\n").at(-1));
   assert.deepEqual(Object.keys(sample), Object.keys(written));
   for (const k of ["kind", "station", "draft", "status", "verdict", "reason"]) assert.equal(sample[k], written[k], k);

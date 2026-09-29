@@ -214,8 +214,9 @@ export function prepareJudges(specPathArg, draftPathArg, outDirArg, { only, forc
 
 // recordJudgment(packetPathArg, verdictPathArg): validates the verdict against its packet and, when
 // it is valid, derives the station's status and appends one ledger line. Returns a usage result
-// (exit 2), { stale } or { invalid } (exit 1, nothing appended), or the recorded result (exit 0 when
-// the station passes, 1 when it fails).
+// (exit 2), { invalid } (exit 1, nothing appended; a stale packet is { invalid, stale }, the shape
+// `learn record` returns too), or the recorded result (exit 0 when the station passes, 1 when it
+// fails).
 export function recordJudgment(packetPathArg, verdictPathArg) {
   if (!present(packetPathArg)) return { usage: true, error: "judge record needs a packet path" };
   if (!present(verdictPathArg)) return { usage: true, error: "judge record needs --verdict <file>" };
@@ -250,7 +251,7 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   const specChanged = specSha !== packet.spec_sha256;
   if (draftChanged || specChanged) {
     const names = [specChanged && "the spec", draftChanged && "the draft"].filter(Boolean);
-    return { ...base, ok: false, stale: true, findings: [t.finding("judge-stale", hashMismatchMessage(names), "Run judge prepare again (with --force) and judge the new packet.")], code: 1 };
+    return { ...base, ok: false, invalid: true, stale: true, findings: [t.finding("judge-stale", hashMismatchMessage(names), "Run judge prepare again (with --force) and judge the new packet.")], code: 1 };
   }
 
   // record never trusts the packet file: it rebuilds the packet (and any answer key) from the spec
@@ -278,7 +279,7 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // applies and why. Any other skip (the spec changed under a forged hash, say) is an altered
   // packet. Neither message tells the user to judge a packet prepare will no longer write.
   const sources = judge.inputSources?.(spec) ?? null;
-  const staleSources = (message, fix) => ({ ...base, ok: false, stale: true, findings: [t.finding("judge-stale", `${message}: ${sources} changed since the packet was prepared, or the packet was edited`, fix)], code: 1 });
+  const staleSources = (message, fix) => ({ ...base, ok: false, invalid: true, stale: true, findings: [t.finding("judge-stale", `${message}: ${sources} changed since the packet was prepared, or the packet was edited`, fix)], code: 1 });
   const sourceSkip = !rebuilt && sources ? judge.sourceSkip?.(spec, draft) ?? null : null;
   if (sourceSkip) {
     return staleSources(`${judge.name} no longer applies (${sourceSkip})`, `Restore ${sources} and record this verdict again; as they are now, judge prepare skips ${judge.name} for this spec and draft.`);
@@ -326,13 +327,30 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   if (ledger?.warning) ledgerWarning = ledger.warning;
   else if (ledger) {
     const draftKey = ledgerDraftKey(spec.dir, packet.draft);
+    // packet_sha256: the hash of what the judge was shown, taken over the packet with its two paths
+    // written as the ledger writes them (relative to the spec's folder), so the same packet
+    // prepared from another folder, or as ./draft.md, hashes the same and a path's spelling can
+    // never pass for a change.
+    const packetSha = sha256(packetJson({ ...rebuilt.packet, spec: ledgerDraftKey(spec.dir, packet.spec), draft: draftKey }));
     const judgeLines = priorLines(ledger.priorText, "judge");
     const prior = judgeLines.filter((l) => l.station === judge.name && l.draft === draftKey).at(-1);
     const last = prior ? { stations: { [prior.station]: prior.status }, draft_sha256: prior.draft_sha256, spec_sha256: prior.spec_sha256 } : undefined;
+    // What changed since that line is judged by what the judge was shown: the packet. The draft
+    // and the spec are named when their bytes changed; a packet that changed with both unchanged
+    // was changed by the files the station reads besides them (the DNA scope, the claims ledger),
+    // which are named. A line with no packet_sha256 (none is written without one) is compared by
+    // the two hashes alone.
+    let what = null;
+    if (prior) {
+      const draftChanged = prior.draft_sha256 !== draft.sha256;
+      const specChanged = prior.spec_sha256 !== specSha;
+      if (draftChanged || specChanged) what = draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : "draft";
+      else if (typeof prior.packet_sha256 === "string" && prior.packet_sha256 !== packetSha) what = sources ?? "the packet";
+    }
     ({ verdict, detail: verdictDetail } = ledgerVerdict({
-      last, statusNow: { [judge.name]: status }, draftSha: draft.sha256, specSha,
-      // A judge can answer differently about identical bytes; that is not the work improving.
-      unchangedImprovedReason: "the verdict changed; draft and spec unchanged",
+      last, statusNow: { [judge.name]: status }, draftSha: draft.sha256, specSha, noun: "judgment", what,
+      // A judge can answer differently about an identical packet; that is not the work improving.
+      unchangedImprovedReason: "the verdict changed; nothing the judge was shown changed",
     }));
     // one-shot means these bytes passed the first time they were judged, whatever the file was
     // called: bytes already judged under another path (a copy, a rename) never earn it.
@@ -347,6 +365,7 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
       draft: draftKey,
       draft_sha256: draft.sha256,
       spec_sha256: specSha,
+      packet_sha256: packetSha,
       status,
       verdict,
       ...verdictDetail,

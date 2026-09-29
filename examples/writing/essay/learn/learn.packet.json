@@ -1,7 +1,7 @@
 {
   "hyperspec_learn": "0.1",
   "spec": "essay.hyperspec.md",
-  "spec_sha256": "65022fe47218fd72a057dc948417ee282f3295280a7b3e08e4dd29863b50f132",
+  "spec_sha256": "e03dfac6b445ae779000f7fc109a9d713df2e5cf8967faf8e808fe87d63e40e9",
   "first": "essay/learn/first-draft.md",
   "first_sha256": "08f039cd278093c81338f8880c4533ada741ecc33b0c6610ffbd98b8d31c0c62",
   "approved": "essay/draft.md",

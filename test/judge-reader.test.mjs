@@ -168,7 +168,7 @@ test("reader and doctor keep separate histories for the same draft; the spec sti
   writeVerdict(revised.verdict, readerVerdict());
   r = record(revised);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /verdict: improved \(stations now pass: reader\)/);
+  assert.match(r.stdout, /verdict: improved \(draft changed; stations now pass: reader\)/);
   for (let i = 0; i < 8; i++) record(revised);
   const lines = ledgerLines(w.ledger).filter((l) => l.kind === "judge");
   assert.deepEqual(lines.slice(0, 3).map((l) => [l.station, l.status, l.verdict]), [["doctor", "pass", "one-shot"], ["reader", "fail", "not-improved"], ["reader", "pass", "improved"]]);

@@ -163,7 +163,7 @@ writing:
   goal:
     from: plans to run the first one-on-one from their own list
     to: hands the first one-on-one to the report and asks the three questions
-    next_if_worked: copies the three questions into their calendar invite
+    next_if_worked: writes the three questions on a card before the meeting
     change:
       kind: action
       text: the reader asks the three questions in their next one-on-one and waits after each

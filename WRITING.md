@@ -219,7 +219,7 @@ writing:
   goal:
     from: plans to run the meeting from their own list
     to: hands the meeting to the report
-    next_if_worked: copies the three questions into the invite
+    next_if_worked: writes the three questions on a card
     change:
       kind: action                   # belief | action | feeling
       text: the reader asks the three questions and waits
@@ -1056,6 +1056,15 @@ blind tests with a right answer. `lineup` writes which candidate is the draft's 
 is not judging. `record` never reads either file as truth: it builds the key again from the spec
 and the draft, so an edited key changes nothing.
 
+**Give the two blind packets to a judge in a fresh context with no access to the draft.** Every
+packet names its spec and its draft by path, and a judge that can open files can open those: the
+draft's own text shows which lineup passage is the draft's, and its speech tags give every
+attribution answer. Both stations' instructions tell the judge to decide from the packet's inputs
+alone and open no file the packet names, and a judge with file access can still ignore that, so
+the instruction is not a guarantee. Paste the packet into a new conversation, or hand it to a
+person who has not read the draft, rather than to an agent working in the folder the draft is in.
+The other four packets carry the draft in their inputs and hide nothing.
+
 Exit codes for `prepare`: **0** written; **1** a station crashed; **2** usage: no spec path, no
 `--draft`, no `--out`, an `--out` that is missing or not a folder, a draft that cannot be read, a
 spec without `profile: writing`, an `--only` that names no known judge, or a file that exists
@@ -1103,21 +1112,22 @@ they are blind tests, scored against their keys.
 ### Recording a verdict
 
 ```bash
-npx @supersuit/hyperspec judge record essay/judge/doctor.packet.json --verdict essay/sample-verdicts/doctor.verdict.json
+npx @supersuit/hyperspec judge record essay/judge/lineup.packet.json --verdict essay/sample-verdicts/lineup.verdict.json
 ```
 
 ```
-doctor: fail
-  fail [judge-doctor-next-step] the reader would not take the next step now (copies the three questions into their calendar invite) (line 81)
-    fix: Revise the draft so the passage the judge quoted moves the reader to the next step.
-verdict: not-improved (failing stations: doctor)
+lineup: fail
+  fail [judge-lineup-picked] the judge picked the draft's passage (D) out of 4 candidates with confidence 0.6: D is the only passage that rests on a survey figure, and it opens by pointing at something outside itself (the survey); A, B and C each turn one claim into an instruction in the second person, with no numbers. (line 32)
+    fix: Revise this passage toward the goldens' voice, where the reason points; if the goldens do not cover this kind of passage, add one that does. Then prepare and judge again.
+verdict: not-improved (failing stations: lineup)
 ```
 
 `record` trusts nothing in the packet file. First it hashes the spec and the draft again; if
 either no longer matches the hash the packet recorded, the verdict is stale (`judge-stale`,
 "the draft does not match the hash the packet recorded: it changed since prepare, or the packet
 was edited"). Then it rebuilds the packet from the spec, the draft and the station's other
-inputs on disk (the DNA scope's goldens for `lineup`, the claims ledger for `persona`) and
+inputs on disk (the DNA scope, its `scope.md` and goldens, for `lineup`; the claims ledger for
+`persona`) and
 requires the file to be exactly those bytes:
 
 - a packet whose inputs no longer match what those other files produce is stale, and the message
@@ -1128,8 +1138,11 @@ requires the file to be exactly those bytes:
 - anything else (an edited condition, a reformatted file, a hash made to match a changed draft, a
   station that no longer applies for another reason) is `judge-packet-altered`.
 
-Either way nothing is recorded. The fix is to run `judge prepare` again with `--force` and judge
-the new packet, or, for a station that no longer applies, to restore the file it reads. Only then is the verdict read: it must be JSON (one leading
+Either way nothing is recorded. A stale packet prints `<station>: stale packet, nothing
+recorded`, as `learn record` does, and with `--json` both commands mark it `"invalid": true,
+"stale": true`, so a script can test `invalid` alone. The fix is to run `judge prepare` again
+with `--force` and judge the new packet, or, for a station that no longer applies, to restore
+the file it reads. Only then is the verdict read: it must be JSON (one leading
 byte order mark is ignored), in the shape the packet gives, with every evidence span found.
 Every problem is named, and an invalid verdict records nothing. The validator ignores fields it
 does not know, so a verdict can carry a note of its own; the worked examples' sample verdicts
@@ -1180,7 +1193,9 @@ formatting. The target length is the median, in characters, of every prose parag
 golden in the scope. The first three goldens by file name that have one each give their
 paragraph closest to that length, and the draft gives its paragraph closest to it, skipping any
 that is word for word a golden's; ties go to the earliest. The candidates are shuffled with a
-seed taken from the draft's hash, so the same draft always gets the same labels, and labeled A
+seed derived from the draft's full text (the SHA-256 of `hyperspec lineup seed`, a line break, and
+the text), which the packet does not carry, so the packet cannot reveal the order: not even its
+`draft_sha256`, which is a different hash. The same draft always gets the same labels, labeled A
 to D. Inputs: `scope` (the scope's `writer`, `form`, `audience` and `purpose`) and `candidates`,
 each `{ label, text }`; no path and no source. `lineup.key.json` records the draft's label, the
 draft line its paragraph starts on, and where every candidate came from.
@@ -1203,8 +1218,9 @@ check has a rubric. Inputs: `audience` (`who`, `funnel_now`, `knows`, `terms`, `
 stopped_at, would_take_next_step, next_step }`, where `stopped_at` is `{ evidence, why }` or
 `null` when the reader read to the end, and must be present either way. The reader names its own
 next step: it is not shown `goal.next_if_worked`, so a reader that would act and a doctor that
-says the reader would not take the spec's next step can both be right, and in the essay example
-they are. It passes when the reader read to the end and would take its next step now.
+says the reader would not take the spec's next step can both be right. In the essay example they
+agree: both name the card. It passes when the reader read to the end and would take its next step
+now.
 
 | Id | Kind | Meaning |
 |---|---|---|
@@ -1242,7 +1258,10 @@ least two speakers.
 
 A dialogue line is a double-quoted span, straight or curly, inside one paragraph, outside code. A
 quote split by a speech tag (`"Twenty minutes," Ines said, "then we fold it."`) is one line when
-its first part and the tag both end in a comma. A line's speaker comes only from a speech tag:
+its first part and the tag both end in a comma. The narration joining the parts is read as a tag
+for the part after it too, and may hold only one speech verb, so `"Leave it there," Ines said, and
+Theo said, "No chance at all."` names two speakers and is left out, as is `Ines said to Theo, who
+said,` between the parts. A line's speaker comes only from a speech tag:
 narration in the same paragraph directly after the closing mark (`"...," Ines said`) or directly
 before the opening mark, ending in a comma or colon (`Ines said, "..."`). A tag is a subject and
 one of the verbs said, asked, told, replied, called, whispered, shouted, answered, added and went
@@ -1322,22 +1341,32 @@ them by order. Write `by` as something a reader of the draft can find.
 Each recorded verdict appends one line to the spec's `improvement.ledger`:
 
 ```json
-{"at":"2026-09-29T16:27:36.883Z","kind":"judge","station":"doctor","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","status":"fail","verdict":"not-improved","reason":"failing stations: doctor"}
+{"at":"2026-09-29T16:27:36.883Z","kind":"judge","station":"lineup","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","packet_sha256":"<sha256 of the packet>","status":"fail","verdict":"not-improved","reason":"failing stations: lineup"}
 ```
 
-`draft` is relative to the spec's folder, as in a check line. The verdict follows the same rules
-as a check line, compared with the most recent earlier judge line for the same station and the
-same draft, with two more:
+`draft` is relative to the spec's folder, as in a check line. `packet_sha256` is the SHA-256 of
+the packet the judge was shown, taken with its two paths written as the ledger writes them
+(relative to the spec's folder), so the same packet prepared from another folder, or as
+`./draft.md`, hashes the same. The verdict follows the same rules as a check line, compared with
+the most recent earlier judge line for the same station and the same draft, with three more:
 
+- **What changed** is judged by the packet. The draft or the spec is named when its bytes
+  changed; when neither did and the packet did, the files the station reads besides them are
+  named: `the DNA scope (<scope_dir>: scope.md and goldens)` for `lineup`, `the claims ledger
+  (<path>)` for `persona`. So adding the golden a failing lineup asked for, or the claims a
+  failing persona asked for, and passing on the new packet is `improved`, "the DNA scope
+  (dna/essay-new-managers-teach: scope.md and goldens) changed; stations now pass: lineup". An
+  improved judge line always names what changed, "draft changed; stations now pass: doctor".
 - **one-shot** also needs these draft bytes never to have been judged by this station before,
   under any name. A copy or a rename of a judged draft gets `not-improved`, with the reason
   "these draft bytes were judged before as <path>: <status>".
-- **improved** also needs the draft or the spec to have changed since the failing line. A judge
-  can answer differently about identical bytes, and that is not the work improving: the verdict
-  is `not-improved`, "the verdict changed; draft and spec unchanged".
+- **improved** also needs the packet to have changed since the failing line. A judge can answer
+  differently about an identical packet, and that is not the work improving: the verdict is
+  `not-improved`, "the verdict changed; nothing the judge was shown changed".
 
-Otherwise the reasons are check's, such as `failing stations: doctor`, `no change since the last
-passing check`, or `draft changed; every station still passes`. Check and judge each read only
+Otherwise the reasons are check's, with `judgment` where check says `check`: `failing stations:
+doctor`, `no change since the last passing judgment`, `no change since the last judgment; still
+failing: doctor`, or `draft changed; every station still passes`. Check and judge each read only
 their own lines, and learn reads none, so judging a draft never changes what `check` says about
 it, or the reverse. Judge lines keep lint's test 9 passing, as check lines do.
 
@@ -1352,7 +1381,7 @@ copy on every release.
 
 | Example | Station | Sample | What the judge found |
 |---|---|---|---|
-| essay | doctor | fail | every condition holds, but the goal's next step is to copy the three questions into the calendar invite, and the draft's close says to write them on a card and to delete your own list from the invite |
+| essay | doctor | pass | every condition holds, and the reader would write the three questions on a card, the goal's next step and the draft's close |
 | essay | lineup | fail | the draft's passage is the only one resting on a survey figure; the goldens hold no numbers, so they do not cover this kind of passage |
 | essay | reader | pass | read to the end, lost nowhere; the reader's own next step is the card |
 | essay | persona | pass | the mentor stance holds, and every figure is in the claims ledger |

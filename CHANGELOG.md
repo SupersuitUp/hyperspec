@@ -25,34 +25,43 @@ keep lint's test 9 passing.
   byte-identical for the same files. It refuses to overwrite any file without `--force`, naming
   each. Exit 0 written, 1 a station crashed, 2 usage, or lint's own 1 or 3.
 - The two blind tests write an answer key beside their packets, `lineup.key.json` and
-  `attribution.key.json`, for a person to read. Hand a judge only the `*.packet.json` files.
-  `record` never reads a key: it builds it again.
+  `attribution.key.json`, for a person to read. Hand a judge only the `*.packet.json` files, and
+  the two blind packets to a judge in a fresh context with no access to the draft: their
+  instructions say to decide from the packet's inputs alone and open no file it names, but a judge
+  that can open the draft can always cheat. `record` never reads a key: it builds it again.
 - `hyperspec judge record <packet> --verdict <file> [--json]` hashes the spec and the draft again
   and rebuilds the packet from them and from the files the station reads (the DNA goldens, the
   claims ledger). A file that changed makes the packet stale (`judge-stale`), and a packet that is
-  not those exact bytes is refused (`judge-packet-altered`); either way nothing is recorded. It
-  must run in the folder `prepare` ran in. Then the verdict is validated, every problem named. Exit
+  not those exact bytes is refused (`judge-packet-altered`); either way nothing is recorded. A
+  stale packet has `learn record`'s shape, `{ "invalid": true, "stale": true }` with `--json` and
+  "stale packet, nothing recorded" on the terminal. It must run in the folder `prepare` ran in. Then the verdict is validated, every problem named. Exit
   0 the station passed, 1 it failed or the verdict was refused, 2 usage.
 - The evidence rule: every span a verdict cites is at least three words and appears in the draft,
   on whole words, after whitespace runs become one space and curly, low and angle quotation marks
   and apostrophes become straight ones (primes do not).
 - Six stations. `doctor`: every goal condition, and whether the reader would take
   `goal.next_if_worked` now. `lineup`: the draft's paragraph nearest the goldens' median length
-  beside up to three goldens' paragraphs, each reflowed to one line and shuffled by the draft's
-  hash; it passes when the judge picks a golden, which a random pick does three times in four.
+  beside up to three goldens' paragraphs, each reflowed to one line and shuffled with a seed
+  derived from the draft's full text, which the packet does not carry, so the packet cannot reveal
+  the order; it passes when the judge picks a golden, which a random pick does three times in four.
   `reader`: where the audience's reader got lost (warnings) or stopped, and whether they would
   take their own next step. `persona`: every break of stance, assertion, `will_not_say` or an
   unsourced fact, against the claims ledger's texts (`null` with no ledger, and then no
   unsourced fact may be reported). `attribution`, fiction only: the speaker of each dialogue line
   whose speech tag names one, scored per speaker and averaged, passing at 80 percent; a line whose
-  speaker is in doubt, or that repeats a golden or rejected line, is left out and counted, so the
+  speaker is in doubt (a split quote whose joining narration names a second speaker included), or
+  that repeats a golden or rejected line, is left out and counted, so the
   key is never wrong (the worked story tests 19 of its 36 lines). `knowledge`, fiction only: every
   place a character knows something before their timeline gives it to them.
-- Judge ledger lines follow check's rules against the last judge line for the same station and
-  draft, with two more: one-shot needs draft bytes never judged by that station under any name,
-  and improved needs the draft or the spec to have changed, since a judge answering differently
-  about the same bytes is not the work improving ("the verdict changed; draft and spec
-  unchanged").
+- Judge ledger lines carry `packet_sha256`, the hash of what the judge was shown, and follow
+  check's rules against the last judge line for the same station and draft, saying `judgment`
+  where check says `check` ("no change since the last passing judgment"), with three more: what
+  changed is judged by the packet, naming the draft, the spec, or the file the station reads
+  besides them (the DNA scope, the claims ledger), so adding the golden or the claims a failing
+  station asked for and passing is improved; one-shot needs draft bytes never judged by that
+  station under any name; and improved needs the packet to have changed, since a judge answering
+  differently about the same packet is not the work improving ("the verdict changed; nothing the
+  judge was shown changed").
 - `hyperspec learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force]`
   splits both drafts into sentence units (a paragraph's opening heading, each list item and each
   sentence, with common abbreviations and lower-case continuations joined), diffs them, and
@@ -66,11 +75,11 @@ keep lint's test 9 passing.
   It appends a `learn` line to the runs ledger, always `not-improved` since the spec has not
   changed yet, and never edits the spec.
 - The worked examples ship their packets (`essay/judge/`, `story/judge/`), with no key, and one
-  sample verdict per packet (`*/sample-verdicts/`), filled in by hand and marked `sample`. Three
-  of them fail, honestly: the essay's doctor (the goal says the reader copies the three questions
-  into the calendar invite; the draft says to write them on a card), the essay's lineup (the
-  draft's passage is the only one resting on a figure) and the story's persona (three process
-  details no claim holds). The essay adds a learn pair in `essay/learn/` and a sample verdict whose
+  sample verdict per packet (`*/sample-verdicts/`), filled in by hand and marked `sample`. Two
+  of them fail, honestly: the essay's lineup (the draft's passage is the only one resting on a
+  figure) and the story's persona (three process details no claim holds). The essay's goal now
+  names the card its draft ends on as the reader's next step (`goal.next_if_worked`, matching the
+  spec's `agenda-card` decision), so its doctor sample passes. The essay adds a learn pair in `essay/learn/` and a sample verdict whose
   tally sends the next move to `dna`. A test holds every packet to what `prepare` writes and records
   every sample.
 - WRITING.md gains "Judging a draft" and "Learning from edits": the commands and exit codes, the
