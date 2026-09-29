@@ -59,15 +59,17 @@ function normalize(text) {
 // what was said.
 const matchKey = (inner) => normalize(inner).replace(/[.,]+$/, "").trim();
 
-// Every quoted span in `text`, as { start, end, inner }: start/end bound the whole span including
-// its quote marks, inner is the text between them. Paired per paragraph (see the header).
-function quotedSpans(text) {
+// Every quoted span in `text`, as { start, end, inner, para }: start/end bound the whole span
+// including its quote marks, inner is the text between them, para is { start, end } of the
+// paragraph holding it. Paired per paragraph (see the header). Also how the attribution judge
+// (src/judges/attribution.mjs) finds a draft's dialogue lines.
+export function quotedSpans(text) {
   const spans = [];
   for (const para of splitSegments(text, { by: "paragraph" })) {
     QUOTE_RE.lastIndex = 0;
     let m;
     while ((m = QUOTE_RE.exec(para.text))) {
-      spans.push({ start: para.start + m.index, end: para.start + m.index + m[0].length, inner: m[1] ?? m[2] ?? "" });
+      spans.push({ start: para.start + m.index, end: para.start + m.index + m[0].length, inner: m[1] ?? m[2] ?? "", para: { start: para.start, end: para.end } });
     }
   }
   return spans;

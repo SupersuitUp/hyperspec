@@ -1,0 +1,79 @@
+// The sentence units `hyperspec learn` diffs: src/sentences.mjs.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { sentenceUnits, normalizeSentence } from "../src/sentences.mjs";
+
+const texts = (t) => sentenceUnits(t).map((u) => u.text);
+
+test("splits on . ! ? followed by whitespace", () => {
+  assert.deepEqual(texts("One. Two! Three? Four"), ["One.", "Two!", "Three?", "Four"]);
+});
+
+test("a blank line ends a unit even without punctuation", () => {
+  assert.deepEqual(texts("no stop here\n\nnext line."), ["no stop here", "next line."]);
+});
+
+test("a markdown heading is its own unit, even with text on the next line", () => {
+  assert.deepEqual(texts("# Claim\n\nA hyperspec is a contract."), ["# Claim", "A hyperspec is a contract."]);
+  assert.deepEqual(texts("## Title\nBody one. Body two."), ["## Title", "Body one.", "Body two."]);
+});
+
+test("each list item is its own unit, marker included", () => {
+  assert.deepEqual(texts("- first item\n- second item\n1. third"), ["- first item", "- second item", "1. third"]);
+});
+
+test("common abbreviations do not end a sentence", () => {
+  assert.deepEqual(texts("Ask Dr. Wu and Mr. Ruiz. Then stop."), ["Ask Dr. Wu and Mr. Ruiz.", "Then stop."]);
+  assert.deepEqual(texts("Use a noun (e.g. a tool) here, i.e. not a verb. Done."), ["Use a noun (e.g. a tool) here, i.e. not a verb.", "Done."]);
+});
+
+test("punctuation inside a quotation is not a boundary", () => {
+  assert.deepEqual(texts("\"Wait. Stop.\" she said. Then left."), ["\"Wait. Stop.\" she said.", "Then left."]);
+});
+
+test("a unit carries its text as written and its offsets into the source", () => {
+  const src = "# H\n\nOne sentence\nwrapped here.  Two.\n";
+  const units = sentenceUnits(src);
+  assert.deepEqual(units.map((u) => u.text), ["# H", "One sentence\nwrapped here.", "Two."]);
+  for (const u of units) assert.equal(src.slice(u.start, u.end), u.text);
+});
+
+test("CRLF text splits the same way", () => {
+  assert.deepEqual(texts("# H\r\n\r\nOne. Two.\r\n"), ["# H", "One.", "Two."]);
+});
+
+test("normalizeSentence collapses whitespace for comparison only", () => {
+  assert.equal(normalizeSentence("One sentence\n  wrapped here. "), "One sentence wrapped here.");
+});
+
+test("empty and whitespace-only text has no units", () => {
+  assert.deepEqual(sentenceUnits(""), []);
+  assert.deepEqual(sentenceUnits(" \n\n \t\n"), []);
+});
+
+test("a single capital initial does not end a sentence", () => {
+  assert.deepEqual(texts("J. R. Smith wrote it. Done."), ["J. R. Smith wrote it.", "Done."]);
+});
+
+test("a unit is joined to the next when the next starts lowercase: unlisted abbreviations hold", () => {
+  assert.deepEqual(texts("The U.S. economy grew. Then it slowed."), ["The U.S. economy grew.", "Then it slowed."]);
+  assert.deepEqual(texts("We met at 9 a.m. in the office. Fine."), ["We met at 9 a.m. in the office.", "Fine."]);
+});
+
+test("curly double quotes hold a quotation together like straight ones", () => {
+  // As with straight quotes, the quotation runs on to the next unquoted terminator.
+  assert.deepEqual(texts("\"Wait. Stop.\" She meant it. Then quiet."), ["\"Wait. Stop.\" She meant it.", "Then quiet."]);
+  assert.deepEqual(texts("\u201CWait. Stop. Put the bag down.\u201D She meant it. Then quiet."), ["\u201CWait. Stop. Put the bag down.\u201D She meant it.", "Then quiet."]);
+});
+
+test("each unit names its paragraph and whether it is a heading", () => {
+  const u = sentenceUnits("# H\nBody one. Body two.\n\nNext para.");
+  assert.deepEqual(u.map((x) => [x.text, x.para, x.heading]), [["# H", 0, true], ["Body one.", 0, false], ["Body two.", 0, false], ["Next para.", 1, false]]);
+});
+
+test("only a paragraph's first line is a heading: a wrapped line starting with # is split as text", () => {
+  assert.deepEqual(texts("Intro line stays.\n# One thing happens. Another thing happens too."), ["Intro line stays.", "# One thing happens.", "Another thing happens too."]);
+  assert.deepEqual(sentenceUnits("Intro line stays.\n# One thing happens.").map((u) => u.heading), [false, false]);
+  assert.deepEqual(sentenceUnits("# Opening heading\nBody one. Body two.").map((u) => [u.text, u.heading]), [["# Opening heading", true], ["Body one.", false], ["Body two.", false]]);
+});

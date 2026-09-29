@@ -1,0 +1,6 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "pick": "D",
+  "confidence": 0.6,
+  "reason": "D is the only passage that rests on a survey figure, and it opens by pointing at something outside itself (the survey); A, B and C each turn one claim into an instruction in the second person, with no numbers."
+}

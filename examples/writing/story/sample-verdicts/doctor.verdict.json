@@ -1,0 +1,43 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "conditions": [
+    {
+      "id": "r1",
+      "pass": true,
+      "evidence": "Flour first. Then you can talk.",
+      "note": "Ines speaks in short instructions with numbers and times, Theo in long questions that double back; no line would read as the other's"
+    },
+    {
+      "id": "r2",
+      "pass": true,
+      "evidence": "\"It's sold,\" she said.",
+      "note": "Theo learns of the sale here, in the 5:50 scene, and Ines hears of the school only at 6:55; neither mentions either before"
+    },
+    {
+      "id": "r3",
+      "pass": true,
+      "evidence": "In winter the rye proofs about three hours at room temperature.",
+      "note": "the proofing time, the tray turn and the 7:00 opening match the bakery visit notes"
+    },
+    {
+      "id": "r4",
+      "pass": true,
+      "evidence": "At five to seven the front was ready.",
+      "note": "four scenes, headed 3:40, 4:30, 5:50 and 6:55, the scene list's four in its order"
+    },
+    {
+      "id": "r5",
+      "pass": true,
+      "evidence": "the dough had lifted the cloth off the edge of the first basket by the width of a finger.",
+      "note": "the final sentence is about the rye loaves and the dough, and names no feeling"
+    },
+    {
+      "id": "r6",
+      "pass": true,
+      "evidence": "The doors open to customers at 7:00.",
+      "note": "about 2,960 words, inside 2,500 to 4,000"
+    }
+  ],
+  "would_take_next_step": true,
+  "evidence": "I picked up the jar. It was heavier than it looked"
+}

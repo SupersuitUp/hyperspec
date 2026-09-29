@@ -36,7 +36,7 @@ const required = (block, fiction) => block !== "characters" || fiction;
 // least one field. This is deliberately shallow: it is the bar for "something was written here",
 // not the bar for "this block is correct", which is what checkOwner and the field rules in
 // writing-fields.mjs are for.
-function blockPresent(block, raw) {
+export function blockPresent(block, raw) {
   if (block === "characters") return Array.isArray(raw) && raw.length > 0;
   if (block === "materials") return isObj(raw) && Array.isArray(raw.items) && raw.items.length > 0;
   return isObj(raw) && Object.keys(raw).length > 0;

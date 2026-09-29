@@ -44,6 +44,44 @@ function firstOccurrence(text, claimText) {
   return m ? m.index : -1;
 }
 
+// The claims ledger as the claims station reads it, shared with the persona judge
+// (src/judges/persona.mjs), so both see the same claims. { path, missing, lines }: path is
+// writing.sources.ledger as written (null when unset); missing is true when it is set but cannot be
+// read; lines holds every non-blank line, 1-based as n, each either { n, text } (a claim with
+// non-empty text; claim is the parsed object) or { n, problem } naming why it is not one.
+export function readClaimsLedger(spec) {
+  const ledgerPath = str(spec?.data?.writing?.sources?.ledger);
+  if (!ledgerPath) return { path: null, missing: false, lines: [] };
+  let raw;
+  try {
+    // A leading UTF-8 BOM (written by default by several Windows/Excel-adjacent editors) is not
+    // valid JSON leading whitespace, so it must come off before line 1 is parsed, or a genuinely
+    // well-formed first line reports as broken JSON for a reason that has nothing to do with its
+    // content.
+    raw = readFileSync(resolve(spec?.dir || ".", ledgerPath), "utf8").replace(/^\uFEFF/, "");
+  } catch {
+    return { path: ledgerPath, missing: true, lines: [] };
+  }
+  const lines = [];
+  raw.split("\n").forEach((text, i) => {
+    if (text.trim() === "") return;
+    const n = i + 1;
+    let obj;
+    try { obj = JSON.parse(text); } catch { lines.push({ n, problem: "is not valid JSON" }); return; }
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) { lines.push({ n, problem: "is not a JSON object" }); return; }
+    const claimText = typeof obj.text === "string" ? obj.text : "";
+    if (!claimText.trim()) { lines.push({ n, problem: "has no text" }); return; }
+    lines.push({ n, text: claimText, claim: obj });
+  });
+  return { path: ledgerPath, missing: false, lines };
+}
+
+const PROBLEM_FIX = {
+  "is not valid JSON": "Fix the JSON on that line.",
+  "is not a JSON object": 'Each ledger line must be a JSON object: {"text": "...", "source": "..."}.',
+  "has no text": "Add text: the claim exactly as it appears in the draft.",
+};
+
 export function run(spec, draft) {
   const sources = spec?.data?.writing?.sources ?? {};
   const ledgerPath = str(sources.ledger);
@@ -57,15 +95,8 @@ export function run(spec, draft) {
     return { station: name, status: "skip", findings: [], reason: "writing.sources.ledger is not set" };
   }
 
-  const ledgerAbs = resolve(spec?.dir || ".", ledgerPath);
-  let raw;
-  try {
-    // A leading UTF-8 BOM (written by default by several Windows/Excel-adjacent editors) is not
-    // valid JSON leading whitespace, so it must come off before line 1 is parsed, or a genuinely
-    // well-formed first line reports as broken JSON for a reason that has nothing to do with its
-    // content.
-    raw = readFileSync(ledgerAbs, "utf8").replace(/^﻿/, "");
-  } catch {
+  const ledger = readClaimsLedger(spec);
+  if (ledger.missing) {
     return {
       station: name,
       status: "fail",
@@ -81,41 +112,15 @@ export function run(spec, draft) {
 
   const findings = [];
   const draftNorm = normalize(draft.text);
-  const ledgerLines = raw.split("\n").map((text, i) => ({ n: i + 1, text })).filter((l) => l.text.trim() !== "");
 
-  for (const { n, text } of ledgerLines) {
-    let obj;
-    try {
-      obj = JSON.parse(text);
-    } catch {
+  for (const { n, problem, text: claimText, claim: obj } of ledger.lines) {
+    if (problem) {
       findings.push({
         station: name,
         id: `station-claims-json-line-${n}`,
         severity: "fail",
-        message: `writing.sources.ledger "${ledgerPath}" line ${n} is not valid JSON`,
-        fix: "Fix the JSON on that line.",
-      });
-      continue;
-    }
-    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-      findings.push({
-        station: name,
-        id: `station-claims-json-line-${n}`,
-        severity: "fail",
-        message: `writing.sources.ledger "${ledgerPath}" line ${n} is not a JSON object`,
-        fix: 'Each ledger line must be a JSON object: {"text": "...", "source": "..."}.',
-      });
-      continue;
-    }
-
-    const claimText = typeof obj.text === "string" ? obj.text : "";
-    if (!claimText.trim()) {
-      findings.push({
-        station: name,
-        id: `station-claims-json-line-${n}`,
-        severity: "fail",
-        message: `writing.sources.ledger "${ledgerPath}" line ${n} has no text`,
-        fix: "Add text: the claim exactly as it appears in the draft.",
+        message: `writing.sources.ledger "${ledgerPath}" line ${n} ${problem}`,
+        fix: PROBLEM_FIX[problem],
       });
       continue;
     }

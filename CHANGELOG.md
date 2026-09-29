@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.7.0 (2026-09-29)
+
+A spec can now have its judgments made and recorded. `check` covers what a function of the spec
+and the draft can decide; the rest of a spec's checks are rubrics, and until this release nothing
+ran them. hyperspec still calls no model. `hyperspec judge prepare` writes one packet per judgment
+station, holding the rubric, fixed instructions, the inputs and the exact shape of the answer, for
+an outside judge to fill: your agent, any model, or a person. `hyperspec judge record` checks the
+verdict, derives the station's status from it by a fixed rule, and records it in the runs ledger.
+Every passage a judge quotes must be in the draft, and the two blind tests are scored
+against answer keys the judge never sees. `hyperspec learn` works from the other end: given the
+first draft a factory wrote and the draft a person approved, it lists the edits, has a judge name
+the spec block that should have prevented each one, and names one next move.
+
+**No behavior change for lint or check.** Every 0.6.0 test passes unchanged, no finding id changed,
+and no schema field was added. The runs ledger gains two kinds of line, `judge` and `learn`; check
+reads only its own, so a 0.6 ledger's check verdicts are exactly what they were, and the new lines
+keep lint's test 9 passing.
+
+- `hyperspec judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force] [--json]`
+  lints the spec first, as `check` does, then writes `<station>.packet.json` for each station that
+  applies, in the order `doctor, lineup, reader, persona, attribution, knowledge`, and prints a
+  skip line with the reason for each that does not. Packets keep the paths as given and are
+  byte-identical for the same files. It refuses to overwrite any file without `--force`, naming
+  each. Exit 0 written, 1 a station crashed, 2 usage, or lint's own 1 or 3.
+- The two blind tests write an answer key beside their packets, `lineup.key.json` and
+  `attribution.key.json`, for a person to read. Hand a judge only the `*.packet.json` files, and
+  each of the two blind packets to its own fresh context, with no access to the draft and apart
+  from the other packets, which carry it: their
+  instructions say to decide from the packet's inputs alone and open no file it names, but a judge
+  that can open the draft can always cheat. `record` never reads a key: it builds it again.
+- `hyperspec judge record <packet> --verdict <file> [--json]` hashes the spec and the draft again
+  and rebuilds the packet from them and from the files the station reads (the DNA goldens, the
+  claims ledger). A file that changed makes the packet stale (`judge-stale`), and a packet that is
+  not those exact bytes is refused (`judge-packet-altered`); either way nothing is recorded. A
+  stale packet has `learn record`'s shape, `{ "invalid": true, "stale": true }` with `--json` and
+  "stale packet, nothing recorded" on the terminal. It must run in the folder `prepare` ran in. Then the verdict is validated, every problem named. Exit
+  0 the station passed, 1 it failed or the verdict was refused, 2 usage.
+- The evidence rule: every span a verdict cites is at least three words and appears in the draft,
+  on whole words, after whitespace runs become one space and curly, low and angle quotation marks
+  and apostrophes become straight ones (primes do not).
+- Six stations. `doctor`: every goal condition, and whether the reader would take
+  `goal.next_if_worked` now. `lineup`: the draft's paragraph nearest the goldens' median length
+  beside up to three goldens' paragraphs, each reflowed to one line and shuffled with a seed
+  derived from the draft's full text, which the packet does not carry, so the packet cannot reveal
+  the order (a draft that is one paragraph and nothing else skips, since its hash would name its
+  candidate); it passes when the judge picks a golden, which a random pick does three times in four.
+  `reader`: where the audience's reader got lost (warnings) or stopped, and whether they would
+  take their own next step. `persona`: every break of stance, assertion, `will_not_say` or an
+  unsourced fact, against the claims ledger's texts (`null` with no ledger, and then no
+  unsourced fact may be reported). `attribution`, fiction only: the speaker of each dialogue line
+  whose speech tag names one, scored per speaker and averaged, passing at 80 percent; a line whose
+  speaker is in doubt (a split quote joins only across exactly one speech tag, and the part after
+  any longer narration is left out), or that repeats a golden or rejected line, is left out and
+  counted, so the key is never wrong (the worked story tests 19 of its 36 lines). `knowledge`, fiction only: every
+  place a character knows something before their timeline gives it to them.
+- Judge ledger lines carry `packet_sha256`, the hash of what the judge was shown, and
+  `inputs_sha256`, the hash of its inputs, and follow check's rules against the last judge line
+  for the same station and draft, saying `judgment` where check says `check` ("no change since the
+  last passing judgment"), with three more: what changed is judged by the packet, naming the
+  draft, the spec, the file the station reads besides them when the inputs changed (the DNA scope,
+  the claims ledger), or the packet's fixed text when only that changed, so adding the golden or
+  the claims a failing station asked for and passing is improved; one-shot needs draft bytes never judged by that
+  station under any name; and improved needs the packet to have changed, since a judge answering
+  differently about the same packet is not the work improving ("the verdict changed; nothing the
+  judge was shown changed").
+- `hyperspec learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force]`
+  splits both drafts into sentence units (a paragraph's opening heading, each list item and each
+  sentence, with common abbreviations and lower-case continuations joined), diffs them, and
+  writes `learn.packet.json` with every edit as a hunk (`deleted`, `inserted` or `replaced`, with
+  both texts and a sentence count). A hunk never crosses a paragraph or a heading, and reflowed
+  text is no edit. Past 10,000,000 comparisons after the common start and end are set aside, it is
+  a usage error.
+- `hyperspec learn record <packet> --verdict <file>` checks that every hunk is classified once by a
+  block the spec has written, or `none`, counts edits and sentences per block, and names one move
+  for the block with the most sentences, from a fixed table (`dna`: add a golden or a style rule).
+  It appends a `learn` line to the runs ledger, always `not-improved` since the spec has not
+  changed yet, and never edits the spec.
+- The worked examples ship their packets (`essay/judge/`, `story/judge/`), with no key, and one
+  sample verdict per packet (`*/sample-verdicts/`), filled in by hand and marked `sample`. Two
+  of them fail, honestly: the essay's lineup (the draft's passage is the only one resting on a
+  figure) and the story's persona (three process details no claim holds). The essay's goal now
+  names the card its draft ends on as the reader's next step (`goal.next_if_worked`, matching the
+  spec's `agenda-card` decision), so its doctor sample passes. The essay adds a learn pair in `essay/learn/` and a sample verdict whose
+  tally sends the next move to `dna`. A test holds every packet to what `prepare` writes and records
+  every sample.
+- WRITING.md gains "Judging a draft" and "Learning from edits": the commands and exit codes, the
+  packet, the evidence rule, what `record` refuses, each station's rules and findings table (held
+  by a test to the ids the code raises and their kind), the ledger rules, the samples and what they
+  found, sentence units, the diff, the tally and its move table. The quotes station's section
+  now points at `attribution` for fiction's dialogue.
+
 ## 0.6.0 (2026-09-29)
 
 A spec can now check a draft. Until this release hyperspec could tell you whether a writing spec

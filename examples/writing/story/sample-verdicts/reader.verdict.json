@@ -1,0 +1,16 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "lost_at": [
+    {
+      "evidence": "The clock over the proving cabinet said 3:41",
+      "why": "a proving cabinet is never explained; this reader knows a bakery, not its equipment"
+    },
+    {
+      "evidence": "pulls each tray out with the peel",
+      "why": "a peel is never explained; the sentence still reads, but the word stops the reader for a moment"
+    }
+  ],
+  "stopped_at": null,
+  "would_take_next_step": true,
+  "next_step": "look for the author's other stories in the magazine's back issues"
+}

@@ -163,7 +163,7 @@ writing:
   goal:
     from: plans to run the first one-on-one from their own list
     to: hands the first one-on-one to the report and asks the three questions
-    next_if_worked: copies the three questions into their calendar invite
+    next_if_worked: writes the three questions on a card before the meeting
     change:
       kind: action
       text: the reader asks the three questions in their next one-on-one and waits after each
@@ -232,6 +232,11 @@ npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
 
 The required parts are the draft's section headings, because the form station finds a required
 part by its heading.
+
+The packets `hyperspec judge prepare` writes for this draft are in `essay/judge/`, and
+`essay/sample-verdicts/` holds one sample verdict for each, filled in by hand to show the shape.
+`essay/learn/` holds a first draft of this essay and the packet `hyperspec learn prepare` writes
+comparing it with `essay/draft.md`, the draft a person approved.
 
 The writer's voice for this piece comes from a scope folder, `dna/essay-new-managers-teach/`:
 the goldens this writer approved for essays that teach new managers, and the features measured

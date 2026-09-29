@@ -1,0 +1,106 @@
+{
+  "hyperspec_learn": "0.1",
+  "spec": "essay.hyperspec.md",
+  "spec_sha256": "e03dfac6b445ae779000f7fc109a9d713df2e5cf8967faf8e808fe87d63e40e9",
+  "first": "essay/learn/first-draft.md",
+  "first_sha256": "08f039cd278093c81338f8880c4533ada741ecc33b0c6610ffbd98b8d31c0c62",
+  "approved": "essay/draft.md",
+  "approved_sha256": "aa4a1d99604f7b2b398b67305b368abbb72651356c38bfffad1452db6be62f65",
+  "blocks": [
+    "materials",
+    "dna",
+    "persona",
+    "audience",
+    "goal",
+    "form",
+    "spine",
+    "sources",
+    "none"
+  ],
+  "instructions": "Each hunk is one edit a person made between the first draft a factory produced (first) and the draft they approved (approved): deleted (only in first), inserted (only in approved) or replaced (first became approved). For every hunk, name the one block of the spec (read it at the spec path) that, had it said more or said it better, would have had the factory write the approved text in the first place: materials (the source material the text drew on), dna (the writer's voice: goldens and style rules), persona (who is speaking: stance, what they may assert, what they will not say), audience (the reader: what they know, the terms they use), goal (the change the draft must produce and its conditions), form (length and shape), spine (the claims and their order), sources (the claims ledger), characters (fiction: a character's speech or knowledge), or none when no block of the spec could have prevented it. A hunk never crosses a paragraph or a heading; its sentences field counts the sentences it touched. Name only a block listed in blocks. Answer only in the verdict shape given in verdict_schema: one entry per hunk id, each exactly once, with a why saying what the block should have said, or why no block could have.",
+  "hunks": [
+    {
+      "id": "E1",
+      "kind": "deleted",
+      "first": "Most new managers make the same mistake.",
+      "approved": null,
+      "sentences": 1
+    },
+    {
+      "id": "E2",
+      "kind": "replaced",
+      "first": "The survey show the cost from their side.",
+      "approved": "The survey shows the cost from their side.",
+      "sentences": 1
+    },
+    {
+      "id": "E3",
+      "kind": "deleted",
+      "first": "My second manager used to walk our one-on-ones outside, and I liked it. A walk takes the table\nout of the room.",
+      "approved": null,
+      "sentences": 2
+    },
+    {
+      "id": "E4",
+      "kind": "replaced",
+      "first": "It can be helpful to consider asking the questions in the same words each time. This may help\nyour report become familiar with them, and over time they might start to prepare their answers.",
+      "approved": "Ask them in the same words every time. Your report will learn them, and after a few weeks they\nwill walk in with answers already half formed. That is the point of fixing the words: the meeting\nstarts on their topic before you have said anything at all.",
+      "sentences": 3
+    },
+    {
+      "id": "E5",
+      "kind": "replaced",
+      "first": "You might want to avoid trying to fix everything in the room.",
+      "approved": "Do not try to fix everything in the room.",
+      "sentences": 1
+    }
+  ],
+  "verdict_schema": {
+    "type": "object",
+    "required": [
+      "edits"
+    ],
+    "properties": {
+      "edits": {
+        "type": "array",
+        "description": "one entry per hunk id, each exactly once",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "block",
+            "why"
+          ],
+          "properties": {
+            "id": {
+              "enum": [
+                "E1",
+                "E2",
+                "E3",
+                "E4",
+                "E5"
+              ]
+            },
+            "block": {
+              "enum": [
+                "materials",
+                "dna",
+                "persona",
+                "audience",
+                "goal",
+                "form",
+                "spine",
+                "sources",
+                "none"
+              ]
+            },
+            "why": {
+              "type": "string",
+              "description": "what the block should have said to prevent this edit, or why no block could have"
+            }
+          }
+        }
+      }
+    }
+  }
+}

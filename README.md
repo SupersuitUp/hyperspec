@@ -29,6 +29,10 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
 | `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
 | `hyperspec check <spec> --draft <file> [--only a,b]` | Run a writing spec's deterministic stations against a draft. |
+| `hyperspec judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force]` | Write one packet per judgment station, for an outside judge to fill. |
+| `hyperspec judge record <packet> --verdict <file>` | Check a judge's verdict against its packet, derive the station's status, and record it. |
+| `hyperspec learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force]` | Write the edits between a first draft and the approved one, for a judge to classify by spec block. |
+| `hyperspec learn record <packet> --verdict <file>` | Count the classified edits by block and name one next move. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
 | `hyperspec recipe approve <recipe> --by <slug>` | Record who approved the output. |
 | `hyperspec reproduce <recipe> [--restore]` | Re-check every hash the recipe recorded. Never runs a model. |
@@ -46,6 +50,12 @@ error or a file that cannot be read, has broken frontmatter, or is not a hypersp
 `hyperspec check` exits 0 when every station it ran passed, 1 when one failed, and 2 on a usage
 error, a draft that cannot be read, or a spec without `profile: writing`. A spec that is not ready to check against exits with lint's
 own code, 1 or 3, and no station runs.
+
+`hyperspec judge record` exits 0 when the station passed and 1 when it failed or the verdict was
+refused (invalid, or its packet stale or edited), and `hyperspec learn record` 0 when it recorded
+and 1 when it refused. `judge prepare` and `learn prepare` exit 0 when they wrote their packets and
+with lint's own code when the spec is not ready, and `judge prepare` exits 1 when a station could
+not build its packet. All four exit 2 on a usage error.
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2
 usage or unreadable input, 3 pending, when `regenerate` has stages waiting for a runner.
@@ -199,6 +209,33 @@ It lints the spec first, prints each station's pass, fail or skip, and appends o
 spec's runs ledger with a verdict. Both examples ship a draft that passes. What each station
 checks and cannot check, and every finding, are in
 [WRITING.md](WRITING.md#checking-a-draft).
+
+### Judging a draft and learning from edits
+
+The rest of a spec's checks are judgments: whether each goal condition holds, where a reader gets
+lost, whether a passage can be told from the writer's goldens, whether the persona holds, and in
+fiction whether the characters' voices can be told apart and whether anyone knows something too
+early. hyperspec never calls a model. `judge prepare` writes a packet per station for an outside
+judge, your agent, any model or a person, and `judge record` checks the verdict (every quoted
+passage must be in the draft, and the blind tests are scored against keys the judge never
+sees), derives the station's status, and records it in the runs ledger.
+
+```bash
+npx @supersuit/hyperspec judge prepare essay.hyperspec.md --draft essay/draft.md --out essay/judge
+npx @supersuit/hyperspec judge record essay/judge/doctor.packet.json --verdict doctor.verdict.json
+```
+
+Hand the judge the `*.packet.json` files only: the answer keys are written beside them. Give the
+two blind packets (`lineup`, `attribution`) to a judge in a fresh context with no access to the
+draft, such as a new conversation, never to an agent working in the draft's folder: a judge that
+can open the draft can always find the answer, whatever the packet tells it. Give each blind
+packet its own context, apart from the other packets too, since those carry the draft. `learn`
+closes the loop from the other end. Given the first draft a factory wrote and the draft a person
+approved, `learn prepare` lists the edits, a judge names the spec block that should have prevented
+each, and `learn record` counts them by block and names one next move, such as "add a golden or a
+style rule". It never edits the spec. Both examples ship their packets and hand-filled sample
+verdicts. The packet shapes, every station's rules and findings, and the learn tally are in
+[WRITING.md](WRITING.md#judging-a-draft).
 
 ## The format
 

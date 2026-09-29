@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -326,4 +326,164 @@ test("the page's sample runs-ledger line has exactly the fields check writes, an
   assert.deepEqual(Object.keys(written), Object.keys(sample));
   assert.deepEqual(written.stations, sample.stations);
   assert.equal(written.verdict, sample.verdict);
+});
+
+// ------------------------------------------------------------ Judging a draft ------------------
+// The "Judging a draft" section describes `judge prepare` and `judge record`: one subsection per
+// judgment station, each with a findings table. These tests hold the tables to the ids the judges
+// raise and the kind each one is, the order to the registry, and every sample to what the commands
+// print and write for the worked examples.
+
+const section = (heading) => doc.split(`\n## ${heading}\n`)[1].split("\n## ")[0];
+const subsOf = (heading) => section(heading).split("\n### ").slice(1).map((s) => {
+  const nl = s.indexOf("\n");
+  return { heading: s.slice(0, nl), body: s.slice(nl + 1) };
+});
+const judging = () => section("Judging a draft");
+const learning = () => section("Learning from edits");
+const bareBlocks = (text) => [...text.matchAll(/```(\w*)\n([\s\S]*?)```/g)].filter((m) => m[1] === "").map((m) => m[2]);
+const bashLines = (text) => [...text.matchAll(/```bash\n([\s\S]*?)```/g)].flatMap((m) => m[1].trim().split("\n"));
+const exampleCopy = (prefix) => {
+  const d = tempDir(prefix);
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  return d;
+};
+const run = (d, line) => {
+  const prefix = "npx @supersuit/hyperspec ";
+  assert.ok(line.startsWith(prefix), line);
+  return spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...line.slice(prefix.length).split(" ")], { cwd: d, encoding: "utf8" });
+};
+
+// Every judge finding id, with the kind the docs must give it: in a station file, an id raised
+// before `export function derive` is a verdict problem (invalid), one raised in derive fails the
+// station, or warns when a severity "warn" sits beside it; in src/judge.mjs, judge-stale is stale
+// and every other id invalid.
+function judgeIdsFromSource() {
+  const out = new Map();
+  const dir = join(ROOT, "src", "judges");
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".mjs") && x !== "index.mjs")) {
+    const src = readFileSync(join(dir, f), "utf8");
+    const deriveAt = src.indexOf("export function derive(");
+    assert.ok(deriveAt > 0, `${f} exports derive`);
+    for (const m of src.matchAll(/"(judge-[a-z-]+)"/g)) {
+      const kind = m.index < deriveAt ? "invalid" : /severity: "warn"/.test(src.slice(m.index, m.index + 400).split("\n").slice(0, 3).join("\n")) ? "warn" : "fail";
+      out.set(m[1], kind);
+    }
+  }
+  const core = readFileSync(join(ROOT, "src", "judge.mjs"), "utf8");
+  for (const m of core.matchAll(/"(judge-[a-z-]+)"|`(judge-\$\{[^}]+\}-crashed)`/g)) {
+    const id = normId(m[1] ?? m[2]);
+    out.set(id, id === "judge-stale" ? "stale" : "invalid");
+  }
+  return out;
+}
+
+test("Judging a draft has its subsections in order, one per judgment station in the registry's order", async () => {
+  const { JUDGE_NAMES } = await import("../src/judges/index.mjs");
+  assert.deepEqual(subsOf("Judging a draft").map((s) => s.heading), ["The packet", "The evidence rule", "Recording a verdict", ...JUDGE_NAMES, "Any judgment station", "Judge lines in the runs ledger", "The worked examples"]);
+});
+
+test("the Judging a draft findings tables list exactly the ids the judges raise, with their kind, each under its own station", async () => {
+  const { JUDGE_NAMES } = await import("../src/judges/index.mjs");
+  const fromSource = judgeIdsFromSource();
+  assert.ok(fromSource.size >= 25, `collected ${fromSource.size} ids`);
+  const subs = subsOf("Judging a draft").filter((s) => [...JUDGE_NAMES, "Any judgment station"].includes(s.heading));
+  const rows = subs.flatMap((s) => tableRows(s.body));
+  const fromDoc = new Map(rows.map((r) => [normId(r.id), r.severity]));
+  assert.equal(fromDoc.size, rows.length, "no id is listed twice");
+  assert.deepEqual([...fromDoc.keys()].sort(), [...fromSource.keys()].sort());
+  for (const [id, kind] of fromSource) assert.equal(fromDoc.get(id), kind, id);
+  for (const r of rows) assert.ok(r.meaning.length > 10, `${r.id} has a meaning`);
+  for (const s of subs.filter((x) => JUDGE_NAMES.includes(x.heading))) {
+    const own = tableRows(s.body);
+    assert.ok(own.length >= 1, `${s.heading} has a findings table`);
+    for (const r of own) assert.ok(r.id.startsWith(`judge-${s.heading}-`), `${r.id} is listed under ${s.heading}`);
+  }
+});
+
+test("the page's judge prepare sample is exactly what prepare prints for the essay, and writes the shipped packets", () => {
+  const [cmd] = bashLines(judging());
+  const d = exampleCopy("hs-doc-judge-prepare-");
+  rmSync(join(d, "essay", "judge"), { recursive: true });
+  mkdirSync(join(d, "essay", "judge"));
+  const r = run(d, cmd);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(bareBlocks(judging())[0], r.stdout);
+  for (const f of readdirSync(join(ROOT, "examples", "writing", "essay", "judge"))) {
+    assert.equal(readFileSync(join(d, "essay", "judge", f), "utf8"), readFileSync(join(ROOT, "examples", "writing", "essay", "judge", f), "utf8"), f);
+  }
+});
+
+test("the page's packet field table names every field of a real packet, and no other", () => {
+  const body = subsOf("Judging a draft").find((s) => s.heading === "The packet").body;
+  const fields = [...body.matchAll(/^\| (`[^|]+) \|/gm)].flatMap((m) => [...m[1].matchAll(/`([a-z_0-9]+)`/g)].map((x) => x[1]));
+  for (const f of readdirSync(join(ROOT, "examples", "writing", "story", "judge"))) {
+    const packet = JSON.parse(readFileSync(join(ROOT, "examples", "writing", "story", "judge", f), "utf8"));
+    assert.deepEqual([...fields].sort(), Object.keys(packet).sort(), f);
+  }
+});
+
+test("the page's judge record samples are exactly what record prints for the essay's lineup and the story's attribution samples", () => {
+  const recording = subsOf("Judging a draft").find((s) => s.heading === "Recording a verdict").body;
+  const d = exampleCopy("hs-doc-judge-record-");
+  const r = run(d, bashLines(recording)[0]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(bareBlocks(recording)[0], r.stdout);
+  const attribution = subsOf("Judging a draft").find((s) => s.heading === "attribution").body;
+  const a = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", "story/judge/attribution.packet.json", "--verdict", "story/sample-verdicts/attribution.verdict.json"], { cwd: d, encoding: "utf8" });
+  assert.equal(a.status, 0, a.stdout + a.stderr);
+  assert.equal(bareBlocks(attribution)[0], a.stdout);
+});
+
+test("the page's judge ledger line has exactly the fields record writes", () => {
+  const body = subsOf("Judging a draft").find((s) => s.heading === "Judge lines in the runs ledger").body;
+  const sample = JSON.parse(fence(body, "json"));
+  const d = exampleCopy("hs-doc-judge-ledger-");
+  spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", "essay/judge/lineup.packet.json", "--verdict", "essay/sample-verdicts/lineup.verdict.json"], { cwd: d, encoding: "utf8" });
+  const written = JSON.parse(readFileSync(join(d, "essay", "runs.jsonl"), "utf8").trim().split("\n").at(-1));
+  assert.deepEqual(Object.keys(sample), Object.keys(written));
+  for (const k of ["kind", "station", "draft", "status", "verdict", "reason"]) assert.equal(sample[k], written[k], k);
+});
+
+test("the page's worked-examples table gives every sample verdict the status record derives", () => {
+  const body = subsOf("Judging a draft").find((s) => s.heading === "The worked examples").body;
+  const rows = [...body.matchAll(/^\| (essay|story) \| ([a-z]+) \| (pass|fail) \|/gm)].map((m) => ({ example: m[1], station: m[2], status: m[3] }));
+  const packets = ["essay", "story"].flatMap((e) => readdirSync(join(ROOT, "examples", "writing", e, "judge")).map((f) => `${e}/${f.replace(".packet.json", "")}`));
+  assert.deepEqual(rows.map((r) => `${r.example}/${r.station}`).sort(), packets.sort());
+  const d = exampleCopy("hs-doc-judge-table-");
+  for (const r of rows) {
+    const res = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", `${r.example}/judge/${r.station}.packet.json`, "--verdict", `${r.example}/sample-verdicts/${r.station}.verdict.json`, "--json"], { cwd: d, encoding: "utf8" });
+    assert.equal(JSON.parse(res.stdout).status, r.status, `${r.example} ${r.station}`);
+  }
+});
+
+// ------------------------------------------------------------ Learning from edits --------------
+
+test("the page's learn samples are exactly what learn prepare and learn record print for the essay's pair", () => {
+  const [prep, rec] = bashLines(learning());
+  const [prepOut, recOut] = bareBlocks(learning());
+  const d = exampleCopy("hs-doc-learn-");
+  rmSync(join(d, "essay", "learn", "learn.packet.json"));
+  const p = run(d, prep);
+  assert.equal(p.status, 0, p.stdout + p.stderr);
+  assert.equal(prepOut, p.stdout);
+  const r = run(d, rec);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(recOut, r.stdout);
+});
+
+test("the page's next-move table is LEARN_MOVES, in block order", async () => {
+  const { LEARN_MOVES, LEARN_BLOCKS } = await import("../src/learn.mjs");
+  const body = subsOf("Learning from edits").find((s) => s.heading === "The tally and the next move").body;
+  const rows = [...body.matchAll(/^\| `([a-z]+)` \| ([^|]+) \|$/gm)].map((m) => [m[1], m[2].trim()]);
+  assert.deepEqual(rows, Object.entries(LEARN_MOVES));
+  assert.deepEqual(rows.map(([b]) => b), LEARN_BLOCKS.filter((b) => b !== "none"));
+});
+
+test("the page's learn findings table lists exactly the ids learn raises, with their kind", () => {
+  const src = readFileSync(join(ROOT, "src", "learn.mjs"), "utf8");
+  const fromSource = new Map([...src.matchAll(/"(learn-[a-z-]+)"/g)].map((m) => [m[1], m[1] === "learn-stale" ? "stale" : "invalid"]));
+  assert.ok(fromSource.size >= 10, `collected ${fromSource.size} ids`);
+  const rows = subsOf("Learning from edits").flatMap((s) => tableRows(s.body)).filter((r) => r.id.startsWith("learn-"));
+  assert.deepEqual(new Map(rows.map((r) => [r.id, r.severity])), fromSource);
 });

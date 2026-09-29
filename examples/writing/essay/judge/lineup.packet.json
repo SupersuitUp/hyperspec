@@ -1,0 +1,64 @@
+{
+  "hyperspec_judge": "0.1",
+  "station": "lineup",
+  "spec": "essay.hyperspec.md",
+  "spec_sha256": "e03dfac6b445ae779000f7fc109a9d713df2e5cf8967faf8e808fe87d63e40e9",
+  "draft": "essay/draft.md",
+  "draft_sha256": "aa4a1d99604f7b2b398b67305b368abbb72651356c38bfffad1452db6be62f65",
+  "rubric": "blind lineup within this scope; a judge shown a generated passage beside the scope's three goldens cannot pick it out",
+  "instructions": "Each passage in inputs.candidates carries a capital-letter label. All but one were written by the writer of inputs.scope, for this form, audience and purpose, and approved by a person; exactly one comes from a new draft. Pick the label of the passage you believe comes from the new draft, judging by voice alone: rhythm, diction, sentence shape, what this writer would and would not say. Give your confidence from 0 (a guess) to 1 (certain), and in reason say what in the candidates decided it. Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names. Answer only in the verdict shape given in verdict_schema.",
+  "inputs": {
+    "scope": {
+      "writer": "example-author",
+      "form": "essay",
+      "audience": "new managers",
+      "purpose": "teach"
+    },
+    "candidates": [
+      {
+        "label": "A",
+        "text": "So write the three questions on a card. Ask the first one. Then wait, longer than feels polite, because the first answer is the one they rehearsed and the second one is the one you came for."
+      },
+      {
+        "label": "B",
+        "text": "If you can read it in the tracker, do not ask for it in the room. Status already has a home, and your report is the one who put it there. Spend the half hour on what the tracker cannot hold: how the work looks from their side of it."
+      },
+      {
+        "label": "C",
+        "text": "Your first one-on-one with a new report is the only meeting on your calendar where they should set the agenda. Everything else you run. This one you hand over."
+      },
+      {
+        "label": "D",
+        "text": "The survey shows the cost from their side. 11 of 41 said at least one of their one-on-ones in the last quarter was mostly project status. Read the tracker before you walk in, and leave status there."
+      }
+    ]
+  },
+  "verdict_schema": {
+    "type": "object",
+    "required": [
+      "pick",
+      "confidence",
+      "reason"
+    ],
+    "properties": {
+      "pick": {
+        "enum": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "description": "the label of the passage you believe comes from the new draft"
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "reason": {
+        "type": "string",
+        "description": "what in the candidates decided the pick"
+      }
+    }
+  }
+}

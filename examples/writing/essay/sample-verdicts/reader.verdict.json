@@ -1,0 +1,7 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "lost_at": [],
+  "stopped_at": null,
+  "would_take_next_step": true,
+  "next_step": "take my own list out of the invite, write the three questions on a card, and ask the first one in this week's meeting"
+}

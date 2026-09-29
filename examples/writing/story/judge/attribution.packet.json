@@ -1,0 +1,194 @@
+{
+  "hyperspec_judge": "0.1",
+  "station": "attribution",
+  "spec": "story.hyperspec.md",
+  "spec_sha256": "8f417ebce7777cb4130afc8f0e2a1e4a483f1d4c7e7bcbadca202fda2208c6a9",
+  "draft": "story/draft.md",
+  "draft_sha256": "fdf8dd1ee311a376e45cca31b50f0b01f1157a889cb332620cbd178e9c510306",
+  "rubric": "blind attribution test, knowledge-leak check against the timeline, consistency against golden and rejected lines",
+  "instructions": "Each entry in inputs.lines is one line of dialogue from the draft, with its speaker and the narration around it removed. Using only how each character in inputs.characters speaks (their speech block, golden_lines and rejected_lines), name who says each line. Judge from the packet's inputs alone: do not open the spec, the draft or any other file the packet names. Answer in lines: one { id, speaker } per line id, each id exactly once, where speaker is a character id from inputs.characters. Answer only in the verdict shape given in verdict_schema.",
+  "inputs": {
+    "characters": [
+      {
+        "id": "ines",
+        "speech": {
+          "uses": [
+            "instructions in the imperative",
+            "numbers, weights and times",
+            "first names, for customers"
+          ],
+          "never": [
+            "an apology in words",
+            "a sentence about her own feelings",
+            "a question she does not need answered"
+          ],
+          "rhythm": "short, flat sentences, often without a subject; silence where another person would reassure"
+        },
+        "golden_lines": [
+          "Flour first. Then you can talk.",
+          "Left side runs hot. Turn them at eight minutes.",
+          "Sold means sold. Shape the rye."
+        ],
+        "rejected_lines": [
+          "I'm so sorry I didn't tell you sooner, Theo.",
+          "This place has been my whole life, you know?",
+          "Would you like to try the rye today?"
+        ]
+      },
+      {
+        "id": "theo",
+        "speech": {
+          "uses": [
+            "questions he already knows the answer to",
+            "hedges such as \"I mean\" and \"kind of\"",
+            "a joke when he is nervous"
+          ],
+          "never": [
+            "a flat instruction",
+            "a word of baking jargon he has not heard Ines use first"
+          ],
+          "rhythm": "long sentences that double back on themselves and end in a question"
+        },
+        "golden_lines": [
+          "Okay but like, if the oven's made that noise since March, is it a noise, or is that just how the oven talks now?",
+          "I can do the rye. I mean, I think I can do the rye. I did it Tuesday, kind of.",
+          "So is that a yes, or is that the face you make when it's a yes?"
+        ],
+        "rejected_lines": [
+          "Shape the rye.",
+          "I have been accepted to a culinary program and will be leaving in the autumn.",
+          "Left side runs hot, turn them early."
+        ]
+      }
+    ],
+    "lines": [
+      {
+        "id": "L1",
+        "text": "You're late,"
+      },
+      {
+        "id": "L2",
+        "text": "The bus,"
+      },
+      {
+        "id": "L3",
+        "text": "Water,"
+      },
+      {
+        "id": "L4",
+        "text": "Is the rye going in the big bowl?"
+      },
+      {
+        "id": "L5",
+        "text": "Big bowl,"
+      },
+      {
+        "id": "L6",
+        "text": "Scrape the bowl,"
+      },
+      {
+        "id": "L7",
+        "text": "It's sold,"
+      },
+      {
+        "id": "L8",
+        "text": "What's sold?"
+      },
+      {
+        "id": "L9",
+        "text": "Sold like, sold? Like someone else is going to be here? Like I come in on Monday and somebody else is at the mixer, is that what, is that the sold you mean?"
+      },
+      {
+        "id": "L10",
+        "text": "Not a bakery,"
+      },
+      {
+        "id": "L11",
+        "text": "Then what happens to the ovens?"
+      },
+      {
+        "id": "L12",
+        "text": "Is that why there's a ring round Friday?"
+      },
+      {
+        "id": "L13",
+        "text": "Rolls come out at sixteen,"
+      },
+      {
+        "id": "L14",
+        "text": "I got into a school,"
+      },
+      {
+        "id": "L15",
+        "text": "A baking school,"
+      },
+      {
+        "id": "L16",
+        "text": "Feed it at noon,"
+      },
+      {
+        "id": "L17",
+        "text": "Every day,"
+      },
+      {
+        "id": "L18",
+        "text": "Okay,"
+      },
+      {
+        "id": "L19",
+        "text": "Doors,"
+      }
+    ],
+    "excluded": 17
+  },
+  "verdict_schema": {
+    "type": "object",
+    "required": [
+      "lines"
+    ],
+    "properties": {
+      "lines": {
+        "type": "array",
+        "description": "one entry per line id, each exactly once",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "speaker"
+          ],
+          "properties": {
+            "id": {
+              "enum": [
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5",
+                "L6",
+                "L7",
+                "L8",
+                "L9",
+                "L10",
+                "L11",
+                "L12",
+                "L13",
+                "L14",
+                "L15",
+                "L16",
+                "L17",
+                "L18",
+                "L19"
+              ]
+            },
+            "speaker": {
+              "enum": [
+                "ines",
+                "theo"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

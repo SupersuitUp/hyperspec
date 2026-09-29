@@ -219,7 +219,7 @@ writing:
   goal:
     from: plans to run the meeting from their own list
     to: hands the meeting to the report
-    next_if_worked: copies the three questions into the invite
+    next_if_worked: writes the three questions on a card
     change:
       kind: action                   # belief | action | feeling
       text: the reader asks the three questions and waits
@@ -913,8 +913,9 @@ letters and is not a common function word such as "the", so a speaker recorded a
 interviewed" is named only by all three words. Attribution needs a declared speaker: a name that
 is no segment's `speaker` attributes nothing, so start a `speaker` with the person's name, as
 the essay example does with `dana, an engineering manager`. A spec with `fiction: true` skips
-the station: a character's dialogue is invented rather than quoted from a material, and a later
-release checks it against each character's own lines.
+the station: a character's dialogue is invented rather than quoted from a material. The
+`attribution` judge tests it against each character's own lines instead (see
+[Judging a draft](#judging-a-draft)).
 
 | Id | Severity | Meaning |
 |---|---|---|
@@ -1009,6 +1010,531 @@ the same draft:
 
 A ledger path that leads outside the spec's folder is not written, and `check` prints a warning.
 
+## Judging a draft
+
+`check` runs the stations that are plain functions of the spec and the draft. The rest of a
+spec's checks are rubrics: whether the doctor would pass each goal condition, whether a reader
+would get lost, whether the voice can be told from the writer's own. Those are judgments, and
+hyperspec calls no model, so it does not make them. It makes them checkable instead. For each
+judgment station, `judge prepare` writes a packet: the rubric from the spec, fixed
+instructions, the inputs the judge reads, and the exact shape of the answer. An outside judge
+(your agent, any model, or a person) fills in a verdict. `judge record` validates it, derives
+the station's status from it by a fixed rule, and records it in the runs ledger. The judge
+decides; hyperspec checks that every passage the judge quotes is in the draft, scores
+every blind test against an answer key the judge never saw, and keeps the record.
+
+```bash
+npx @supersuit/hyperspec judge prepare essay.hyperspec.md --draft essay/draft.md --out essay/judge
+```
+
+```
+essay/judge/doctor.packet.json
+essay/judge/lineup.packet.json
+essay/judge/lineup.key.json
+essay/judge/reader.packet.json
+essay/judge/persona.packet.json
+attribution: skip (the spec is not fiction; attribution applies only with fiction: true)
+knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)
+```
+
+Like `check`, it lints the spec first: a spec that fails lint, or is blocked on an open
+decision, gets no packet, and `prepare` exits with lint's own code. Then it writes one
+`<station>.packet.json` for each station that applies, in a fixed order (`doctor, lineup,
+reader, persona, attribution, knowledge`), and prints a `skip` line with the reason for each
+that does not. `--only doctor,reader` prepares just those. The `--out` folder must already
+exist. `prepare` refuses to overwrite any file it would write, naming every one, and then writes
+nothing; `--force` replaces them. The worked examples ship the packets this writes, so add
+`--force` to write them again there. The same spec and draft, with the same goldens and claims
+ledger, always give byte-identical packets. A station that throws while building its packet
+prints `no packet` with a `judge-<name>-crashed` finding; the other packets are still written,
+and `prepare` exits 1.
+
+**Hand the judge only the `*.packet.json` files, never the `--out` folder.** Two stations are
+blind tests with a right answer. `lineup` writes which candidate is the draft's to
+`lineup.key.json`, and `attribution` writes each line's true speaker to
+`attribution.key.json`, both beside the packets, for a person to read. A judge who can see them
+is not judging. `record` never reads either file as truth: it builds the key again from the spec
+and the draft, so an edited key changes nothing.
+
+**Give the two blind packets to a judge in a fresh context with no access to the draft.** Every
+packet names its spec and its draft by path, and a judge that can open files can open those: the
+draft's own text shows which lineup passage is the draft's, and its speech tags give every
+attribution answer. Both stations' instructions tell the judge to decide from the packet's inputs
+alone and open no file the packet names, and a judge with file access can still ignore that, so
+the instruction is not a guarantee. Paste the packet into a new conversation, or hand it to a
+person who has not read the draft, rather than to an agent working in the folder the draft is in.
+The other four packets carry the draft in their inputs and hide nothing, which is why each blind
+packet goes to its own context, apart from the other packets as well as from the folder: a judge
+that has read the doctor, reader or persona packet has read the draft.
+
+Exit codes for `prepare`: **0** written; **1** a station crashed; **2** usage: no spec path, no
+`--draft`, no `--out`, an `--out` that is missing or not a folder, a draft that cannot be read, a
+spec without `profile: writing`, an `--only` that names no known judge, or a file that exists
+without `--force`; and lint's own **1** or **3** when the spec is not ready. `--json` prints the
+result, and a usage error prints `{ "spec", "draft", "out", "error" }`.
+
+### The packet
+
+Every packet is JSON with these fields, in this order:
+
+| Field | Holds |
+|---|---|
+| `hyperspec_judge` | the packet format's version, `"0.1"` |
+| `station` | the station's name |
+| `spec`, `draft` | the paths exactly as `prepare` was given them |
+| `spec_sha256`, `draft_sha256` | the SHA-256 of each file's bytes |
+| `rubric` | the `check.rubric` of the block the station reads, verbatim |
+| `instructions` | fixed text for the station, the same for every spec |
+| `inputs` | what the judge reads; each station below lists its own |
+| `verdict_schema` | the verdict's exact shape, as a small JSON Schema |
+
+A station that needs a rubric skips when its block has none, and a station whose block is
+deferred to a decision skips too. The paths are kept as given so the packet is the same on every
+machine, which means **`record` must run in the folder `prepare` ran in**. Run from anywhere else,
+it cannot find the spec and exits 2.
+
+### The evidence rule
+
+Every verdict field that cites the draft (the doctor's `evidence`, the reader's `lost_at` and
+`stopped_at`, the persona's `breaks`, the knowledge `leaks`) is a span copied from the draft. A
+span counts only when:
+
+- it has at least three words, where a word is a run of letters and digits (so "It's" is two);
+- it is in the draft after both are normalized: every run of whitespace, line breaks included,
+  becomes one space, and curly, low and angle quotation marks and apostrophes
+  (`‘ ’ ‚ ‛ “ ” „ ‟ ‹ › « »`) become straight ones. Primes (`′ ″`) are not quotation marks and
+  are left alone, case is kept, and nothing else changes, so a changed word is not a quotation;
+- it matches whole words: a span that starts or ends with a letter or digit may not start or end
+  inside a word of the draft.
+
+A span that fails makes the verdict invalid (`judge-evidence-missing`, `-too-short` or
+`-not-found`), and nothing is recorded. The lineup and attribution verdicts carry no evidence:
+they are blind tests, scored against their keys.
+
+### Recording a verdict
+
+```bash
+npx @supersuit/hyperspec judge record essay/judge/lineup.packet.json --verdict essay/sample-verdicts/lineup.verdict.json
+```
+
+```
+lineup: fail
+  fail [judge-lineup-picked] the judge picked the draft's passage (D) out of 4 candidates with confidence 0.6: D is the only passage that rests on a survey figure, and it opens by pointing at something outside itself (the survey); A, B and C each turn one claim into an instruction in the second person, with no numbers. (line 32)
+    fix: Revise this passage toward the goldens' voice, where the reason points; if the goldens do not cover this kind of passage, add one that does. Then prepare and judge again.
+verdict: not-improved (failing stations: lineup)
+```
+
+`record` trusts nothing in the packet file. First it hashes the spec and the draft again; if
+either no longer matches the hash the packet recorded, the verdict is stale (`judge-stale`,
+"the draft does not match the hash the packet recorded: it changed since prepare, or the packet
+was edited"). Then it rebuilds the packet from the spec, the draft and the station's other
+inputs on disk (the DNA scope, its `scope.md` and goldens, for `lineup`; the claims ledger for
+`persona`) and
+requires the file to be exactly those bytes:
+
+- a packet whose inputs no longer match what those other files produce is stale, and the message
+  names them. Nothing on disk can tell a changed golden from a hand-edited packet, so it says
+  "changed since the packet was prepared, or the packet was edited" and claims neither;
+- a station that no longer applies because of those files (the claims ledger deleted, say) is
+  stale in the same way, and says why it no longer applies;
+- anything else (an edited condition, a reformatted file, a hash made to match a changed draft, a
+  station that no longer applies for another reason) is `judge-packet-altered`.
+
+Either way nothing is recorded. A stale packet prints `<station>: stale packet, nothing
+recorded`, as `learn record` does, and with `--json` both commands mark it `"invalid": true,
+"stale": true`, so a script can test `invalid` alone. The fix is to run `judge prepare` again
+with `--force` and judge the new packet, or, for a station that no longer applies, to restore
+the file it reads. Only then is the verdict read: it must be JSON (one leading
+byte order mark is ignored), in the shape the packet gives, with every evidence span found.
+Every problem is named, and an invalid verdict records nothing. The validator ignores fields it
+does not know, so a verdict can carry a note of its own; the worked examples' sample verdicts
+each carry one, `sample`, saying what they are.
+
+A valid verdict gives the station's status, its findings (a warning prints under the status and
+never fails it), and for `attribution` one summary line. Then one line goes to the runs ledger.
+
+Exit codes for `record`: **0** the station passed; **1** it failed, or the verdict is invalid,
+or the packet is stale or altered; **2** usage: no packet path, no `--verdict`, a packet or verdict
+file that cannot be read, a file that is not a judge packet or names an unknown judge, or a
+packet whose spec (which must carry `profile: writing`) or draft cannot be read. `--json` prints
+the result, and a usage error prints `{ "packet", "verdict", "error" }`.
+
+In the tables below, **fail** fails the station, **warn** is printed and never fails it,
+**invalid** refuses the verdict, and **stale** refuses the packet; an invalid or stale verdict
+records nothing.
+
+### doctor
+
+Grades the draft against every goal condition, and asks whether the reader would take the next
+step now. Applies when `writing.goal` is written and its check has a rubric. Inputs: `goal`
+(`from`, `to`, `next_if_worked`, and `change` with its `kind` and `text`), `conditions` (each
+condition id with its requirement's `text` and `fails_when`) and the `draft`. The verdict is
+`{ conditions: [{ id, pass, evidence, note }], would_take_next_step, evidence }`: every condition
+id exactly once, `pass` and `would_take_next_step` true or false, a `note` on every condition
+(one that fails must say why), and the top-level `evidence` for the passage that decided the next
+step. It passes when every condition passes and the reader would take the next step.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-doctor-condition` | fail | a condition fails; gives the judge's note, at its evidence's line |
+| `judge-doctor-next-step` | fail | the reader would not take `goal.next_if_worked` now |
+| `judge-doctor-condition-missing` | invalid | a condition in the packet has no entry |
+| `judge-doctor-condition-unknown` | invalid | the verdict grades an id that is not a condition in the packet |
+| `judge-doctor-condition-duplicate` | invalid | a condition is graded more than once |
+
+### lineup
+
+A blind test of voice. Applies when `writing.dna` names a `scope_dir` whose goldens can be read
+and its check has a rubric, at least one golden has a prose paragraph, and the draft has a prose
+paragraph that is not already a golden's. A draft that is one paragraph and nothing else is
+skipped: its candidate would be the whole file, and the packet's `draft_sha256` would identify it. A prose paragraph is a run of non-blank lines that are
+all plain text: headings and code fences end one, and a block holding a list item, a quotation, a
+table row, a thematic break or HTML is left out whole, as is indented code.
+
+Every candidate is one prose paragraph reflowed onto a single line, so none can be told by its
+formatting. The target length is the median, in characters, of every prose paragraph of every
+golden in the scope. The first three goldens by file name that have one each give their
+paragraph closest to that length, and the draft gives its paragraph closest to it, skipping any
+that is word for word a golden's; ties go to the earliest. The candidates are shuffled with a
+seed derived from the draft's full text (the SHA-256 of `hyperspec lineup seed`, a line break, and
+the text), which the packet does not carry, so the packet cannot reveal the order: not even its
+`draft_sha256`, which is a different hash. The same draft always gets the same labels, labeled A
+to D. Inputs: `scope` (the scope's `writer`, `form`, `audience` and `purpose`) and `candidates`,
+each `{ label, text }`; no path and no source. `lineup.key.json` records the draft's label, the
+draft line its paragraph starts on, and where every candidate came from.
+
+The verdict is `{ pick, confidence, reason }`: a label, a number from 0 to 1, and what decided it.
+It passes when the pick is not the draft's passage: the judge could not tell. A judge who picks at
+random also passes, three times in four with four candidates, so one lineup is weak evidence of a
+voice. A failing lineup is the stronger signal, and its reason says where to look.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-lineup-picked` | fail | the judge picked the draft's passage; gives its confidence and reason, at the paragraph's line |
+| `judge-lineup-pick-unknown` | invalid | the pick is not one of the lineup's labels |
+
+### reader
+
+Reads the draft as the audience block's reader. Applies when `writing.audience` is written and its
+check has a rubric. Inputs: `audience` (`who`, `funnel_now`, `knows`, `terms`, `believes_now`,
+`wants`, `reads_on`, `reader`) and the `draft`. The verdict is `{ lost_at: [{ evidence, why }],
+stopped_at, would_take_next_step, next_step }`, where `stopped_at` is `{ evidence, why }` or
+`null` when the reader read to the end, and must be present either way. The reader names its own
+next step: it is not shown `goal.next_if_worked`, so a reader that would act and a doctor that
+says the reader would not take the spec's next step can both be right. In the essay example they
+agree: both name the card. It passes when the reader read to the end and would take its next step
+now.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-reader-lost` | warn | the reader got lost here, and why |
+| `judge-reader-stopped` | fail | the reader stopped reading here, and why |
+| `judge-reader-next-step` | fail | the reader would not take its next step now |
+
+### persona
+
+Reads the draft as the persona block's speaker, against the claims ledger. Applies when
+`writing.persona` is written and its check has a rubric, and the claims ledger, if
+`sources.ledger` names one, can be read. Inputs: `persona` (`identity`, `stance`, `may_assert`,
+`will_not_say`), `claims` (the text of every well-formed line of the claims ledger, in order) and
+the `draft`. With no ledger declared, `claims` is `null`: facts cannot be checked against
+sources, so the instructions say not to report one, the schema leaves that kind out, and a break
+of that kind is invalid. The verdict is `{ breaks: [{ evidence, kind, why }] }`, where `kind` is
+`stance` (the voice leaves its stance), `assertion` (it asserts something outside `may_assert`),
+`will_not_say` or `unsourced_fact` (a fact no claim holds). It passes when there is no break.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-persona-break` | fail | the voice breaks here; the message names the kind and gives the judge's why |
+| `judge-persona-kind-unknown` | invalid | a break's kind is not one of the four |
+| `judge-persona-no-ledger` | invalid | a break is `unsourced_fact`, and the spec declares no claims ledger |
+
+### attribution
+
+Fiction only: a blind test of whether the characters' voices can be told apart. The packet holds
+the draft's dialogue lines with the narration and the speaker removed, and each speaking
+character's `speech` block, `golden_lines` and `rejected_lines`; it carries no draft. The judge
+names a speaker for every line, and `record` scores the answers against the true speakers, which
+only `attribution.key.json` holds. Applies when `fiction: true`, at least two characters have a
+speech block and one of them has a check rubric, and the draft has attributable lines from at
+least two speakers.
+
+A dialogue line is a double-quoted span, straight or curly, inside one paragraph, outside code. A
+quote split by a speech tag (`"Twenty minutes," Ines said, "then we fold it."`) is one line when
+its first part ends in a comma and the narration between the parts is exactly one tag and its
+comma, nothing else. Narration that holds anything more joins nothing: in `"Leave it there," Ines
+said, and Theo muttered, "No chance at all."` the first part is Ines's, and the second is left
+out, since a second speaker brought in by a beat, a pronoun or a verb off the list cannot be read
+mechanically. The second part is left out whatever ends that narration, even another tag (`Ines
+said, and Theo said,`), and so is the second part of `"Twenty minutes," Ines said, wiping her
+hands, "then we fold it."`. A line's speaker comes only from a speech tag:
+narration in the same paragraph directly after the closing mark (`"...," Ines said`) or directly
+before the opening mark, ending in a comma or colon (`Ines said, "..."`). A tag is a subject and
+one of the verbs said, asked, told, replied, called, whispered, shouted, answered, added and went
+on, or their present tense (says, asks, goes on). The subject is:
+
+- a character's id, or its `name` if it has one: whole words, any case, and an id's words may be
+  joined by a space, a hyphen or an underscore, so `old-man` is named by "old man";
+- "I", when `persona.identity` is `character:<id>`: the narrator speaks;
+- "she" or "he", when exactly two characters have speech blocks and one of them narrates: the
+  other one speaks. After a quote the pronoun must be lower case.
+
+The verb may come first ("said Ines") only for said, replied, whispered, shouted and went on (and
+their present tense), since "Ines told Theo" names the person spoken to. Anything else leaves the
+line out, and every doubt does: no tag, a possessive ("Ines's") or an action beat ("Theo nodded"),
+a subject that is not a character with a speech block, tags that name two different speakers, or a
+line of three words or more that repeats, or is part of, a golden or rejected line, which would
+give its speaker away. So does the second quote in
+`"Not a bakery," she said. "They want the room."`, since no tag sits against it. The key is never wrong, and recall pays for it: the worked
+story has 36 dialogue lines, and 19 of them are in the test, 10 by Ines and 9 by Theo. The packet
+counts the lines left out, and the key lists each with its reason.
+
+Inputs: `characters`, `lines` (each `{ id, text }`, numbered L1 up in draft order, whitespace
+reflowed) and `excluded`, the count left out. The verdict is `{ lines: [{ id, speaker }] }`,
+every line id exactly once, a speaker by id or name, in any case. Accuracy is taken per speaker
+and averaged, so naming one character for every line cannot pass: the station passes when that
+mean is 80 percent or more, compared exactly, with percentages rounded down. This is the worked
+story's sample:
+
+```
+attribution: pass
+  accuracy per speaker: ines 10/10 (100%), theo 9/9 (100%); mean 100%, passing at 80%; 17 dialogue lines left out (8 repeating a golden or rejected line, 9 with no speech tag)
+verdict: one-shot
+```
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-attribution-accuracy` | fail | the mean accuracy over speakers is under 80%; gives each speaker's |
+| `judge-attribution-miss` | warn | a line was given to the wrong character, at its draft line |
+| `judge-attribution-speaker-unknown` | invalid | a speaker is not a character in the packet |
+| `judge-attribution-line-missing` | invalid | a line in the packet has no answer |
+| `judge-attribution-line-unknown` | invalid | the verdict answers an id that is not a line in the packet |
+| `judge-attribution-line-duplicate` | invalid | a line is answered more than once |
+
+### knowledge
+
+Fiction only: whether anyone knows something before their timeline gives it to them. Applies when
+`fiction: true` and at least one character has a knowledge timeline (an entry with both `by` and
+`knows`) and one of those characters has a check rubric. Inputs: `characters` (each with its
+`knowledge` entries) and the `draft`. The verdict is `{ leaks: [{ character, evidence,
+knows_too_early }] }`, and it passes when there is no leak.
+
+hyperspec does not read the draft's structure: `by` goes into the packet as the spec wrote it,
+and the judge maps it onto the draft. The worked story's timelines say `scene-1` to `scene-4`,
+and its draft's four headings are times, 3:40 to 6:55, in the scene list's order, so a judge maps
+them by order. Write `by` as something a reader of the draft can find.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-knowledge-leak` | fail | a character knows something too early, at its evidence's line |
+| `judge-knowledge-character-unknown` | invalid | a leak names a character with no timeline in the packet |
+
+### Any judgment station
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-verdict-not-json` | invalid | the verdict file is not JSON |
+| `judge-verdict-shape` | invalid | a field is missing, of the wrong type or out of range, or a required note, reason or why is empty |
+| `judge-evidence-missing` | invalid | an evidence field is empty or not a string |
+| `judge-evidence-too-short` | invalid | an evidence span has fewer than three words |
+| `judge-evidence-not-found` | invalid | an evidence span is not in the draft, word for word |
+| `judge-stale` | stale | the spec, the draft, or a file the station reads changed since the packet was prepared, or the packet was edited |
+| `judge-packet-altered` | invalid | the packet is not the one `prepare` builds from the files on disk |
+| `judge-<name>-crashed` | invalid | the station threw; at `prepare` its packet is not written, at `record` nothing is recorded |
+
+### Judge lines in the runs ledger
+
+Each recorded verdict appends one line to the spec's `improvement.ledger`:
+
+```json
+{"at":"2026-09-29T16:27:36.883Z","kind":"judge","station":"lineup","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","packet_sha256":"<sha256 of the packet>","inputs_sha256":"<sha256 of its inputs>","status":"fail","verdict":"not-improved","reason":"failing stations: lineup"}
+```
+
+`draft` is relative to the spec's folder, as in a check line. `packet_sha256` is the SHA-256 of
+the packet the judge was shown, taken with its two paths written as the ledger writes them
+(relative to the spec's folder), so the same packet prepared from another folder, or as
+`./draft.md`, hashes the same. `inputs_sha256` is the SHA-256 of the packet's `inputs` alone. The
+verdict follows the same rules as a check line, compared with
+the most recent earlier judge line for the same station and the same draft, with three more:
+
+- **What changed** is judged by the packet. The draft or the spec is named when its bytes
+  changed. When neither did and the packet's inputs did, the files the station reads besides them
+  are named: `the DNA scope (<scope_dir>: scope.md and goldens)` for `lineup`, `the claims ledger
+  (<path>)` for `persona`. When only the rest of the packet changed, which a later hyperspec
+  release can do by rewording a station's instructions, the reason says `the packet's fixed text
+  (hyperspec's instructions or format) changed`. So adding the golden a failing lineup asked for, or the claims a
+  failing persona asked for, and passing on the new packet is `improved`, "the DNA scope
+  (dna/essay-new-managers-teach: scope.md and goldens) changed; stations now pass: lineup". An
+  improved judge line always names what changed, "draft changed; stations now pass: doctor".
+- **one-shot** also needs these draft bytes never to have been judged by this station before,
+  under any name. A copy or a rename of a judged draft gets `not-improved`, with the reason
+  "these draft bytes were judged before as <path>: <status>".
+- **improved** also needs the packet to have changed since the failing line. A judge can answer
+  differently about an identical packet, and that is not the work improving: the verdict is
+  `not-improved`, "the verdict changed; nothing the judge was shown changed".
+
+Otherwise the reasons are check's, with `judgment` where check says `check`: `failing stations:
+doctor`, `no change since the last passing judgment`, `no change since the last judgment; still
+failing: doctor`, or `draft changed; every station still passes`. Check and judge each read only
+their own lines, and learn reads none, so judging a draft never changes what `check` says about
+it, or the reverse. Judge lines keep lint's test 9 passing, as check lines do.
+
+### The worked examples
+
+Both examples ship the packets `prepare` writes for their drafts, in `essay/judge/` and
+`story/judge/`, with no key beside them, and one sample verdict per packet in
+`essay/sample-verdicts/` and `story/sample-verdicts/`. The samples were filled in by hand, as
+one careful judge would, to show the shape and what `record` does with it; each says so in its
+`sample` field. Another judge may answer differently. A test records every sample on a fresh
+copy on every release.
+
+| Example | Station | Sample | What the judge found |
+|---|---|---|---|
+| essay | doctor | pass | every condition holds, and the reader would write the three questions on a card, the goal's next step and the draft's close |
+| essay | lineup | fail | the draft's passage is the only one resting on a survey figure; the goldens hold no numbers, so they do not cover this kind of passage |
+| essay | reader | pass | read to the end, lost nowhere; the reader's own next step is the card |
+| essay | persona | pass | the mentor stance holds, and every figure is in the claims ledger |
+| story | doctor | pass | every condition holds, and a reader would look for the author's other stories |
+| story | reader | pass | read to the end; lost for a moment at "proving cabinet" and "peel", two warnings |
+| story | persona | fail | three process details (the deck oven's heat-up time, the rolls' bake time, how the starter is fed) are in no claim, and the rubric allows none outside the ledger |
+| story | attribution | pass | all 19 lines named right by voice alone |
+| story | knowledge | pass | neither character knows anything early |
+
+Both examples pass every station of `check`. Each failure here is something no deterministic
+station can see.
+
+## Learning from edits
+
+A factory writes a first draft, and a person edits it into the draft they approve. Every edit is
+something the spec did not say, or did not say well enough. `learn prepare` diffs the two drafts
+sentence by sentence and writes a packet of the edits; an outside judge names, for each edit, the
+one block of the spec that would have prevented it; `learn record` validates that verdict, counts
+the edits by block, and names one next move for the block with the most. It never edits the spec:
+the move is a suggestion for whoever keeps it.
+
+```bash
+npx @supersuit/hyperspec learn prepare essay.hyperspec.md --first essay/learn/first-draft.md --approved essay/draft.md --out essay/learn
+npx @supersuit/hyperspec learn record essay/learn/learn.packet.json --verdict essay/sample-verdicts/learn.verdict.json
+```
+
+```
+essay/learn/learn.packet.json
+5 edits over 8 sentences: 3 replaced, 2 deleted
+```
+
+```
+learn: 5 edits classified
+  dna 2 edits, 4 sentences
+  materials 1 edit, 2 sentences
+  persona 1 edit, 1 sentence
+  none 1 edit, 1 sentence
+next move: dna, 4 of 8 sentences (2 of 5 edits): add a golden or a style rule
+verdict: not-improved (edits by block: dna 2 edits (4 sentences), materials 1 edit (2 sentences), persona 1 edit (1 sentence), none 1 edit (1 sentence); not yet applied to the spec)
+```
+
+`prepare` lints the spec first, exactly as `judge prepare` does, then writes
+`<out>/learn.packet.json` and prints how many edits it found, or `no edits: the first draft and the
+approved draft match; nothing to learn`. The rules on `--out`, `--force` and the paths are the
+judge's: the folder must exist, an existing packet needs `--force`, and `record` runs in the
+folder `prepare` ran in. The essay example ships this pair and its packet in `essay/learn/`, so
+add `--force` to write the packet again there.
+
+Exit codes: `prepare` **0** written, **2** usage (no spec path, `--first`, `--approved` or
+`--out`, a folder that is missing, a draft that cannot be read, a spec without `profile: writing`,
+a packet that exists without `--force`, or drafts too large to diff), and lint's own **1** or
+**3** when the spec is not ready; `record` **0** recorded, **1** the verdict is invalid or the
+packet stale or altered (nothing recorded), **2** usage.
+
+### Sentence units
+
+The drafts are compared one unit at a time, and a unit is one sentence, one heading, or one list
+item:
+
+- A blank line always ends a unit. When the first line of a paragraph is a Markdown heading, that
+  line is a unit of its own; a later line that starts with `#` is a hard wrap in the text, and is
+  read as text.
+- Other lines are split into sentences at `.`, `!` or `?` followed by whitespace, never inside a
+  quotation that opens and closes on one line (straight or curly), so a quoted passage of several
+  sentences on one line is one unit. Each list item starts a unit.
+- A unit that ends in a common abbreviation (Mr., Mrs., Ms., Dr., Prof., Sr., Jr., St., vs., cf.,
+  e.g., i.e.) or a single capital initial ("J.") runs on into the next, and so does a unit
+  followed by one that starts with a lower-case letter ("the U.S. economy").
+
+### The edits
+
+Units are compared with their whitespace collapsed and matched by a longest common subsequence.
+Every run of unmatched units is one edit, a hunk: `deleted` (only in the first draft), `inserted`
+(only in the approved one) or `replaced`. A hunk never crosses a paragraph break or a heading, so
+a paragraph rewritten from end to end is one hunk and a change in two paragraphs is two. A hunk's
+texts are the drafts' own words from its first unit to its last, and its `sentences` is the
+larger of its two unit counts. A run that reads the same once whitespace is collapsed is a
+reflow, not an edit, so rewrapping lines, or joining or splitting paragraphs without changing a
+word, makes no hunk. The drafts' common start and end are set aside first; if what is left would
+need more than 10,000,000 comparisons, `prepare` stops with a usage error naming both sentence
+counts. Learn from a chapter or a scene at a time.
+
+### The learn packet
+
+`{ "hyperspec_learn": "0.1", "spec", "spec_sha256", "first", "first_sha256", "approved",
+"approved_sha256", "blocks", "instructions", "hunks", "verdict_schema" }`. `blocks` lists the
+writing blocks the spec has written, in schema order, then `none`; a deferred block is not
+listed. Each hunk is `{ id, kind, first, approved, sentences }`, with ids E1 up, and `null` on
+the side that has no text. The packet carries no draft beyond its hunks: the instructions tell
+the judge to read the spec at its path. A learn packet has no answer key.
+
+The verdict is `{ edits: [{ id, block, why }] }`: every hunk id exactly once, a `block` from the
+packet's `blocks`, and a `why` saying what that block should have said. `none` means no block of
+the spec could have prevented the edit, a typo say. As with a judge packet, `record` hashes the
+spec and both drafts again, rebuilds the packet, and requires the file to be exactly those bytes
+before it reads the verdict.
+
+### The tally and the next move
+
+The tally counts, for each block the verdict names, its edits and the sentences they touched.
+Blocks are ordered by sentences, then edits, then the order of the table below with `none` last,
+and the next move goes to the first block that is not `none`, so a paragraph rewritten from end to
+end weighs as the sentences it rewrote. There is one move per block:
+
+| Block | Next move |
+|---|---|
+| `materials` | mark or add the material the edit drew on |
+| `dna` | add a golden or a style rule |
+| `persona` | tighten the persona's stance, may_assert or will_not_say |
+| `audience` | extend the audience's knows or terms |
+| `goal` | tighten a goal condition's fails_when |
+| `form` | adjust the form block's length or shape |
+| `spine` | restate the spine's claim or its order |
+| `sources` | add or cite a source in the claims ledger |
+| `characters` | extend a character's speech or knowledge |
+
+When every edit is `none`, the move is `none`: no block could have prevented any edit, so the spec
+has nothing to learn from the pair.
+
+`record` appends one line to the runs ledger, `{ at, kind: "learn", first, first_sha256,
+approved, approved_sha256, spec_sha256, verdict, reason, tally }`, with both drafts' paths
+relative to the spec's folder. Its verdict is always `not-improved`: the spec has not changed yet,
+and the reason gives the counts by block. Learn reads no earlier line, and check and judge ignore
+learn lines.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `learn-verdict-not-json` | invalid | the verdict file is not JSON |
+| `learn-verdict-shape` | invalid | the verdict is not `{ edits: [...] }`, or an entry is not an object with an id |
+| `learn-edit-unknown` | invalid | an id is not a hunk in the packet |
+| `learn-edit-duplicate` | invalid | a hunk is classified more than once |
+| `learn-edit-missing` | invalid | a hunk is not classified |
+| `learn-block-unknown` | invalid | a block is not one of the nine blocks or `none` |
+| `learn-block-absent` | invalid | a block is one the spec has not written |
+| `learn-why-missing` | invalid | a why is empty or not a string |
+| `learn-stale` | stale | the spec or a draft no longer matches the hash the packet recorded: it changed since prepare, or the packet was edited |
+| `learn-packet-altered` | invalid | the packet is not the one `prepare` builds from the files on disk |
+
+The essay example's pair is a first draft that differs from `essay/draft.md` by five edits: a
+paragraph of hedged advice and a hedged sentence, where the approved draft gives instructions; a
+claim about what most managers do; the walking aside from the voice memo; and a typo. The sample
+verdict puts the two hedges on `dna`, since no golden or style rule shows advice given flat, and
+the tally sends the next move there.
+
 ## Deferring a block
 
 A block can be deferred, never silently missing. A required block that is absent fails test 1
@@ -1079,12 +1605,18 @@ both drafts pass every station of `check`: the essay with one dna warning, descr
 since it is fiction. A test lints both
 specs and checks both drafts on every release, so they cannot drift from the tool.
 
+Each also ships the packets `judge prepare` writes for its draft, in `essay/judge/` and
+`story/judge/`, and one sample verdict per packet in `essay/sample-verdicts/` and
+`story/sample-verdicts/`, filled in by hand and marked as samples; what each found is under
+[The worked examples](#the-worked-examples). The essay adds a learn pair in `essay/learn/`: a
+first draft, the packet `learn prepare` writes comparing it with `essay/draft.md`, and a sample
+learn verdict (see [Learning from edits](#learning-from-edits)). A test checks that every packet
+is what `prepare` writes now and records every sample.
+
 ## What later versions add
 
-This release is the schema, its lint, marked materials, scoped DNA, and `check` with seven
-deterministic stations. Next come the judgment stations: the simulated reader, the blind lineup,
-the persona judge and the doctor. hyperspec calls no model, so `check` will write each one as a
-packet, the draft and the rubric and the materials the judge needs, for an outside judge to fill
-in, and read the filled packet back as a station result. After that, a learn step that reads the
-runs ledger for the stations that keep failing and the changes that made them pass, so a fix
-lands in the spec or the skill that wrote the draft rather than in one draft.
+This release is the schema, its lint, marked materials, scoped DNA, `check` with seven
+deterministic stations, six judgment stations written as packets for an outside judge, and learn.
+Next: lineups over several passages of one draft, so that one lucky pick carries less weight, and
+a learn step that reads the runs ledger across drafts for the stations that keep failing and the
+changes that made them pass, beside what one pair of drafts shows.
