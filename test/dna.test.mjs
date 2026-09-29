@@ -11,7 +11,7 @@ import {
 // measureFeatures: every feature on small, hand-computed texts.
 
 test("word_count, mean word length: a single short sentence", () => {
-  // Words: "hello", "there", "world" — 5, 5, 5 letters, mean length 5.
+  // Words: "hello", "there", "world": 5, 5, 5 letters, mean length 5.
   const feats = measureFeatures(["hello there world."]);
   assert.equal(feats.word_count, 3);
   assert.equal(feats.mean_word_length, 5);
@@ -44,9 +44,9 @@ test("paragraph_length: mean sentences and mean words per paragraph, two paragra
 });
 
 test("punctuation rates per 1000 words, hand-computed on a 10-word text", () => {
-  // "Wait, no: really? Yes! (Sure.) “Fine” — or – not."
+  // "Wait, no: really? Yes! (Sure.) \u201CFine\u201D \u2014 or \u2013 not." (curly quotes, an em dash, an en dash)
   // words: wait, no, really, yes, sure, fine, or, not -> 8 words? let's count precisely below.
-  const text = 'Wait, no: really? Yes! (Sure.) “Fine” — or – not.';
+  const text = "Wait, no: really? Yes! (Sure.) \u201CFine\u201D \u2014 or \u2013 not.";
   const feats = measureFeatures([text]);
   // words: Wait, no, really, Yes, Sure, Fine, or, not = 8 words
   assert.equal(feats.word_count, 8);
@@ -156,7 +156,7 @@ test("writeFeatures writes byte-identical JSON across repeated runs on the same 
     { path: "goldens/b.md", why: "x", approved_by: "p", source: "s", approved_on: "", text: "Second one here.", sha256: "bb" },
     { path: "goldens/a.md", why: "x", approved_by: "p", source: "s", approved_on: "", text: "First one here.", sha256: "aa" },
   ];
-  const scope = { writer: "gary", form: "essay", audience: "builders", purpose: "explain" };
+  const scope = { writer: "example-author", form: "essay", audience: "builders", purpose: "explain" };
   const features = measureFeatures(goldens.map((g) => g.text));
   const { path: p1 } = writeFeatures(dir, { scope, goldens, features });
   const first = readFileSync(p1, "utf8");
@@ -179,12 +179,12 @@ test("writeFeatures sorts goldens by path regardless of input order", () => {
 
 test("writeFeatures: features.json shape carries dna version, scope, goldens (path+sha256 only), features", () => {
   const dir = tempDir("hs-dna-");
-  const scope = { writer: "gary", form: "essay", audience: "builders", purpose: "explain", notes: "extra, not written" };
+  const scope = { writer: "example-author", form: "essay", audience: "builders", purpose: "explain", notes: "extra, not written" };
   const goldens = [{ path: "goldens/a.md", why: "w", approved_by: "p", source: "s", text: "hi", sha256: "aa" }];
   const { data } = writeFeatures(dir, { scope, goldens, features: { word_count: 1 } });
   assert.deepEqual(Object.keys(data), ["dna", "scope", "goldens", "features"]);
   assert.equal(data.dna, "0.1");
-  assert.deepEqual(data.scope, { writer: "gary", form: "essay", audience: "builders", purpose: "explain" });
+  assert.deepEqual(data.scope, { writer: "example-author", form: "essay", audience: "builders", purpose: "explain" });
   assert.deepEqual(data.goldens, [{ path: "goldens/a.md", sha256: "aa" }]);
   assert.deepEqual(data.features, { word_count: 1 });
 });
@@ -192,7 +192,7 @@ test("writeFeatures: features.json shape carries dna version, scope, goldens (pa
 // ---------------------------------------------------------------------------------------------
 // readGoldens / readScope: the refusals, and the happy path, on real folders.
 
-function makeScope(dir, { writer = "gary", form = "essay", audience = "builders", purpose = "explain" } = {}) {
+function makeScope(dir, { writer = "example-author", form = "essay", audience = "builders", purpose = "explain" } = {}) {
   mkdirSync(join(dir, "goldens"), { recursive: true });
   writeFileSync(join(dir, "scope.md"), scopeTemplate({ writer, form, audience, purpose }));
   writeFileSync(join(dir, "goldens", "README.md"), GOLDENS_README);
@@ -224,9 +224,9 @@ test("readScope on a missing scope-dir: one finding, test 1, id writing-dna-scop
 test("readScope: scope.md missing a required field is one finding per field, test 1", () => {
   const dir = tempDir("hs-dna-");
   mkdirSync(join(dir, "goldens"), { recursive: true });
-  writeFileSync(join(dir, "scope.md"), "---\nwriter: gary\nform: essay\n---\n");
+  writeFileSync(join(dir, "scope.md"), "---\nwriter: example-author\nform: essay\n---\n");
   const { scope, findings } = readScope(dir);
-  assert.equal(scope.writer, "gary");
+  assert.equal(scope.writer, "example-author");
   assert.equal(scope.audience, "");
   assert.ok(findings.some((x) => x.id === "writing-dna-scope-audience" && x.test === 1));
   assert.ok(findings.some((x) => x.id === "writing-dna-scope-purpose" && x.test === 1));
@@ -286,14 +286,14 @@ test("readGoldens: an empty passage body is a finding, test 1, golden-empty", ()
   assert.ok(findings.some((x) => x.id === "writing-dna-golden-empty" && x.test === 1));
 });
 
-// R1 (build 5a, task 2): a golden whose frontmatter opens with --- and never closes used to
+// A golden whose frontmatter opens with --- and never closes used to
 // cascade into golden-empty plus all three field-missing findings (parseSkillFile has nowhere to
 // end the block, so body comes back "" and data {}). That read like four unrelated defects for
 // one real one. It is now caught on its own, before any of those checks run.
 test("readGoldens: a golden whose frontmatter opens but never closes gets one clear finding, test 1, writing-dna-golden-frontmatter, not the cascade", () => {
   const dir = tempDir("hs-dna-");
   makeScope(dir);
-  writeFileSync(join(dir, "goldens", "broken.md"), "---\nwhy: shows restraint\napproved_by: gary-sheng\nsource: essay draft\n\nThe real passage never gets read.\n");
+  writeFileSync(join(dir, "goldens", "broken.md"), "---\nwhy: shows restraint\napproved_by: example-author\nsource: essay draft\n\nThe real passage never gets read.\n");
   const { goldens, findings } = readGoldens(dir);
   assert.deepEqual(goldens, []);
   assert.equal(findings.length, 1, JSON.stringify(findings));
@@ -326,13 +326,13 @@ test("readGoldens: README.md in goldens/ is never treated as a golden", () => {
 test("readGoldens: a complete golden produces no findings and the exact returned shape", () => {
   const dir = tempDir("hs-dna-");
   makeScope(dir);
-  writeGolden(dir, "opening.md", { why: "shows restraint", approved_by: "gary-sheng", source: "essay draft", approved_on: "2026-09-01", body: "The real passage." });
+  writeGolden(dir, "opening.md", { why: "shows restraint", approved_by: "example-author", source: "essay draft", approved_on: "2026-09-01", body: "The real passage." });
   const { goldens, findings } = readGoldens(dir);
   assert.deepEqual(findings, []);
   assert.equal(goldens.length, 1);
   assert.deepEqual(Object.keys(goldens[0]).sort(), ["approved_by", "approved_on", "path", "sha256", "source", "text", "why"].sort());
   assert.equal(goldens[0].why, "shows restraint");
-  assert.equal(goldens[0].approved_by, "gary-sheng");
+  assert.equal(goldens[0].approved_by, "example-author");
   assert.equal(goldens[0].source, "essay draft");
   assert.equal(goldens[0].approved_on, "2026-09-01");
   assert.equal(goldens[0].text, "The real passage.");
@@ -351,11 +351,11 @@ test("readGoldens: goldens are sorted by filename, deterministically", () => {
 
 test("readScope: a fully valid scope produces zero findings and the right scope object", () => {
   const dir = tempDir("hs-dna-");
-  makeScope(dir, { writer: "gary-sheng", form: "essay", audience: "builders", purpose: "explain the idea" });
+  makeScope(dir, { writer: "example-author", form: "essay", audience: "builders", purpose: "explain the idea" });
   writeGolden(dir, "opening.md");
   const { scope, goldens, findings } = readScope(dir);
   assert.deepEqual(findings, []);
-  assert.deepEqual(scope, { writer: "gary-sheng", form: "essay", audience: "builders", purpose: "explain the idea", notes: "" });
+  assert.deepEqual(scope, { writer: "example-author", form: "essay", audience: "builders", purpose: "explain the idea", notes: "" });
   assert.equal(goldens.length, 1);
 });
 

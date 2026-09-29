@@ -97,7 +97,7 @@ writing:
     identity: self
     stance: peer
     may_assert:
-      - what gary has shipped and measured himself
+      - what the author has shipped and measured themselves
     will_not_say:
       - a claim about someone else's internal numbers
     facts_from: sources

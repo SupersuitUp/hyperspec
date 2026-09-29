@@ -39,12 +39,12 @@ test("init --profile <unknown> is a usage error (exit 2) naming the known profil
 // The skeleton itself: never lints as pass, and the test says exactly which result and why.
 //
 // Every required writing block (materials, dna, persona, audience, goal, form, spine, sources)
-// appears inline, in schema order, with every field present as a placeholder — the bare word
-// "TODO". str() in src/placeholder.mjs (fix round 1, R6) treats a value that IS the whole word
+// appears inline, in schema order, with every field present as a placeholder, the bare word
+// "TODO". str() in src/placeholder.mjs treats a value that IS the whole word
 // todo/tbd/fixme/xxx/placeholder as blank, so every one of those fields fails its own presence
 // check on its own; dna/persona/audience/goal additionally each carry an open decision naming the
 // real judgment call the operator has to make, but that decision is not what makes the spec fail
-// — the placeholder content already does, the same as materials/form/spine/sources.
+// ; the placeholder content already does, the same as materials/form/spine/sources.
 // Two fields are real on purpose: the material item's segments: path (it names a segments file
 // that does not exist yet, so the item fails as not marked) and the materials check.station.
 //
@@ -94,7 +94,7 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
 });
 
 test("the skeleton's dna block shows scope_dir: TODO like every other field, and it fails test 1 as writing-dna-scope-dir", () => {
-  // Fix round 1, R2: scope_dir is optional, but a present placeholder value now fails on its own
+  // scope_dir is optional, but a present placeholder value now fails on its own
   // (writing-dna-scope-dir, src/writing-fields.mjs), so it no longer needs the comment workaround
   // this test used to assert on. That check is what makes an uncommented `scope_dir: TODO` safe
   // to show at all: without it, str() would blank the placeholder to "absent" and a spec filled
@@ -139,12 +139,11 @@ test("--form sets both kind: and writing.form.name; the default is essay", () =>
 });
 
 // ---------------------------------------------------------------------------------------------
-// --fiction: fiction: true, plus one character with every required field's shape shown — and,
-// like every other block, genuinely broken (fix round 1, finding 1: an earlier draft filled every
-// character field with the bare string "TODO" and it linted completely clean, since every check
-// on a character is presence-only with no closed set to violate — the same "placeholder counts as
-// present" defect class this repo had already fixed once for null/~. R6 closed it at the root,
-// in str() itself, rather than special-casing this one block, so this is the design's own
+// --fiction: fiction: true, plus one character with every required field's shape shown, and,
+// like every other block, genuinely broken (an earlier draft filled every character field with
+// the bare string "TODO" and it linted completely clean, since every check on a character is
+// presence-only with no closed set to violate: the same "placeholder counts as present" defect
+// class this repo had already fixed once for null/~. It is closed at the root, in str() itself, rather than special-casing this one block, so this is the design's own
 // reading of the brief ("adds one character skeleton"), not a quotation of it.
 
 test("--fiction sets fiction: true and adds one character whose placeholder shape is shown but genuinely fails, like every other block", () => {
@@ -190,8 +189,8 @@ test("--fiction sets fiction: true and adds one character whose placeholder shap
 
 // ---------------------------------------------------------------------------------------------
 // Filling the skeleton's placeholders with the valid fixture's values lints 9/9: proof the
-// skeleton has the right shape, no extra or missing keys, for EVERY required block (fix round 1,
-// finding 2 widened this from materials/form/spine/sources to all eight).
+// skeleton has the right shape, no extra or missing keys, for EVERY required block (all eight,
+// not only materials/form/spine/sources).
 //
 // Two separate proofs, because one alone would be weak: (1) a direct per-block key-shape
 // comparison against the fixture (the literal "no extra or missing keys" claim), and (2) an
@@ -217,9 +216,8 @@ test("the skeleton's eight required blocks each have exactly the fixture's keys:
   const fixture = loadSpec(WRITING_VALID).data.writing;
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
     await t.test(block, () => {
-      // dna.scope_dir (0.5, optional) is a real `scope_dir: TODO` key on both sides since fix
-      // round 1's R2 (src/writing-template.mjs, src/writing-fields.mjs's writing-dna-scope-dir
-      // check), so no exception is needed here: every key on the fixture's side is expected on
+      // dna.scope_dir (0.5, optional) is a real `scope_dir: TODO` key on both sides (see
+      // src/writing-template.mjs, and src/writing-fields.mjs's writing-dna-scope-dir check), so no exception is needed here: every key on the fixture's side is expected on
       // the skeleton's side too, scope_dir included.
       assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
     });

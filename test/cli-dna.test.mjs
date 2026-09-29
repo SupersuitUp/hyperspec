@@ -13,7 +13,7 @@ const run = (...a) => spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.
 // useful for proving a CLI prints paths as given rather than resolved).
 const runIn = (cwd, ...a) => spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...a], { encoding: "utf8", cwd });
 
-const INIT_ARGS = ["--writer", "gary", "--form", "essay", "--audience", "builders", "--purpose", "explain the idea"];
+const INIT_ARGS = ["--writer", "example-author", "--form", "essay", "--audience", "builders", "--purpose", "explain the idea"];
 
 function writeGolden(scopeDir, name, { why = "teaches the move", approved_by = "example-author", source = "draft", body = "A real passage of real text, worth keeping." } = {}) {
   writeFileSync(join(scopeDir, "goldens", name), `---\nwhy: ${why}\napproved_by: ${approved_by}\nsource: ${source}\n---\n\n${body}\n`);
@@ -29,7 +29,7 @@ test("dna init writes scope.md and an empty goldens/ folder with a README, and p
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(existsSync(join(scope, "scope.md")));
   assert.ok(existsSync(join(scope, "goldens", "README.md")));
-  assert.match(readFileSync(join(scope, "scope.md"), "utf8"), /writer: gary/);
+  assert.match(readFileSync(join(scope, "scope.md"), "utf8"), /writer: example-author/);
   assert.match(readFileSync(join(scope, "scope.md"), "utf8"), /purpose: explain the idea/);
   assert.match(r.stdout, /dna measure/);
 });
@@ -55,7 +55,7 @@ test("dna init exits 2 on a missing parent folder, and never crashes with a stac
 
 test("dna init exits 2 when a required flag is missing, naming which one", () => {
   const dir = tempDir("hs-cli-dna-");
-  const r = run("dna", "init", join(dir, "scope"), "--writer", "gary", "--form", "essay", "--audience", "builders");
+  const r = run("dna", "init", join(dir, "scope"), "--writer", "example-author", "--form", "essay", "--audience", "builders");
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.match(r.stderr, /--purpose/);
   assert.ok(!existsSync(join(dir, "scope")));
@@ -66,7 +66,7 @@ test("dna init needs a scope-dir path (exit 2)", () => {
   assert.equal(r.status, 2, r.stdout + r.stderr);
 });
 
-// R3 (fix round 1): dna init built its "wrote ..."/"refusing to overwrite ..." messages from the
+// dna init once built its "wrote ..."/"refusing to overwrite ..." messages from the
 // resolved absolute scope-dir instead of the relative string the operator actually typed. Only a
 // RELATIVE scope-dir argument, run from a chosen cwd, exercises this: an already-absolute
 // tempDir()-built path (every other dna init test in this file) resolves to itself, so it cannot
@@ -86,7 +86,7 @@ test("dna init prints every path as given (relative), never resolved to an absol
   assert.doesNotMatch(r2.stderr, new RegExp(escapedDir), "must never print the resolved absolute scope-dir");
 });
 
-// R1 (build 5a, task 2): a placeholder-looking flag value used to write straight through to
+// A placeholder-looking flag value used to write straight through to
 // scope.md and only fail on the next `dna measure`. It is refused here instead, naming the flag,
 // so the placeholder never lands on disk.
 test("dna init refuses a placeholder flag value (exit 2), naming the flag, and writes nothing", () => {
