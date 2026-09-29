@@ -74,7 +74,7 @@ examples:
   - path: dna/essay-new-managers-teach/goldens/opening.md
     why: the claim lands in the first sentence, and the two short sentences after it turn it into an instruction
 resume:
-  next_action: outline the four spine claims against the form's required parts, citing the segments each claim points at
+  next_action: hand essay/draft.md to the doctor for the rubric checks in r1, r4 and r5, now that hyperspec check passes it
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes
@@ -148,6 +148,9 @@ writing:
       - one-on-one
       - report
       - tracker
+    terms:
+      - running agenda
+      - status meeting
     believes_now: a one-on-one is where a manager catches up on how the work is going
     wants: a plan for the first meeting that will not waste either person's half hour
     reads_on: a phone, in the ten minutes before the meeting
@@ -176,11 +179,11 @@ writing:
       max: 1100
       unit: words
     required_parts:
-      - an opening that states the claim
-      - the story of the author's first one-on-one
+      - who sets the agenda
+      - my first one-on-one
       - the three questions
       - what to do with the answers
-      - a close the reader can act on
+      - before the meeting
     stations:
       - the three questions render as a numbered list
     check:
@@ -219,8 +222,16 @@ fiction: false
 # Hand your first one-on-one to the person you manage
 
 A worked example of the writing profile: an essay for new managers, specified before a word of
-it is drafted. Every file this spec names ships beside it. `essay/claims.jsonl` does not exist
-yet, because the claims ledger is written during drafting.
+it is drafted. Every file this spec names ships beside it. The draft is `essay/draft.md`, and
+the claims ledger written while drafting it is `essay/claims.jsonl`. The draft passes every
+deterministic station:
+
+```bash
+npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
+```
+
+The required parts are the draft's section headings, because the form station finds a required
+part by its heading.
 
 The writer's voice for this piece comes from a scope folder, `dna/essay-new-managers-teach/`:
 the goldens this writer approved for essays that teach new managers, and the features measured
