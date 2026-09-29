@@ -20,6 +20,12 @@
 // materials check.station is the marking station itself, since that check is the same for every
 // writing spec: the linter enforces it, and there is nothing for the operator to decide there.
 //
+// dna.scope_dir is the one optional field shown, and it is shown as a comment rather than as
+// `scope_dir: TODO`. Every other placeholder here fails its own presence check, but scope_dir is
+// optional, so str() blanking a TODO there reads as "absent" and a spec filled in everywhere else
+// would pass with the placeholder still in it. A comment carries the same hint and cannot survive
+// into a passing spec pretending to be a value.
+//
 // init with no --profile never imports or calls this file: template.mjs's own template() is
 // untouched, so a bare init is still byte-for-byte what it always was.
 import { scalar } from "./template.mjs";
@@ -110,6 +116,7 @@ writing:
     author: TODO
   dna:
     writer: TODO
+    # scope_dir: dna/<scope>   optional; a folder from \`hyperspec dna init\`, and every golden below then lives in its goldens/
     scope:
       form: TODO
       audience: TODO

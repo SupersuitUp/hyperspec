@@ -93,6 +93,21 @@ test("init --profile writing writes a skeleton that lints fail (exit 1), never p
   assert.ok(ids.includes("writing-sources-unsourced-claim"), "sources.unsourced_claim placeholder must fail closed-set");
 });
 
+test("the skeleton's dna block hints at scope_dir as a comment, which the loader skips and lint never reports", () => {
+  // Every other placeholder in the skeleton fails its own presence check. scope_dir is optional,
+  // so a bare-TODO value would be blanked to "absent" and could survive into a spec that passes;
+  // a comment gives the operator the same hint without that hole.
+  const p = join(tempDir("hs-init-writing-"), "spec.md");
+  run("init", p, "--profile", "writing");
+  const text = readFileSync(p, "utf8");
+  const dnaBlock = text.slice(text.indexOf("\n  dna:\n"), text.indexOf("\n  persona:\n"));
+  assert.match(dnaBlock, /^ {4}# scope_dir: dna\/<scope> {3}optional; a folder from `hyperspec dna init`, and every golden below then lives in its goldens\/$/m);
+  assert.doesNotMatch(dnaBlock, /^ {4}scope_dir:/m, "never an uncommented placeholder");
+  assert.equal(loadSpec(p).data.writing.dna.scope_dir, undefined);
+  const ids = JSON.parse(run("lint", p, "--json").stdout).files[0].findings.map((f) => f.id);
+  assert.deepEqual(ids.filter((id) => /scope-mismatch|golden-leak|features-/.test(id)), []);
+});
+
 // ---------------------------------------------------------------------------------------------
 // --form sets both the kind: line and writing.form.name; default is essay.
 
@@ -199,10 +214,11 @@ test("the skeleton's eight required blocks each have exactly the fixture's keys:
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
     await t.test(block, () => {
       let fixtureKeys = dottedKeys(fixture[block]).sort();
-      // dna.scope_dir (0.5) is optional and the skeleton does not scaffold it: a scope folder
-      // does not exist yet at init time, so there is nothing to point it at. The fixture carries
-      // it (build 5a, task 2) to exercise the scope_dir lint path; every other key must still
-      // match the skeleton exactly.
+      // dna.scope_dir (0.5) is optional, and the skeleton shows it only as a comment (see the
+      // test below): a scope folder does not exist yet at init time, so there is nothing to point
+      // it at, and a `scope_dir: TODO` would read as absent rather than fail. The fixture carries
+      // it to exercise the scope_dir lint path; every other key must still match the skeleton
+      // exactly.
       if (block === "dna") fixtureKeys = fixtureKeys.filter((k) => k !== "scope_dir");
       assert.deepEqual(dottedKeys(skeleton[block]).sort(), fixtureKeys, block);
     });

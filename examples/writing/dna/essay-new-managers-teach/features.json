@@ -1,0 +1,56 @@
+{
+  "dna": "0.1",
+  "scope": {
+    "writer": "example-author",
+    "form": "essay",
+    "audience": "new managers",
+    "purpose": "teach"
+  },
+  "goldens": [
+    {
+      "path": "goldens/close.md",
+      "sha256": "a90291714fc3bd79a16c613deb536b34c4ef577e56083c0c6b17142fbc4b871f"
+    },
+    {
+      "path": "goldens/opening.md",
+      "sha256": "395c7c37d604e255a07603276bac0d2f0915bc80d9acea45e3a30a6fe248b44e"
+    },
+    {
+      "path": "goldens/status.md",
+      "sha256": "891c34d9134380e5c752e69036ec9707729b7e30c9f2b3f2789b8d3ee3f311ed"
+    }
+  ],
+  "features": {
+    "word_count": 118,
+    "sentence_length": {
+      "mean": 13.111,
+      "median": 15,
+      "p90": 25
+    },
+    "paragraph_length": {
+      "mean_sentences": 3,
+      "mean_words": 39.333
+    },
+    "rates_per_1000_words": {
+      "comma": 33.898,
+      "semicolon": 0,
+      "colon": 8.475,
+      "em_dash": 0,
+      "en_dash": 0,
+      "exclamation": 0,
+      "question_mark": 0,
+      "parentheses": 0,
+      "quotation_marks": 0
+    },
+    "contraction_rate": 0,
+    "first_person_singular_rate": 0,
+    "first_person_plural_rate": 0,
+    "second_person_rate": 59.322,
+    "mean_word_length": 3.831,
+    "signature_words": [
+      "first",
+      "report",
+      "tracker"
+    ]
+  }
+}
