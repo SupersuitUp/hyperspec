@@ -160,8 +160,16 @@ test("readSegments: a missing segments file is one test-1 finding, never a throw
   const r = readSegments(join(d, "nope.segments.jsonl"), { materialPath: join(d, "nope.md") });
   assert.equal(r.header, null);
   assert.deepEqual(r.segments, []);
-  assert.deepEqual(ids(r.findings), ["writing-materials-missing"]);
+  assert.deepEqual(ids(r.findings), ["writing-materials-segments-missing"]);
   assert.equal(fails(r.findings)[0].test, 1);
+});
+
+test("readSegments: a missing segments file never reuses writing-materials-missing, the id for a missing materials block", () => {
+  // writing.mjs reports an absent block as writing-<block>-missing. A segments file that does not
+  // exist is a different defect with a different fix, so it must not read as the whole block gone.
+  const d = tempDir("hs-seg-");
+  const r = readSegments(join(d, "nope.segments.jsonl"));
+  assert.ok(!ids(r.findings).includes("writing-materials-missing"), JSON.stringify(ids(r.findings)));
 });
 
 // ---------------------------------------------------------------------------------------------

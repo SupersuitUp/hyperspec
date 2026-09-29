@@ -112,7 +112,7 @@ function resolveMaterialSegments(item, here) {
   if (!segPath) return { segments: [], loaded: false, why: "unmarked" };
   const { segments, findings } = readSegments(here(segPath), { materialPath: materialFilePath(item, here), materialId: str(item?.id) || undefined });
   if (segments.length > 0) return { segments, loaded: true };
-  const unreadable = findings.some((x) => x.id === "writing-materials-missing");
+  const unreadable = findings.some((x) => x.id === "writing-materials-segments-missing");
   return { segments, loaded: false, why: unreadable ? "unreadable" : "empty" };
 }
 

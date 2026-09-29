@@ -169,7 +169,7 @@ export function readSegments(segmentsPath, { materialPath, materialId } = {}) {
     raw = readFileSync(segmentsPath, "utf8");
   } catch {
     const matTag = materialId ?? fallbackTag;
-    findings.push(f(1, "writing-materials-missing", "fail",
+    findings.push(f(1, "writing-materials-segments-missing", "fail",
       `material ${matTag}: is not marked (segments file "${segmentsPath}" does not exist or cannot be read)`,
       `Run \`hyperspec segments init <material> --id <id>\` to write it, then label every segment.`));
     return { header: null, segments: [], findings };
