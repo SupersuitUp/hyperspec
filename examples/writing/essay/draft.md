@@ -9,7 +9,7 @@ If you walk in with a list, you have told your report what the meeting is for, a
 you. They will answer your list politely and leave. You will know nothing you did not know when
 you sat down, and so will they.
 
-My team ran a survey this spring. 29 of 41 people said their most useful one-on-one in the last
+My team ran a [survey](materials/team-survey.md) this spring. 29 of 41 people said their most useful one-on-one in the last
 quarter was one where they brought the first topic. The meeting that worked for them was the one
 they started.
 
@@ -57,8 +57,8 @@ After the third question, stop talking.
 
 ## What to do with the answers
 
-Wait after each question, longer than you want to. The engineering manager I interviewed puts it
-in three short sentences: "Wait. Count to five. The real answer is the second one." The first
+Wait after each question, longer than you want to. Dana, the engineering manager I interviewed,
+puts it in three short sentences: "Wait. Count to five. The real answer is the second one." The first
 answer your report gives is the tidy one, the version they could give anyone. The second is what
 they came in with, and you only hear it if you let the silence run.
 

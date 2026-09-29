@@ -12,14 +12,14 @@ her head, where they stayed until the till opened. She did not look round. She n
 back door sticks in winter and you have to put your shoulder to it, so she always knew it was me
 before she could have seen me.
 
-You're late, she said.
+"You're late," she said.
 
 I wasn't. She knew I wasn't. The clock over the proving cabinet said 3:41, and it runs a minute
 fast, and she was the one who set it that way.
 
-The bus, I said anyway, because that is how we started.
+"The bus," I said anyway, because that is how we started.
 
-Flour first. Then you can talk.
+"Flour first. Then you can talk."
 
 So I did the flour. Flour is weighed at Ines's, never scooped. There is a scoop in the bin, a
 steel one with a dent in the lip, and in three years I have only ever seen it used to push the
@@ -37,10 +37,10 @@ nothing for a while, then the tick again.
 It made the noise while I was weighing the second batch. I looked at the oven and then at Ines,
 and she did not look at either of us.
 
-Okay but like, I said, if the oven's made that noise since March, is it a noise, or is that just
-how the oven talks now?
+"Okay but like," I said, "if the oven's made that noise since March, is it a noise, or is that just
+how the oven talks now?"
 
-Water, she said.
+"Water," she said.
 
 She put the thermometer in the water herself, the way she did for every batch, and read it and
 said nothing, which meant it was right. The water temperature is checked every batch at Ines's,
@@ -70,9 +70,9 @@ comes out of it. It is the only thing in the bakery she has never let me touch. 
 mixer and cleaned the oven floor and scraped the bins and carried the flour sacks up from the
 cellar two at a time, and I have never once taken the cloth off that jar.
 
-Is the rye going in the big bowl, I asked, although it always went in the big bowl.
+"Is the rye going in the big bowl?" I asked, although it always went in the big bowl.
 
-Big bowl, she said.
+"Big bowl," she said.
 
 ## 4:30
 
@@ -98,8 +98,8 @@ the bench, and she went to the sink, and she wet her hands, and she dried them.
 
 I stood there. The rye sat there. The oven ticked.
 
-I can do the rye, I said, and then I remembered where we were and said the rest quietly. I
-mean, I think I can do the rye. I did it Tuesday, kind of.
+"I can do the rye," I said, and then I remembered where we were and said the rest quietly. "I
+mean, I think I can do the rye. I did it Tuesday, kind of."
 
 On Tuesday I had held the basket while she shaped. That was what I meant by kind of.
 
@@ -130,7 +130,7 @@ She came back from the front with flour on the knees of her trousers from the ch
 at the four baskets on the shelf for about as long as it takes to read a price, and then she
 looked at the bench, which I had scraped clean, and then she went to the mixer.
 
-Scrape the bowl, she said.
+"Scrape the bowl," she said.
 
 I scraped the bowl.
 
@@ -145,8 +145,8 @@ goes she opens each door in turn and pulls each tray out with the peel, and spin
 it back, so that the side that was at the back is at the front, and nothing comes out darker on
 one end than the other.
 
-Left side runs hot, she said, as the first tray went in, as if I had not been turning those
-trays with her since I was sixteen. Turn them at eight minutes.
+"Left side runs hot," she said, as the first tray went in, as if I had not been turning those
+trays with her since I was sixteen. "Turn them at eight minutes."
 
 I set my own timer, which I did not need to do, because hers would go at the same time.
 
@@ -157,35 +157,35 @@ black to the color of dishwater. A van went past without stopping.
 The timer went. She opened the top door, and the heat came out, and she slid the peel under the
 first tray and drew it out onto the lip of the door and started to turn it.
 
-It's sold, she said.
+"It's sold," she said.
 
 She said it to the tray. She turned the tray, and pushed it back in, and pulled out the second.
 
 I did not say anything, because I did not know yet that she had said anything. It went past me
 the way the van had gone past. Then it came back.
 
-What's sold, I said. I knew what was sold.
+"What's sold?" I said. I knew what was sold.
 
-The bakery. Friday. She turned the second tray and pushed it back and shut the top door and
+"The bakery. Friday." She turned the second tray and pushed it back and shut the top door and
 opened the middle one.
 
-Sold like, I said, sold? Like someone else is going to be here? Like I come in on Monday and
-somebody else is at the mixer, is that what, is that the sold you mean?
+"Sold like," I said, "sold? Like someone else is going to be here? Like I come in on Monday and
+somebody else is at the mixer, is that what, is that the sold you mean?"
 
-Not a bakery, she said. They want the room. Not the ovens.
+"Not a bakery," she said. "They want the room. Not the ovens."
 
 She pulled out the third tray and turned it. She had not burnt herself on a tray in all the time
 I had known her, and she did not burn herself then. Her hands did exactly what they always did.
 I watched them because I did not know what else to watch.
 
-Then what happens to the ovens, I said. Then what happens to the mixer. Is somebody going to buy
-the mixer? It knocks. Does the person who buys it know it knocks?
+"Then what happens to the ovens?" I said. "Then what happens to the mixer. Is somebody going to buy
+the mixer? It knocks. Does the person who buys it know it knocks?"
 
 She shut the middle door and opened the bottom one.
 
-Is that why there's a ring round Friday, I said. Is that what the red pen is?
+"Is that why there's a ring round Friday?" I said. "Is that what the red pen is?"
 
-Sold means sold, she said. Get the next tray.
+"Sold means sold," she said. "Get the next tray."
 
 I got the next tray. It was the seeded rolls, which I had shaped at five, and I put them on the
 peel and she put them in, and I stood with the empty peel in my hands while she shut the door and
@@ -203,7 +203,7 @@ teeth.
 
 The timer on the string went. She turned the next tray.
 
-Rolls come out at sixteen, she said. Get the racks.
+"Rolls come out at sixteen," she said. "Get the racks."
 
 I got the racks.
 
@@ -222,15 +222,15 @@ She was counting the float into the till. I stood behind the counter with my han
 The letter was still in my coat. The coat was still on the hook by the back door, which was as
 far from the counter as you can get in the bakery and still be inside it.
 
-I got into a school, I said.
+"I got into a school," I said.
 
 She went on counting. She got to the end of the coins and closed the drawer.
 
-A baking school, I said. In the city. It's a proper one, it's the one with the, they do the whole
+"A baking school," I said. "In the city. It's a proper one, it's the one with the, they do the whole
 year on bread, and then pastry, and I applied in the spring and I didn't think, I mean I didn't
 think I'd get in, and then I did. It starts in the autumn. I was going to tell you. I was going to
 tell you the day the letter came, and then I got here and you were at the mixer and it felt like,
-I don't know. It felt like the wrong time to say anything to anybody.
+I don't know. It felt like the wrong time to say anything to anybody."
 
 She looked at the four baskets on the shelf by the window.
 
@@ -243,19 +243,19 @@ She had the jar in both hands, the way you carry something you have filled too f
 was still on, and the rubber band, and the glass had a rim of dried flour at the top where it had
 risen in the night and fallen back. She put it on the counter between us and took her hands away.
 
-Feed it at noon, she said. Equal weight flour and water. Weigh it.
+"Feed it at noon," she said. "Equal weight flour and water. Weigh it."
 
 I looked at the jar. I did not pick it up. I have scraped the bins and carried the sacks and
 cleaned the oven floor, and I had never once taken the cloth off that jar, and now it was on the
 counter in front of me with nobody's hands on it.
 
-Every day, she said. Not most days. Keep it out of the sun.
+"Every day," she said. "Not most days. Keep it out of the sun."
 
-Okay, I said. Okay. So is that a yes, or is that the face you make when it's a yes?
+"Okay," I said. "Okay. So is that a yes, or is that the face you make when it's a yes?"
 
 She took the glasses off the top of her head and put them on, which she only does for the till.
 
-Doors, she said.
+"Doors," she said.
 
 I picked up the jar. It was heavier than it looked, and it was warm on the side that had faced
 the oven. I held it against my chest with one arm while she walked to the front and turned the

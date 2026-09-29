@@ -35,7 +35,10 @@ no lint finding id changed. The one schema addition is optional.
   list of claims: the station does not decide what counts as one.
 - `quotes`: every double-quoted span of four words or more appears word for word in a `quote` or
   `story` segment of a marked material, never a private one; when the sentence names a quote
-  segment's speaker, by the full name or its first word, the span must come from that speaker.
+  segment's speaker, by the full name or by its first word (when that word has two or more
+  letters and is not a common function word such as "the"), the span must come from that
+  speaker. A spec with `fiction: true` skips the station, since a character's dialogue is
+  invented rather than quoted.
 - `private`: no run of eight words from a `private` segment appears in the draft. Segments of four
   to seven words are checked whole; shorter ones are counted in one warning and never quoted.
 - `dna`: with a current `writing.dna.scope_dir`, the draft is measured the way goldens are and
@@ -53,7 +56,9 @@ no lint finding id changed. The one schema addition is optional.
   `writing-audience-terms`). Absent, nothing changes.
 - The worked examples each ship a draft that passes every station, with its claims ledger:
   `examples/writing/essay/draft.md` and `examples/writing/story/draft.md`. Both specs now list
-  `audience.terms`, and their `required_parts` are the drafts' headings. A test runs `check` on
+  `audience.terms`, and their `required_parts` are the drafts' headings. The essay's interview
+  quotes now name their speaker `dana, an engineering manager`, and the essay links the survey
+  summary it cites. A test runs `check` on
   both. WRITING.md gains "Checking a draft": each station, what it cannot check, a findings table
   per station held by a test to the ids the stations raise, and the ledger line.
 

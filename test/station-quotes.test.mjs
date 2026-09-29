@@ -227,3 +227,40 @@ test("hyperspec check --only quotes runs the station on a lint-clean spec", () =
   const r2 = cli("check", ws.specPath, "--draft", join(ws.dir, "draft.md"), "--only", "quotes");
   assert.equal(r2.status, 0, r2.stdout + r2.stderr);
 });
+
+// A speaker's first word names the speaker alone only when it has 2 or more letters and is not a
+// stopword; the full value still names it.
+test("a speaker starting with \"the\" is not named by its first word, only by its full value", () => {
+  const { spec } = workspace([
+    { label: "quote", speaker: "the manager interviewed", text: "Wait. Count to five. The real answer is the second one." },
+    { label: "story", teller: "example-author", text: "Then the report said the real answer was the second one, every time we met." },
+  ], "hs-quotes-");
+  // "the" appears in this sentence; before the guard it named the speaker and made a story quote misattributed.
+  const story = run(spec, draftOf('In the end the report said "the real answer was the second one" to me.\n'));
+  assert.equal(story.status, "pass", JSON.stringify(story.findings));
+  const full = run(spec, draftOf('As the manager interviewed said, "the real answer was the second one" every time.\n'));
+  assert.equal(full.status, "fail");
+  assert.equal(full.findings[0].id, "station-quotes-misattributed");
+});
+
+test("the first-word guard: stopwords and one-letter words never name a speaker alone; names do", async () => {
+  const { speakerPattern } = await import("../src/stations/quotes.mjs");
+  assert.equal(speakerPattern("the manager interviewed").test("the report"), false);
+  assert.equal(speakerPattern("the manager interviewed").test("The manager interviewed said"), true);
+  assert.equal(speakerPattern("a manager").test("a report"), false);
+  assert.equal(speakerPattern("j smith").test("j said"), false);
+  assert.equal(speakerPattern("j smith").test("J Smith said"), true);
+  assert.equal(speakerPattern("dana, an engineering manager").test("Dana said"), true);
+  assert.equal(speakerPattern("gary-sheng").test("Gary said"), true);
+});
+
+test("fiction: true skips the station with its reason and checks nothing", () => {
+  const { spec } = setup();
+  spec.data.fiction = "true";
+  const r = run(spec, draftOf('She said "this line is in no material anywhere at all" and left.\n'));
+  assert.equal(r.status, "skip");
+  assert.equal(r.reason, "fiction dialogue is checked by the character stations in a later release");
+  assert.deepEqual(r.findings, []);
+  spec.data.fiction = "false";
+  assert.equal(run(spec, draftOf('She said "this line is in no material anywhere at all" and left.\n')).status, "fail", "fiction: false still checks");
+});

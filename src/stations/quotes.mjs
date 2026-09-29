@@ -23,7 +23,10 @@
 // when the sentence that holds the quote contains, case-insensitively and as whole
 // words, EITHER the full value (split on anything that is not a letter, digit or apostrophe, so the
 // slug "maria-lopez" reads as "maria lopez", its words joined in the draft by whitespace, hyphens or
-// underscores) OR the value's first word alone ("Maria said" names maria-lopez; "Mariana" does not),
+// underscores) OR the value's first word alone ("Maria said" names maria-lopez; "Mariana" does not).
+// The first word alone counts only when it has 2 or more letters and is not one of dna.mjs's
+// STOPWORDS: a speaker recorded as "the manager interviewed" would otherwise be named by every
+// sentence holding "the". Such a speaker is still named by its full value. The sentence is read
 // with the quote itself blanked out (a name inside the quoted words is what was said, not who said it). A named speaker
 // means the span must be in a quote segment with that speaker; matching only some other speaker's
 // quote, or only a story, is `station-quotes-misattributed`. With no speaker named, any quote or
@@ -32,7 +35,8 @@
 // attribution.
 
 import { splitSegments } from "../segments.mjs";
-import { wordsOf } from "../dna.mjs";
+import { STOPWORDS, wordsOf } from "../dna.mjs";
+import { str } from "../placeholder.mjs";
 import { lineAt, maskCode, markedSegments, truncate } from "./util.mjs";
 
 export const name = "quotes";
@@ -71,14 +75,23 @@ function quotedSpans(text) {
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// A speaker value as a whole-word, case-insensitive pattern matching its full words or its first
-// word alone, or null when it has no words at all.
-function speakerPattern(value) {
+const STOPWORD_SET = new Set(STOPWORDS);
+
+// Whether a speaker's first word may name the speaker on its own: 2 or more letters, and not a
+// stopword (compared lowercased, apostrophes as written).
+function firstWordNames(word) {
+  const letters = word.match(/\p{L}/gu)?.length ?? 0;
+  return letters >= 2 && !STOPWORD_SET.has(word.toLowerCase());
+}
+
+// A speaker value as a whole-word, case-insensitive pattern matching its full words, or its first
+// word alone when firstWordNames allows it; null when it has no words at all.
+export function speakerPattern(value) {
   const words = value.split(new RegExp(`[^${WORD_CLASS}]+`, "u")).filter(Boolean);
   if (!words.length) return null;
   const full = words.map(escapeRe).join("[\\s_-]+");
-  const first = escapeRe(words[0]);
-  return new RegExp(`(?<![${WORD_CLASS}])(?:${full}|${first})(?![${WORD_CLASS}])`, "iu");
+  const alts = firstWordNames(words[0]) && words.length > 1 ? `${full}|${escapeRe(words[0])}` : full;
+  return new RegExp(`(?<![${WORD_CLASS}])(?:${alts})(?![${WORD_CLASS}])`, "iu");
 }
 
 // The text of every sentence the span overlaps, with the span itself blanked out.
@@ -90,6 +103,12 @@ function attributionContext(text, sentences, span) {
 }
 
 export function run(spec, draft, ctx) {
+  // Fiction: a character's line is invented, not quoted from a material, so holding dialogue to
+  // the marked quotes would fail every story that uses quotation marks. The character stations of a
+  // later release check dialogue against each character's golden and rejected lines instead.
+  if (str(spec?.data?.fiction) === "true") {
+    return { station: name, status: "skip", findings: [], reason: "fiction dialogue is checked by the character stations in a later release" };
+  }
   const text = maskCode(draft.text);
   const spans = quotedSpans(text).filter((s) => wordsOf(s.inner).length >= 4);
   if (!spans.length) return { station: name, status: "pass", findings: [] };

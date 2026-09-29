@@ -299,6 +299,5 @@ npx @supersuit/hyperspec check story.hyperspec.md --draft story/draft.md
 ```
 
 The four required parts are the scene headings, one per scene of the scene list, in its order.
-The dialogue carries no quotation marks. None of the story's materials holds a quote segment, and
-the quotes station holds every quoted span of four words or more to a marked quote, so the
-characters speak without them.
+The story is fiction, so the quotes station skips it: its dialogue is invented, not quoted from
+a material, and is checked against each character's lines by a later release's character stations.

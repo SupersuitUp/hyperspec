@@ -186,7 +186,7 @@ it did in 0.4. The folder shape, every feature, and every finding are in
 Once a draft exists, `check` holds it to its spec with seven stations, none of which calls a
 model or touches the network: `form` (length and required parts), `terms` (every word in the new
 optional `writing.audience.terms` is defined where it first appears), `claims` (the claims
-ledger still matches the draft, and every claim has a source), `quotes` (every quotation of four
+ledger still matches the draft, and every claim has a source), `quotes` (in nonfiction, every quotation of four
 words or more is word for word in a marked quote), `private` (no run of eight words from a
 private segment), `dna` (the draft's measured style beside its scope's, as warnings) and `links`
 (well-formed, and relative links resolve).

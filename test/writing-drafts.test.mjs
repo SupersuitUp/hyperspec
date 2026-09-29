@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, readFileSync } from "node:fs";
+import { cpSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -30,8 +30,9 @@ const EXAMPLES = [
     spec: "story.hyperspec.md",
     draft: "story/draft.md",
     ledger: "story/runs.jsonl",
-    // The story keeps its goldens inline, with no scope folder, so there is nothing to measure against.
-    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "pass", private: "pass", dna: "skip", links: "pass" },
+    // The story keeps its goldens inline, with no scope folder, so there is nothing to measure
+    // against; it is fiction, so its invented dialogue is not held to the marked quotes.
+    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "skip", private: "pass", dna: "skip", links: "pass" },
   },
 ];
 
@@ -129,6 +130,20 @@ test("every claims ledger line cites a segment that exists in a marked material,
   }
 });
 
-test("the story's dialogue carries no double quotation marks, since none of its materials holds a quote segment", () => {
-  assert.ok(!/["“”]/.test(readFileSync(join(BASE, "story", "draft.md"), "utf8")));
+test("the story's dialogue is in quotation marks and quotes skips it as fiction, while the essay's quote is checked and attributed", () => {
+  const d = copyOfExamples();
+  const story = JSON.parse(hyperspec(["check", "story.hyperspec.md", "--draft", "story/draft.md", "--json", "--only", "quotes"], d).stdout).stations[0];
+  assert.equal(story.status, "skip");
+  assert.match(story.reason, /fiction/);
+  assert.ok((readFileSync(join(BASE, "story", "draft.md"), "utf8").match(/"/g) ?? []).length >= 20, "the story has quoted dialogue to skip");
+  // The essay names its quote's speaker by first name, so attribution is exercised, and passes.
+  const essay = readFileSync(join(BASE, "essay", "draft.md"), "utf8");
+  assert.match(essay, /Dana, the engineering manager I interviewed,\s+puts it in three short sentences: "Wait\./);
+});
+
+test("the essay's draft carries a relative link to a real file, so links checks something on the shipped example", () => {
+  const essay = readFileSync(join(BASE, "essay", "draft.md"), "utf8");
+  const links = [...essay.matchAll(/\]\(([^)\s]+)\)/g)].map((m) => m[1]).filter((u) => !/^[a-z]+:/i.test(u));
+  assert.ok(links.length >= 1);
+  for (const l of links) assert.ok(statSync(join(BASE, "essay", l)).isFile(), l);
 });

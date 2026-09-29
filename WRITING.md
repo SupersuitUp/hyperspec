@@ -821,7 +821,7 @@ claims: pass
 quotes: pass
 private: pass
 dna: pass
-  warn [station-dna-drift] first_person_singular_rate is 23.03 in the draft; the scope's goldens measure 0, band 0 to 5
+  warn [station-dna-drift] first_person_singular_rate is 22.892 in the draft; the scope's goldens measure 0, band 0 to 5
     fix: Bring first_person_singular_rate back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.
 links: pass
 verdict: one-shot
@@ -902,10 +902,13 @@ was said. Shorter spans are not checked, since two or three quoted words are as 
 a quotation. A private segment is never a source for a quote. When the sentence around a quote
 names a speaker, the quote must come from a quote segment with that `speaker`. A speaker is named
 by the full `speaker` value, hyphens read as spaces, or by its first word, so `maria-lopez` is
-named by "Maria Lopez" and by "Maria". Attribution needs a declared speaker: a name that is no
-segment's `speaker` attributes nothing. Start a `speaker` with a name rather than a common word,
-since its first word alone names it. Invented dialogue is held to the same rule, which is why
-the story example sets its dialogue without quotation marks.
+named by "Maria Lopez" and by "Maria". The first word alone counts only when it has two or more
+letters and is not a common function word such as "the", so a speaker recorded as "the manager
+interviewed" is named only by all three words. Attribution needs a declared speaker: a name that
+is no segment's `speaker` attributes nothing, so start a `speaker` with the person's name, as
+the essay example does with `dana, an engineering manager`. A spec with `fiction: true` skips
+the station: a character's dialogue is invented rather than quoted from a material, and a later
+release checks it against each character's own lines.
 
 | Id | Severity | Meaning |
 |---|---|---|
@@ -1051,7 +1054,8 @@ bulleted notes, so you can re-run it and compare.
 Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. Each also ships a
 draft written to it, `essay/draft.md` and `story/draft.md`, with its claims ledger beside it, and
 both drafts pass every station of `check`: the essay with one dna warning, described under
-[dna](#dna), and the story with dna skipped, since it names no scope folder. A test lints both
+[dna](#dna), and the story with dna skipped, since it names no scope folder, and quotes skipped,
+since it is fiction. A test lints both
 specs and checks both drafts on every release, so they cannot drift from the tool.
 
 ## What later versions add
