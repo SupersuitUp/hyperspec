@@ -24,6 +24,11 @@
 // 0, that is station-dna-em-dash, and the em dash's band finding is not also reported (it is the
 // same defect, and the stricter rule already names it). Fenced and inline code are masked out of
 // the draft before it is measured, like every station that reads prose.
+//
+// Severity (ruling R7): both findings are WARNINGS, never failures, so the station's status is pass
+// whenever it runs. This station measures; judging whether the draft is in the writer's voice
+// belongs to the lineup judge in the next build, and a band over a handful of goldens is evidence
+// for that judge, not a verdict.
 
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -97,7 +102,7 @@ export function run(spec, draft) {
     findings.push({
       station: name,
       id: "station-dna-em-dash",
-      severity: "fail",
+      severity: "warn",
       message: `the draft uses em dashes (${fmt(draftEm)} per 1000 words); the scope's goldens use none (0)`,
       fix: "Rewrite each em dash as the punctuation the goldens use instead: a comma, a colon, parentheses or a new sentence.",
     });
@@ -108,11 +113,12 @@ export function run(spec, draft) {
     findings.push({
       station: name,
       id: "station-dna-drift",
-      severity: "fail",
+      severity: "warn",
       message: `${d.feature} is ${fmt(d.draft)} in the draft; the scope's goldens measure ${fmt(d.scope)}, band ${fmt(d.low)} to ${fmt(d.high)}`,
       fix: `Bring ${d.feature} back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.`,
     });
   }
 
-  return { station: name, status: findings.length ? "fail" : "pass", findings };
+  // Every finding here is a warning (ruling R7), so the station passes whenever it runs.
+  return { station: name, status: findings.some((x) => x.severity === "fail") ? "fail" : "pass", findings };
 }

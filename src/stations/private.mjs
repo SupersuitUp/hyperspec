@@ -9,9 +9,13 @@
 // "don't", "don’t" and "dont" are one word. Fenced code and inline code are masked out of the
 // draft first (util.mjs's maskCode), like every other station that reads prose.
 //
-// A private segment of 8 or more words fails when any 8-word window of it appears in the draft. A
-// shorter one (1 to 7 words) is checked as a whole: all of its words, in order, anywhere in the
-// draft. Each leak is reported once, as the longest run the segment and the draft share from where
+// A private segment of 8 or more words fails when any 8-word window of it appears in the draft. One
+// of 4 to 7 words is checked as a whole: all of its words, in order, anywhere in the draft. One
+// under 4 words is not checked at all (ruling R6): two or three words ("Yes, Tuesday.") match
+// ordinary prose, so checking them would fail drafts that leak nothing. Skipping silently would
+// hide that a private passage went unchecked, so the station reports how many it skipped as ONE
+// warning, station-private-short-skipped, carrying the count and never the text (the text is
+// the private part). Each leak is reported once, as the longest run the segment and the draft share from where
 // the match starts, so a whole pasted paragraph is one finding rather than one per window; a
 // segment that leaks in two separate places is two findings. Every finding names the material, the
 // segment and the leaked run (normalized words, at most 80 characters), with the draft line where
@@ -23,6 +27,7 @@ import { lineAt, maskCode, markedSegments, truncate } from "./util.mjs";
 export const name = "private";
 
 const WINDOW = 8;
+const MIN_CHECKED = 4;
 // dna.mjs's WORD_RE, repeated here only because wordsOf returns words without their offsets and a
 // finding needs the line a leak starts on; the segment side goes through wordsOf itself.
 const WORD_RE = /[\p{L}\p{N}'’]+/gu;
@@ -61,6 +66,7 @@ export function run(spec, draft, ctx) {
   }
 
   const findings = [];
+  let skippedShort = 0;
   const leak = (material, segId, run, at) => findings.push({
     station: name,
     id: "station-private-leak",
@@ -76,6 +82,7 @@ export function run(spec, draft, ctx) {
       const segId = typeof seg.id === "string" && seg.id.trim() ? seg.id.trim() : "(no id)";
       const tokens = segmentWords(seg.text);
       if (!tokens.length) continue;
+      if (tokens.length < MIN_CHECKED) { skippedShort++; continue; }
 
       if (tokens.length < WINDOW) {
         const at = findSequence(words, tokens);
@@ -96,5 +103,15 @@ export function run(spec, draft, ctx) {
     }
   }
 
-  return { station: name, status: findings.length ? "fail" : "pass", findings };
+  if (skippedShort) {
+    findings.push({
+      station: name,
+      id: "station-private-short-skipped",
+      severity: "warn",
+      message: `${skippedShort} private segment${skippedShort === 1 ? " is" : "s are"} under ${MIN_CHECKED} words and ${skippedShort === 1 ? "was" : "were"} not checked`,
+      fix: `Check the draft against ${skippedShort === 1 ? "it" : "them"} by hand, or widen the private segment to ${MIN_CHECKED} or more words.`,
+    });
+  }
+
+  return { station: name, status: findings.some((x) => x.severity === "fail") ? "fail" : "pass", findings };
 }

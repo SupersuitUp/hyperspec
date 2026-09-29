@@ -19,11 +19,12 @@
 // said) whether or not the speaker's sentence ended there. The normalized span must then appear as
 // a substring of some quote or story segment's text, in any marked material of the spec.
 //
-// Attribution: a speaker is any `speaker` value on a quote segment. It is named in the draft when
-// its words (the value split on anything that is not a letter, digit or apostrophe, so the slug
-// "gary-sheng" reads as the words "gary sheng") appear case-insensitively as whole words, joined by
-// whitespace, hyphens or underscores, in the sentence that holds the quote, with the quote itself
-// blanked out (a name inside the quoted words is what was said, not who said it). A named speaker
+// Attribution: a speaker is any `speaker` value on a quote segment. It is named in the draft
+// (ruling R8) when the sentence that holds the quote contains, case-insensitively and as whole
+// words, EITHER the full value (split on anything that is not a letter, digit or apostrophe, so the
+// slug "gary-sheng" reads as "gary sheng", its words joined in the draft by whitespace, hyphens or
+// underscores) OR the value's first word alone ("Gary said" names gary-sheng; "Garyson" does not),
+// with the quote itself blanked out (a name inside the quoted words is what was said, not who said it). A named speaker
 // means the span must be in a quote segment with that speaker; matching only some other speaker's
 // quote, or only a story, is `station-quotes-misattributed`. With no speaker named, any quote or
 // story segment is enough. Sentences come from splitSegments(text, { by: "sentence" }), and every
@@ -47,7 +48,11 @@ function normalize(text) {
     .trim();
 }
 
-// What a quoted span is matched on: normalized, then trailing commas and periods dropped.
+// What a quoted span is matched on: normalized, then trailing commas and periods dropped (ruling
+// R5). Typographic convention puts the writer's own comma or period inside the closing quote
+// ("...at a time," he said) whether or not the speaker's sentence ended there, so keeping them
+// would fail nearly every quotation used mid-sentence. "?" and "!" are kept: adding either changes
+// what was said.
 const matchKey = (inner) => normalize(inner).replace(/[.,]+$/, "").trim();
 
 // Every quoted span in `text`, as { start, end, inner }: start/end bound the whole span including
@@ -66,12 +71,14 @@ function quotedSpans(text) {
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// A speaker value as a whole-word, case-insensitive pattern over its words, or null when it has
-// no words at all.
+// A speaker value as a whole-word, case-insensitive pattern matching its full words or its first
+// word alone (R8), or null when it has no words at all.
 function speakerPattern(value) {
   const words = value.split(new RegExp(`[^${WORD_CLASS}]+`, "u")).filter(Boolean);
   if (!words.length) return null;
-  return new RegExp(`(?<![${WORD_CLASS}])${words.map(escapeRe).join("[\\s_-]+")}(?![${WORD_CLASS}])`, "iu");
+  const full = words.map(escapeRe).join("[\\s_-]+");
+  const first = escapeRe(words[0]);
+  return new RegExp(`(?<![${WORD_CLASS}])(?:${full}|${first})(?![${WORD_CLASS}])`, "iu");
 }
 
 // The text of every sentence the span overlaps, with the span itself blanked out.

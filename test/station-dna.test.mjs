@@ -51,12 +51,13 @@ test("a draft that measures like the scope's goldens passes", () => {
   assert.deepEqual(r.findings, []);
 });
 
-test("a draft far from the scope fails with one drift finding per feature, each carrying both values", () => {
+test("a draft far from the scope warns, one drift finding per feature, each carrying both values (R7: warn, never fail)", () => {
   const { spec } = setup();
   const long = Array.from({ length: 60 }, (_, i) => `w${i}`).join(" ");
   const r = run(spec, draftOf(`${long}.\n`));
-  assert.equal(r.status, "fail");
-  assert.ok(r.findings.every((f) => f.id === "station-dna-drift" && f.station === "dna" && f.severity === "fail"));
+  assert.equal(r.status, "pass");
+  assert.ok(r.findings.length > 0);
+  assert.ok(r.findings.every((f) => f.id === "station-dna-drift" && f.station === "dna" && f.severity === "warn"));
   const sentence = r.findings.find((f) => /sentence_length\.mean/.test(f.message));
   assert.ok(sentence, JSON.stringify(r.findings));
   assert.match(sentence.message, /60/);
@@ -67,9 +68,10 @@ test("a draft far from the scope fails with one drift finding per feature, each 
 test("an em dash in a draft whose scope never uses one is station-dna-em-dash, not also a drift", () => {
   const { spec } = setup();
   const r = run(spec, draftOf(WITH_EM_DASH));
-  assert.equal(r.status, "fail");
+  assert.equal(r.status, "pass");
   assert.equal(r.findings.length, 1, JSON.stringify(r.findings));
   assert.equal(r.findings[0].id, "station-dna-em-dash");
+  assert.equal(r.findings[0].severity, "warn");
   assert.match(r.findings[0].message, /31\.25/);
 });
 
@@ -79,11 +81,11 @@ test("an em dash inside fenced or inline code is not measured", () => {
   assert.equal(r.status, "pass", JSON.stringify(r.findings));
 });
 
-test("CRLF: the in-scope draft still passes and the em dash draft still fails", () => {
+test("CRLF: the in-scope draft passes clean and the em dash draft still warns", () => {
   const { spec } = setup();
   assert.equal(run(spec, draftOf(crlf(IN_SCOPE))).status, "pass");
   const bad = run(spec, draftOf(crlf(WITH_EM_DASH)));
-  assert.equal(bad.status, "fail");
+  assert.equal(bad.status, "pass");
   assert.equal(bad.findings[0].id, "station-dna-em-dash");
 });
 
@@ -134,7 +136,7 @@ test("compared: sentence and paragraph means and every per-1000 rate, never coun
   ]);
 });
 
-test("hyperspec check --only dna passes an in-scope draft on the lint-clean fixture", () => {
+test("hyperspec check --only dna: an in-scope draft passes, and an em dash only warns (exit 0)", () => {
   const ws = setup();
   writeFileSync(ws.draftPath, IN_SCOPE);
   const r = cli("check", ws.specPath, "--draft", ws.draftPath, "--only", "dna");
@@ -142,6 +144,7 @@ test("hyperspec check --only dna passes an in-scope draft on the lint-clean fixt
   assert.match(r.stdout, /dna: pass/);
   writeFileSync(ws.draftPath, WITH_EM_DASH);
   const r2 = cli("check", ws.specPath, "--draft", ws.draftPath, "--only", "dna");
-  assert.equal(r2.status, 1, r2.stdout + r2.stderr);
-  assert.match(r2.stdout, /station-dna-em-dash/);
+  assert.equal(r2.status, 0, r2.stdout + r2.stderr);
+  assert.match(r2.stdout, /dna: pass/);
+  assert.match(r2.stdout, /warn \[station-dna-em-dash\]/);
 });

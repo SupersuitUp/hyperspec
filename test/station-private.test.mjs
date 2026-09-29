@@ -76,13 +76,50 @@ test("two separate leaked runs from one segment are two findings", () => {
   assert.ok(r.findings.every((f) => f.id === "station-private-leak"));
 });
 
-test("a private segment shorter than 8 words fails only when it appears whole", () => {
+test("a private segment of 4 to 7 words fails only when it appears whole", () => {
   const { spec } = setup();
   const whole = run(spec, draftOf("I heard her diagnosis came back Tuesday, which was hard.\n"));
   assert.equal(whole.status, "fail");
   assert.match(whole.findings[0].message, /segment s4/);
   const part = run(spec, draftOf("Her diagnosis came back, eventually.\n"));
   assert.equal(part.status, "pass", JSON.stringify(part.findings));
+});
+
+// Ruling R6: a private segment under 4 words is not checked (it would fire on common words), and the
+// station reports how many it skipped as ONE warning carrying the count and never the text.
+test("a private segment under 4 words is skipped, reported as one warn finding with the count and no text", () => {
+  const { spec } = workspace([
+    { label: "aside", text: "Raw transcript, call, 2026-09-28." },
+    { label: "private", text: "Yes, Tuesday." },
+    { label: "private", text: "Call her mother." },
+  ], "hs-private-");
+  const r = run(spec, draftOf("Yes, Tuesday works. Call her mother about it.\n"));
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+  assert.equal(r.findings.length, 1);
+  const f = r.findings[0];
+  assert.equal(f.id, "station-private-short-skipped");
+  assert.equal(f.station, "private");
+  assert.equal(f.severity, "warn");
+  assert.match(f.message, /\b2\b/);
+  assert.equal(f.line, undefined);
+  for (const word of ["yes", "tuesday", "mother"]) assert.ok(!f.message.toLowerCase().includes(word), f.message);
+});
+
+test("a skipped short segment does not hide a real leak from another segment", () => {
+  const { spec } = workspace([
+    { label: "private", text: "Yes, Tuesday." },
+    { label: "private", text: PRIVATE_LONG },
+  ], "hs-private-");
+  const r = run(spec, draftOf("we don't mention the number they offered anywhere public\n"));
+  assert.equal(r.status, "fail");
+  assert.deepEqual(r.findings.map((f) => f.id).sort(), ["station-private-leak", "station-private-short-skipped"]);
+  assert.match(r.findings.find((f) => f.id === "station-private-short-skipped").message, /\b1\b/);
+});
+
+test("a private segment of exactly 4 words is checked whole", () => {
+  const { spec } = workspace([{ label: "private", text: "Her diagnosis came back." }], "hs-private-");
+  assert.equal(run(spec, draftOf("I heard her diagnosis came back today.\n")).status, "fail");
+  assert.equal(run(spec, draftOf("Her diagnosis, eventually, came back.\n")).status, "pass");
 });
 
 test("a non-private segment may be repeated verbatim", () => {

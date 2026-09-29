@@ -113,6 +113,30 @@ test("attributed to the right speaker (slug speaker matched as the words Gary Sh
   assert.equal(r.status, "pass", JSON.stringify(r.findings));
 });
 
+// Ruling R8: a speaker is named when the sentence holds the full speaker value (hyphens read as
+// spaces) OR the speaker's first word as a whole word, case-insensitive.
+test("the speaker's first word alone attributes the quote (\"Gary said\" names gary-sheng)", () => {
+  const { spec } = setup();
+  const r = run(spec, draftOf('Gary said "A spec that a linter can check is a different object" once.\n'));
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+});
+
+test("the first word attributes case-insensitively, and a wrong first-word attribution is misattributed", () => {
+  const { spec } = setup();
+  const r = run(spec, draftOf('As GARY put it, "I stopped writing the weekly update by hand in August."\n'));
+  assert.equal(r.status, "fail");
+  assert.equal(r.findings[0].id, "station-quotes-misattributed");
+  assert.match(r.findings[0].message, /gary-sheng/);
+});
+
+test("an unrelated name, or one that only starts with a speaker's first word, does not attribute", () => {
+  const { spec } = setup();
+  const tim = run(spec, draftOf('Tim said "I stopped writing the weekly update by hand in August" to me.\n'));
+  assert.equal(tim.status, "pass", JSON.stringify(tim.findings));
+  const garyson = run(spec, draftOf('Garyson said "I stopped writing the weekly update by hand in August" to me.\n'));
+  assert.equal(garyson.status, "pass", JSON.stringify(garyson.findings));
+});
+
 test("the speaker name is matched case-insensitively", () => {
   const { spec } = setup();
   const r = run(spec, draftOf('As WILSON told me, "I stopped writing the weekly update by hand in August."\n'));
