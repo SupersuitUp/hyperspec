@@ -4,11 +4,15 @@
 // forbidden, because stored progress goes stale the moment a session dies mid-arc, and this file
 // is the one place that refusal is enforced.
 //
-// This module carries only the GENERIC rules, the ones true of every block regardless which one
-// it is: present or openly deferred, carrying a check and a source and an author. Build 3's
-// later tasks add each block's own field rules (a golden's why, a claim's material refs, a
-// character's golden and rejected lines, ...) as more findings in this same list, under the same
-// ids and the same nine tests; they do not change the shape here.
+// This module carries the GENERIC rules, the ones true of every block regardless which one it is:
+// present or openly deferred, carrying a check and a source and an author. Each block's own field
+// rules (a golden's why, a claim's material refs, a character's golden and rejected lines, ...)
+// live in writing-fields.mjs and are dispatched from the loop below, under the same ids and the
+// same nine tests; they do not change the shape here. Task 2 wires materials/dna/persona/audience/
+// goal; Task 3 adds form/spine/sources/characters alongside them.
+
+import { resolve } from "node:path";
+import { BLOCK_FIELD_RULES } from "./writing-fields.mjs";
 
 const PLACEHOLDER = /^(null|~)$/is;
 const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
@@ -84,6 +88,9 @@ export function lintWriting(spec) {
   const out = [];
   const decisions = list(d.decisions);
   const writing = isObj(d.writing) ? d.writing : {};
+  // Paths inside writing: resolve the same way examples: does elsewhere in this linter: relative
+  // to the spec file, never to process.cwd().
+  const here = (p) => resolve(spec.dir || ".", p);
   // The frontmatter reader (parseSkillFile) treats every scalar as a string, so "fiction: true"
   // is read back as the string "true", never the boolean; comparing through str() is the same
   // discipline every closed-set field in this file and in rules.mjs already follows.
@@ -107,7 +114,11 @@ export function lintWriting(spec) {
     }
     // Present, so its content is checked whether or not the block was required: an author who
     // wrote a characters: list with fiction: false still owes it a real check/source/author on
-    // every entry, the same as any other present block.
+    // every entry, the same as any other present block. Ownership (check/source/author) is
+    // generic, from this file; a block's own field rules (the schema inside it) live in
+    // writing-fields.mjs and are applied right alongside it, under the same id prefix, so a
+    // block's completeness (blockStatus below) reflects both without either file needing to know
+    // about the other's findings. characters' field rules (Task 3) are not yet wired here.
     if (block === "characters") {
       raw.forEach((c, i) => {
         const cid = str(c?.id) || `#${i + 1}`;
@@ -115,6 +126,8 @@ export function lintWriting(spec) {
       });
     } else {
       out.push(...checkOwner(`writing-${block}`, `writing.${block}`, raw));
+      const fieldRule = BLOCK_FIELD_RULES[block];
+      if (fieldRule) out.push(...fieldRule(raw, d, here, `writing-${block}`));
     }
   }
 

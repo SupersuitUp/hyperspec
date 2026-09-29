@@ -198,3 +198,194 @@ test("a spec with no writing: at all and no profile: still lints clean (the core
   assert.deepEqual(findings.filter((x) => x.severity === "fail"), []);
   assert.equal(score(findings, s.data).profile, undefined);
 });
+
+// =============================================================================================
+// Task 2: field rules for materials, dna, persona, audience, goal (writing-fields.mjs), on top of the
+// generic presence/check/source/author rules above. Each test edits a copy of the valid fixture
+// so it breaks exactly one thing, per the fixture's own discipline.
+// =============================================================================================
+
+// ---- Task 2: materials, dna, persona, audience, goal ------------------------------------------
+
+test("materials: an item with no id fails test 1", () => {
+  // Also cascades into spine's own materials-ref check (its claims point at "m1", which no
+  // longer exists once the item's id is gone) — a real, correct consequence, not the thing this
+  // test is about, so it checks membership rather than the exact set.
+  const s = variant((t) => t.replace(
+    "      - id: m1\n        path: materials/call-2026-09-28.md",
+    "      - path: materials/call-2026-09-28.md",
+  ));
+  const f = fails(s);
+  assert.ok(f.some((x) => x.test === 1 && x.id === "writing-materials-item-0-id"));
+});
+
+test("materials: two items sharing an id fail test 1", () => {
+  const s = variant((t) => t.replace(
+    "        trust: raw\n    check:",
+    [
+      "        trust: raw",
+      "      - id: m1",
+      "        path: materials/call-2026-09-28.md",
+      "        produced_by: gary-sheng",
+      '        captured: "2026-09-28"',
+      "        how: voice memo transcript",
+      "        trust: raw",
+      "    check:",
+    ].join("\n"),
+  ));
+  assert.deepEqual(failIds(s), ["writing-materials-item-id"]);
+});
+
+test("materials: an item missing produced_by, captured or how fails test 1", () => {
+  const s = variant((t) => t.replace(
+    '        produced_by: gary-sheng\n        captured: "2026-09-28"\n        how: voice memo transcript\n',
+    "",
+  ));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => x.test), [1, 1, 1]);
+  assert.deepEqual(f.map((x) => x.id).sort(), [
+    "writing-materials-item-0-captured", "writing-materials-item-0-how", "writing-materials-item-0-produced-by",
+  ]);
+});
+
+test("materials: an item with trust outside raw/considered/verified fails test 1", () => {
+  const s = variant((t) => t.replace("trust: raw", "trust: unverified"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-materials-item-0-trust"]]);
+});
+
+test("materials: an item path that does not exist fails test 6", () => {
+  const s = variant((t) => t.replace("materials/call-2026-09-28.md", "materials/does-not-exist.md"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-materials-item-0-path-missing"]]);
+});
+
+test("dna: no writer fails test 1", () => {
+  const s = variant((t) => t.replace("    writer: gary-sheng\n", ""));
+  assert.deepEqual(failIds(s), ["writing-dna-writer"]);
+});
+
+test("dna: scope missing form, audience or purpose fails test 1", () => {
+  const s = variant((t) => t.replace(
+    "    scope:\n      form: essay\n      audience: builders\n      purpose: persuade\n",
+    "    scope:\n      form: essay\n",
+  ));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => x.test), [1, 1]);
+  assert.deepEqual(f.map((x) => x.id).sort(), ["writing-dna-scope-audience", "writing-dna-scope-purpose"]);
+});
+
+test("dna: a rules path that does not exist fails test 6", () => {
+  const s = variant((t) => t.replace("rules: WRITING-STYLE.md", "rules: NO-SUCH-STYLE.md"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-rules-missing"]]);
+});
+
+test("dna: no goldens fails test 1", () => {
+  const s = variant((t) => t.replace(
+    "    goldens:\n      - path: goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
+    "    goldens: []\n",
+  ));
+  assert.deepEqual(failIds(s), ["writing-dna-goldens"]);
+});
+
+test("dna: a golden path that does not exist fails test 6", () => {
+  const s = variant((t) => t.replace("path: goldens/opening.md", "path: goldens/does-not-exist.md"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-missing"]]);
+});
+
+test("dna: a golden with no why fails test 6", () => {
+  const s = variant((t) => t.replace(
+    "      - path: goldens/opening.md\n        why: the claim lands in the first line and the second line earns it\n",
+    "      - path: goldens/opening.md\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-dna-golden-0-why"]]);
+});
+
+test("persona: identity that is not self, role:<name> or character:<id> fails test 1", () => {
+  const s = variant((t) => t.replace("identity: self", "identity: narrator"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-persona-identity"]]);
+});
+
+test("persona: identity naming a character not in writing.characters fails test 1", () => {
+  const s = variant((t) => t.replace("identity: self", "identity: character:jerry"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-persona-identity"]]);
+});
+
+test("persona: identity naming a character that IS in writing.characters passes (fiction: true)", () => {
+  const s = variant((t) => t
+    .replace("identity: self", "identity: character:jerry")
+    .replace("fiction: false", [
+      "  characters:",
+      "    - id: jerry",
+      "      check:",
+      "        rubric: blind attribution test against the timeline",
+      "      source: story bible",
+      "      author: gary-sheng",
+      "      knowledge:",
+      "        - by: chapter-1",
+      "          knows: something",
+      "      golden_lines:",
+      "        - a good line",
+      "      rejected_lines:",
+      "        - a rejected line",
+      "fiction: true",
+    ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-persona")), []);
+});
+
+test("persona: no stance fails test 1", () => {
+  const s = variant((t) => t.replace("    stance: peer\n", ""));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-persona-stance"]]);
+});
+
+test("persona: stance outside peer/mentor/witness/guide warns, does not fail", () => {
+  const s = variant((t) => t.replace("stance: peer", "stance: confidant"));
+  assert.deepEqual(fails(s), []);
+  const warnings = lintSpec(s).filter((x) => x.severity === "warn");
+  assert.ok(warnings.some((x) => x.id === "writing-persona-stance"));
+});
+
+test("persona: empty will_not_say fails test 5", () => {
+  const s = variant((t) => t.replace(
+    "    will_not_say:\n      - a claim about someone else's internal numbers\n",
+    "    will_not_say: []\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[5, "writing-persona-will-not-say"]]);
+});
+
+test("persona: facts_from not exactly sources fails test 5", () => {
+  const s = variant((t) => t.replace("facts_from: sources", "facts_from: gary's memory"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[5, "writing-persona-facts-from"]]);
+});
+
+test("audience: missing who, funnel_now, believes_now, wants or reads_on fails test 1", () => {
+  const s = variant((t) => t.replace(
+    "    who: an operator who has read one hyperspec and wants to know whether the next one is worth adopting\n",
+    "",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-who"]]);
+});
+
+test("audience: empty knows fails test 1", () => {
+  const s = variant((t) => t.replace("    knows:\n      - hyperspec\n      - lint\n", "    knows: []\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-knows"]]);
+});
+
+test("audience: reader outside person/agent fails test 1", () => {
+  const s = variant((t) => t.replace("reader: person", "reader: everyone"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-reader"]]);
+});
+
+test("goal: change.kind outside belief/action/feeling fails test 1", () => {
+  const s = variant((t) => t.replace("kind: belief", "kind: mindset"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-goal-change-kind"]]);
+});
+
+test("goal: conditions with fewer than 5 ids fails test 2", () => {
+  const s = variant((t) => t.replace("conditions: [r1, r2, r3, r4, r5]", "conditions: [r1, r2]"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[2, "writing-goal-conditions-count"]]);
+});
+
+test("goal: conditions naming a requirement id that does not exist fails test 2", () => {
+  const s = variant((t) => t.replace("conditions: [r1, r2, r3, r4, r5]", "conditions: [r1, r2, r3, r4, r9]"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[2, "writing-goal-conditions-unknown"]]);
+});
+
