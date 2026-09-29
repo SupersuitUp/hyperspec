@@ -1,0 +1,128 @@
+// The writing profile (profile: writing). Ten blocks live under writing:; nine of them are
+// checked by this file (materials, dna, persona, audience, goal, form, spine, sources,
+// characters). "progress" is the tenth word in the design and is not a block at all: it is
+// forbidden, because stored progress goes stale the moment a session dies mid-arc, and this file
+// is the one place that refusal is enforced.
+//
+// This module carries only the GENERIC rules, the ones true of every block regardless which one
+// it is: present or openly deferred, carrying a check and a source and an author. Build 3's
+// later tasks add each block's own field rules (a golden's why, a claim's material refs, a
+// character's golden and rejected lines, ...) as more findings in this same list, under the same
+// ids and the same nine tests; they do not change the shape here.
+
+const PLACEHOLDER = /^(null|~)$/is;
+const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
+const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
+const list = (v) => (Array.isArray(v) ? v : []);
+const isObj = (v) => v != null && typeof v === "object" && !Array.isArray(v);
+
+// The closed vocabulary build 4 will enforce on every segment of a material file. Build 3 does
+// not read segment files; this export exists so the vocabulary is defined once, here, rather than
+// copied into whatever later reads it.
+export const MATERIAL_LABELS = Object.freeze(["claim", "story", "quote", "stance", "question", "aside", "private"]);
+
+// The nine writing blocks, in schema order. "characters" is the one block that is not always
+// required: it is required only when fiction: true, everywhere else in this file and in
+// blockStatus below.
+export const BLOCKS = Object.freeze(["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources", "characters"]);
+
+const required = (block, fiction) => block !== "characters" || fiction;
+
+// Whether a block's raw value under writing: counts as present at all, before any of its own
+// fields are checked. materials is present when it has at least one item; characters is present
+// when the list has at least one entry; every other block is present when it is an object with at
+// least one field. This is deliberately shallow: it is the bar for "something was written here",
+// not the bar for "this block is correct", which is what checkOwner and later tasks' field rules
+// are for.
+function blockPresent(block, raw) {
+  if (block === "characters") return Array.isArray(raw) && raw.length > 0;
+  if (block === "materials") return isObj(raw) && Array.isArray(raw.items) && raw.items.length > 0;
+  return isObj(raw) && Object.keys(raw).length > 0;
+}
+
+// A block is deferred when a decision with id "writing-<block>" exists in state open or
+// delegated. Open defers it to a question only a human can answer, so the spec is blocked on
+// that decision the same way any open decision blocks a spec (score.mjs already does this; no
+// separate mechanism is needed here). Delegated defers it to a standing rule the agent follows
+// instead of writing the block out. Either way the block's absence from writing: is not itself a
+// finding; the ordinary decision rules (test 1: has a question or a rule; test 4: source, author,
+// chosen_by) still apply to the decision entry, because it is a decision like any other.
+function deferredBy(decisions, block) {
+  const d = decisions.find((x) => str(x?.id) === `writing-${block}`);
+  const st = d && str(d.state);
+  return st === "open" || st === "delegated" ? st : null;
+}
+
+// check: (station: or rubric:), source: and author: on one owner object (a block, or one
+// character entry). idPrefix becomes the finding id's prefix (kept unique per owner so
+// blockStatus below can attribute a failure to the right block); label is the human-readable name
+// used in every message.
+function checkOwner(idPrefix, label, owner) {
+  const out = [];
+  const check = isObj(owner?.check) ? owner.check : {};
+  if (!str(check.station) && !str(check.rubric)) {
+    out.push(f(3, `${idPrefix}-check`, "fail", `${label} names no check`, "Add check: with station: <a deterministic check> or rubric: <what a grader applies>."));
+  }
+  if (!str(owner?.source)) {
+    out.push(f(4, `${idPrefix}-source`, "fail", `${label} does not say where it came from`, `Add source: to ${label}.`));
+  }
+  if (!str(owner?.author)) {
+    out.push(f(4, `${idPrefix}-author`, "fail", `${label} does not say who wrote it`, `Add author: to ${label}.`));
+  }
+  return out;
+}
+
+export function lintWriting(spec) {
+  const d = spec.data || {};
+  const out = [];
+  const decisions = list(d.decisions);
+  const writing = isObj(d.writing) ? d.writing : {};
+  // The frontmatter reader (parseSkillFile) treats every scalar as a string, so "fiction: true"
+  // is read back as the string "true", never the boolean; comparing through str() is the same
+  // discipline every closed-set field in this file and in rules.mjs already follows.
+  const fiction = str(d.fiction) === "true";
+
+  // Progress is never stored, under any key spelled writing.progress: test 7, stale state.
+  if ("progress" in writing) {
+    out.push(f(7, "writing-progress", "fail", "writing.progress is stored state; progress is derived from disk, never saved", "Remove writing.progress; derive progress by reading the drafted work itself, not by saving a record of it."));
+  }
+
+  for (const block of BLOCKS) {
+    if (!required(block, fiction)) continue;
+    const raw = writing[block];
+    if (!blockPresent(block, raw)) {
+      if (deferredBy(decisions, block)) continue;
+      out.push(f(1, `writing-${block}-missing`, "fail", `writing.${block} is missing`, `Add writing.${block}, or defer it with a decision id "writing-${block}" in state open (a question) or delegated (a rule).`));
+      continue;
+    }
+    if (block === "characters") {
+      raw.forEach((c, i) => {
+        const cid = str(c?.id) || `#${i + 1}`;
+        out.push(...checkOwner(`writing-characters-${i}`, `character "${cid}"`, c));
+      });
+    } else {
+      out.push(...checkOwner(`writing-${block}`, `writing.${block}`, raw));
+    }
+  }
+
+  return out;
+}
+
+// Derives the "writing: k/9 blocks complete" count from the same data and findings lintWriting
+// just produced, so the two can never disagree. A block counts complete when it is required and
+// present with no fail-severity finding attributed to it, or when it is not required (characters,
+// with fiction: false) regardless of whether it was written at all.
+export function blockStatus(data, findings) {
+  const d = data || {};
+  const writing = isObj(d.writing) ? d.writing : {};
+  const fiction = str(d.fiction) === "true";
+  const failedIds = new Set((Array.isArray(findings) ? findings : []).filter((x) => x.severity === "fail").map((x) => x.id));
+  let complete = 0;
+  for (const block of BLOCKS) {
+    if (!required(block, fiction)) { complete += 1; continue; }
+    if (!blockPresent(block, writing[block])) continue;
+    const broken = [...failedIds].some((id) => typeof id === "string" && id.startsWith(`writing-${block}-`));
+    if (!broken) complete += 1;
+  }
+  return { complete, total: BLOCKS.length };
+}

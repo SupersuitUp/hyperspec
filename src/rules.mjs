@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { lintProfile } from "./profiles.mjs";
 
 export const TESTS = Object.freeze([
   { n: 1, name: "every decision is accounted for" },
@@ -51,6 +52,11 @@ export function lintSpec(spec) {
   // know which standard it was written against, so an unknown one is a warning there.
   const version = str(d.hyperspec);
   if (!KNOWN_VERSIONS.includes(version)) out.push(f(7, "hyperspec-version", "warn", `hyperspec version "${version}" is not one this linter knows (${KNOWN_VERSIONS.join(", ")})`, "Set hyperspec: to a version this linter knows, or upgrade @supersuit/hyperspec."));
+
+  // A spec with no profile: runs no profile rules at all, so it lints exactly as it always has.
+  // One declared runs that profile's own rules (writing.mjs for profile: writing), every finding
+  // still reported under one of the nine tests below; an unknown profile name is a warning here.
+  out.push(...lintProfile(spec));
 
   // 1 and 4, decisions
   const decisions = list(d.decisions);

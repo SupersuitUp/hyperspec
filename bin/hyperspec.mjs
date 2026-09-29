@@ -79,6 +79,7 @@ if (cmd === "lint") {
   else for (const r of reports) {
     if (r.error) { console.log(`${r.file}: ${r.error}`); continue; }
     console.log(`${r.file}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
+    if (r.profile) console.log(`  ${r.profile.name}: ${r.profile.complete}/${r.profile.total} blocks complete`);
     for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
     for (const f of r.findings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
   }
