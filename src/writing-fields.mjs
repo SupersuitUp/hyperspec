@@ -15,10 +15,13 @@
 // elsewhere in this linter: relative to the spec file. That resolver (here) is supplied by
 // writing.mjs, which already has spec.dir in scope; this file never touches spec directly.
 //
-// This module currently carries the five blocks Task 2 owns (materials, dna, persona, audience,
-// goal). Task 3 adds form, spine, sources, sources and characters alongside them, under the same
-// BLOCK_FIELD_RULES map (characters is a list and is exported separately as characterFields,
-// called per-entry).
+// One deliberate carve-out, added by Task 3: a character's narrative color (speech, wants,
+// fears, hides, relationships, arc_state) is free text with no closed set, no count, and no
+// mention anywhere in the test-mapping paragraph or the closed-set list, unlike
+// knowledge/golden_lines/rejected_lines which are named explicitly; task-3-brief's own scope for
+// this block is "characters' knowledge/golden/rejected lines", and a stub character with a
+// one-line arc has no principled bar to check narrative color against. They are left unvalidated
+// in build 3.
 
 import { statSync } from "node:fs";
 
@@ -152,12 +155,107 @@ function goalFields(raw, d, here, idPrefix) {
   return out;
 }
 
-// The object blocks' field rules, keyed by block name. Task 3 adds form, spine and sources here,
-// and characters (a list) as a separate per-entry export.
+// ---------------------------------------------------------------- 6. form ---------------------
+
+function formFields(raw, d, here, idPrefix) {
+  const out = [];
+  if (!str(raw.name)) out.push(f(1, `${idPrefix}-name`, "fail", "writing.form has no name", "Add name:."));
+  const length = isObj(raw.length) ? raw.length : {};
+  const minStr = str(length.min);
+  const maxStr = str(length.max);
+  // The YAML reader returns every scalar as a string, min: 600 included, so a numeric field is
+  // parsed explicitly here rather than compared as a closed-set string; a non-numeric length is a
+  // test 1 fail like any other malformed required field.
+  const min = Number(minStr);
+  const max = Number(maxStr);
+  const minOk = minStr !== "" && Number.isFinite(min);
+  const maxOk = maxStr !== "" && Number.isFinite(max);
+  if (!minOk) out.push(f(1, `${idPrefix}-length-min`, "fail", `writing.form.length.min "${minStr || "(none)"}" is not a number`, "Set length.min to a number."));
+  if (!maxOk) out.push(f(1, `${idPrefix}-length-max`, "fail", `writing.form.length.max "${maxStr || "(none)"}" is not a number`, "Set length.max to a number."));
+  if (minOk && maxOk && min > max) out.push(f(1, `${idPrefix}-length-range`, "fail", `writing.form.length.min (${min}) is greater than length.max (${max})`, "Set min to no more than max."));
+  if (!str(length.unit)) out.push(f(1, `${idPrefix}-length-unit`, "fail", "writing.form.length has no unit", "Add length.unit:, e.g. words."));
+  if (!list(raw.required_parts).some((x) => str(x))) out.push(f(1, `${idPrefix}-required-parts`, "fail", "writing.form has no required_parts", "List at least one required part."));
+  return out;
+}
+
+// ---------------------------------------------------------------- 7. spine --------------------
+
+function spineFields(raw, d, here, idPrefix) {
+  const out = [];
+  if (!str(raw.kind)) out.push(f(1, `${idPrefix}-kind`, "fail", "writing.spine has no kind", "Add kind:."));
+  const claims = list(raw.claims);
+  if (claims.length < 3 || claims.length > 7) out.push(f(1, `${idPrefix}-claims-count`, "fail", `writing.spine has ${claims.length} claims, outside 3 to 7`, "List 3 to 7 claims under spine.claims."));
+  const materialIds = new Set(list(d.writing?.materials?.items).map((m) => str(m?.id)).filter(Boolean));
+  claims.forEach((c, i) => {
+    const cid = str(c?.id) || `#${i + 1}`;
+    if (!str(c?.id)) out.push(f(1, `${idPrefix}-claim-${i}-id`, "fail", `spine claim ${cid} has no id`, "Give it a short id, e.g. c1."));
+    if (!str(c?.text)) out.push(f(1, `${idPrefix}-claim-${i}-text`, "fail", `spine claim "${cid}" has no text`, "Add text: to the claim."));
+    const refs = list(c?.materials).map(str).filter(Boolean);
+    if (!refs.length) {
+      out.push(f(4, `${idPrefix}-claim-${i}-materials`, "fail", `spine claim "${cid}" has no materials`, "Point materials: at one or more material ids."));
+    } else {
+      refs.forEach((ref) => {
+        const mid = ref.split("#")[0];
+        if (!materialIds.has(mid)) out.push(f(4, `${idPrefix}-claim-${i}-materials-unknown`, "fail", `spine claim "${cid}" points at material "${ref}", which is not in writing.materials.items`, "Point materials: at an id that exists in writing.materials.items."));
+      });
+    }
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------- 8. sources ------------------
+
+function sourcesFields(raw, d, here, idPrefix) {
+  const out = [];
+  if (!str(raw.ledger)) out.push(f(1, `${idPrefix}-ledger`, "fail", "writing.sources has no ledger", "Add ledger: the path each run's claims are checked against."));
+  // sources.ledger is a path that need not exist before drafting: no existence check here, unlike
+  // every other path in this file.
+  const unsourced = str(raw.unsourced_claim);
+  if (!["fail", "warn"].includes(unsourced)) {
+    out.push(f(1, `${idPrefix}-unsourced-claim`, "fail", `writing.sources.unsourced_claim is "${unsourced || "(none)"}"`, "Set unsourced_claim to fail or warn."));
+  } else if (unsourced === "warn") {
+    out.push(f(1, `${idPrefix}-unsourced-claim-warn`, "warn", "writing.sources.unsourced_claim is warn; an unsourced claim will only warn, not fail the draft", "Set unsourced_claim: fail if an unsourced claim should block the draft."));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- 9. characters ---------------
+
+// One character entry, called per-entry from writing.mjs the same way checkOwner is. idPrefix is
+// already writing-characters-<index>, matching the block-attribution prefix blockStatus expects.
+function characterFields(c, here, idPrefix) {
+  const out = [];
+  const tag = str(c?.id) || "?";
+  if (!str(c?.id)) out.push(f(1, `${idPrefix}-id`, "fail", "character has no id", "Give it a short id."));
+
+  const knowledge = list(c?.knowledge);
+  const validKnowledge = knowledge.filter((k) => str(k?.by) && str(k?.knows));
+  if (!validKnowledge.length) out.push(f(1, `${idPrefix}-knowledge`, "fail", `character "${tag}" has no knowledge`, "Add at least one { by, knows } entry under knowledge."));
+  knowledge.forEach((k, i) => {
+    if (!str(k?.by)) out.push(f(1, `${idPrefix}-knowledge-${i}-by`, "fail", `character "${tag}" knowledge entry ${i + 1} has no by`, "Add by: to the knowledge entry."));
+    if (!str(k?.knows)) out.push(f(1, `${idPrefix}-knowledge-${i}-knows`, "fail", `character "${tag}" knowledge entry ${i + 1} has no knows`, "Add knows: to the knowledge entry."));
+  });
+
+  if (!list(c?.golden_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-golden-lines`, "fail", `character "${tag}" has no golden_lines`, "Add at least one golden line."));
+  if (!list(c?.rejected_lines).some((x) => str(x))) out.push(f(6, `${idPrefix}-rejected-lines`, "fail", `character "${tag}" has no rejected_lines`, "Add at least one rejected line."));
+
+  const entity = str(c?.entity);
+  if (entity && missing(here, entity)) out.push(f(6, `${idPrefix}-entity-missing`, "fail", `character "${tag}" entity "${entity}" does not exist`, "Fix the path, or remove entity."));
+
+  return out;
+}
+
+// The eight object blocks' field rules, keyed by block name. characters is a list and is called
+// per-entry (characterFields) directly from writing.mjs, not through this map.
 export const BLOCK_FIELD_RULES = Object.freeze({
   materials: materialsFields,
   dna: dnaFields,
   persona: personaFields,
   audience: audienceFields,
   goal: goalFields,
+  form: formFields,
+  spine: spineFields,
+  sources: sourcesFields,
 });
+
+export { characterFields };

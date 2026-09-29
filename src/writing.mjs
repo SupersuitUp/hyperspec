@@ -8,11 +8,10 @@
 // present or openly deferred, carrying a check and a source and an author. Each block's own field
 // rules (a golden's why, a claim's material refs, a character's golden and rejected lines, ...)
 // live in writing-fields.mjs and are dispatched from the loop below, under the same ids and the
-// same nine tests; they do not change the shape here. Task 2 wires materials/dna/persona/audience/
-// goal; Task 3 adds form/spine/sources/characters alongside them.
+// same nine tests; they do not change the shape here.
 
 import { resolve } from "node:path";
-import { BLOCK_FIELD_RULES } from "./writing-fields.mjs";
+import { BLOCK_FIELD_RULES, characterFields } from "./writing-fields.mjs";
 
 const PLACEHOLDER = /^(null|~)$/is;
 const str = (v) => { const t = typeof v === "string" ? v.trim() : ""; return PLACEHOLDER.test(t) ? "" : t; };
@@ -118,11 +117,13 @@ export function lintWriting(spec) {
     // generic, from this file; a block's own field rules (the schema inside it) live in
     // writing-fields.mjs and are applied right alongside it, under the same id prefix, so a
     // block's completeness (blockStatus below) reflects both without either file needing to know
-    // about the other's findings. characters' field rules (Task 3) are not yet wired here.
+    // about the other's findings.
     if (block === "characters") {
       raw.forEach((c, i) => {
         const cid = str(c?.id) || `#${i + 1}`;
-        out.push(...checkOwner(`writing-characters-${i}`, `character "${cid}"`, c));
+        const idPrefix = `writing-characters-${i}`;
+        out.push(...checkOwner(idPrefix, `character "${cid}"`, c));
+        out.push(...characterFields(c, here, idPrefix));
       });
     } else {
       out.push(...checkOwner(`writing-${block}`, `writing.${block}`, raw));

@@ -125,6 +125,9 @@ for (const block of ["materials", "dna", "persona", "audience", "goal", "form", 
 }
 
 test("characters: each character entry carries its own check, source and author, checked per entry", () => {
+  // Both entries carry valid knowledge/golden_lines/rejected_lines (Task 3's field rules for
+  // characters), so the only findings left are the ones this test is actually about: wisp's
+  // missing check and author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
     "    - id: jerry",
@@ -132,8 +135,22 @@ test("characters: each character entry carries its own check, source and author,
     "        rubric: blind attribution test against the timeline",
     "      source: story bible",
     "      author: gary-sheng",
+    "      knowledge:",
+    "        - by: chapter-1",
+    "          knows: the wisp is not what it first seems",
+    "      golden_lines:",
+    "        - I have been waiting longer than you have been afraid.",
+    "      rejected_lines:",
+    "        - I am the chosen one.",
     "    - id: wisp",
     "      source: story bible",
+    "      knowledge:",
+    "        - by: chapter-1",
+    "          knows: jerry has not yet said yes",
+    "      golden_lines:",
+    "        - Not yet. But soon.",
+    "      rejected_lines:",
+    "        - I promise this will not hurt.",
     "fiction: true",
   ].join("\n") + "\n"));
   const f = fails(s);
@@ -147,9 +164,18 @@ test("characters: each character entry carries its own check, source and author,
 // `required()` gated the whole per-block loop body, so a written-but-broken characters block with
 // fiction: false produced zero findings and was credited complete.
 test("fix 1: a present characters block with fiction: false is still validated: missing check/source/author fails and is not counted complete", () => {
+  // knowledge/golden_lines/rejected_lines (Task 3's field rules) are supplied here so this
+  // regression test keeps isolating exactly what it always did: check/source/author.
   const s = variant((t) => t.replace("fiction: false", [
     "  characters:",
     "    - id: jerry",
+    "      knowledge:",
+    "        - by: chapter-1",
+    "          knows: something",
+    "      golden_lines:",
+    "        - a good line",
+    "      rejected_lines:",
+    "        - a rejected line",
     "fiction: false",
   ].join("\n") + "\n"));
   const f = fails(s);
@@ -200,7 +226,7 @@ test("a spec with no writing: at all and no profile: still lints clean (the core
 });
 
 // =============================================================================================
-// Task 2: field rules for materials, dna, persona, audience, goal (writing-fields.mjs), on top of the
+// Tasks 2 and 3: field rules for each block's own schema (writing-fields.mjs), on top of the
 // generic presence/check/source/author rules above. Each test edits a copy of the valid fixture
 // so it breaks exactly one thing, per the fixture's own discipline.
 // =============================================================================================
@@ -389,3 +415,114 @@ test("goal: conditions naming a requirement id that does not exist fails test 2"
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[2, "writing-goal-conditions-unknown"]]);
 });
 
+// ---- Task 3: form, spine, sources, characters --------------------------------------------------
+
+test("form: a non-numeric length.min or length.max fails test 1", () => {
+  const s = variant((t) => t.replace("      min: 600\n", "      min: about six hundred\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-form-length-min"]]);
+});
+
+test("form: length.min greater than length.max fails test 1", () => {
+  const s = variant((t) => t.replace("      min: 600\n      max: 1200\n", "      min: 1200\n      max: 600\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-form-length-range"]]);
+});
+
+test("form: length with no unit fails test 1", () => {
+  const s = variant((t) => t.replace("      unit: words\n", ""));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-form-length-unit"]]);
+});
+
+test("form: empty required_parts fails test 1", () => {
+  const s = variant((t) => t.replace(
+    "    required_parts:\n      - claim\n      - evidence\n      - close\n",
+    "    required_parts: []\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-form-required-parts"]]);
+});
+
+test("spine: claims outside 3 to 7 fails test 1", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c3\n        text: progress is derived from disk, never stored\n        materials: [m1]\n",
+    "",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-spine-claims-count"]]);
+});
+
+test("spine: a claim with no materials fails test 4", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: []\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials"]]);
+});
+
+test("spine: a claim materials ref naming a material id that does not exist fails test 4", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m9]\n",
+  ));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[4, "writing-spine-claim-0-materials-unknown"]]);
+});
+
+test("spine: a claim materials ref with a #segment still resolves against the material id", () => {
+  const s = variant((t) => t.replace(
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n",
+    "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#claim-2]\n",
+  ));
+  assert.deepEqual(fails(s).filter((x) => x.id.startsWith("writing-spine")), []);
+});
+
+test("sources: unsourced_claim outside fail/warn fails test 1", () => {
+  const s = variant((t) => t.replace("unsourced_claim: fail", "unsourced_claim: ignore"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-sources-unsourced-claim"]]);
+});
+
+test("sources: unsourced_claim: warn is not a failure, but produces a lint warning", () => {
+  const s = variant((t) => t.replace("unsourced_claim: fail", "unsourced_claim: warn"));
+  assert.deepEqual(fails(s), []);
+  const warnings = lintSpec(s).filter((x) => x.severity === "warn");
+  assert.ok(warnings.some((x) => x.id === "writing-sources-unsourced-claim-warn"));
+  const sc = score(lintSpec(s), s.data);
+  assert.equal(sc.status, "pass");
+});
+
+test("characters: an entity path that does not exist fails test 6", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    "    - id: jerry",
+    "      entity: cast/jerry.json",
+    "      check:",
+    "        rubric: blind attribution test against the timeline",
+    "      source: story bible",
+    "      author: gary-sheng",
+    "      knowledge:",
+    "        - by: chapter-1",
+    "          knows: something",
+    "      golden_lines:",
+    "        - a good line",
+    "      rejected_lines:",
+    "        - a rejected line",
+    "fiction: true",
+  ].join("\n") + "\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[6, "writing-characters-0-entity-missing"]]);
+});
+
+test("characters: a knowledge entry with no by or knows fails test 1", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    "    - id: jerry",
+    "      check:",
+    "        rubric: blind attribution test against the timeline",
+    "      source: story bible",
+    "      author: gary-sheng",
+    "      knowledge:",
+    "        - by: chapter-1",
+    "      golden_lines:",
+    "        - a good line",
+    "      rejected_lines:",
+    "        - a rejected line",
+    "fiction: true",
+  ].join("\n") + "\n"));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "writing-characters-0-knowledge"], [1, "writing-characters-0-knowledge-0-knows"]]);
+});
