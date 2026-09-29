@@ -8,6 +8,7 @@
   },
   "exports": {
     "./recipe": "./src/writer.mjs",
+    "./writing": "./src/writing-exports.mjs",
     "./package.json": "./package.json"
   },
   "files": [

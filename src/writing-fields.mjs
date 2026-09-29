@@ -86,26 +86,41 @@ function materialsFields(raw, d, here, idPrefix) {
         `material ${tag} is not marked (no segments field)`,
         "Run `hyperspec segments init <material> --id <id>`, then add segments: to the material item."));
     } else {
-      const matPath = p && pathKind(here, p) === "file" ? here(p) : undefined;
-      const { findings: segFindings } = readSegments(here(segPath), { materialPath: matPath, materialId: id || undefined });
+      const { findings: segFindings } = readSegments(here(segPath), { materialPath: materialFilePath(it, here), materialId: id || undefined });
       out.push(...segFindings);
     }
   });
   return out;
 }
 
-// Resolves ONE material item's segments (for spine ref resolution below), reusing the exact same
-// resolution rule materialsFields uses above: materialPath is only passed when the item's own path
-// already resolved to a real file. Never pushes readSegments' own findings — those are already
-// reported once, by materialsFields, under the materials block; this is read-only lookup.
+// The material file readSegments checks segment text against, or undefined when the item's own
+// path is missing or is not a file. That broken path is already reported by pathFindings (test 6);
+// passing it on would make readSegments report the same root cause a second time, under test 1.
+// materialsFields and resolveMaterialSegments both resolve through here, so they cannot disagree.
+function materialFilePath(item, here) {
+  const p = str(item?.path);
+  return p && pathKind(here, p) === "file" ? here(p) : undefined;
+}
+
+// Resolves ONE material item's segments (for spine ref resolution below). Never pushes
+// readSegments' own findings: those are already reported once, by materialsFields, under the
+// materials block; this is read-only lookup. When nothing resolves, `why` says which of the three
+// causes it was, because each needs a different fix: "unmarked" (no segments: field), "unreadable"
+// (the segments file does not exist or cannot be read) or "empty" (read, but no segment lines).
 function resolveMaterialSegments(item, here) {
   const segPath = str(item?.segments);
-  if (!segPath) return { segments: [], loaded: false };
-  const p = str(item?.path);
-  const matPath = p && pathKind(here, p) === "file" ? here(p) : undefined;
-  const { segments } = readSegments(here(segPath), { materialPath: matPath, materialId: str(item?.id) || undefined });
-  return { segments, loaded: segments.length > 0 };
+  if (!segPath) return { segments: [], loaded: false, why: "unmarked" };
+  const { segments, findings } = readSegments(here(segPath), { materialPath: materialFilePath(item, here), materialId: str(item?.id) || undefined });
+  if (segments.length > 0) return { segments, loaded: true };
+  const unreadable = findings.some((x) => x.id === "writing-materials-missing");
+  return { segments, loaded: false, why: unreadable ? "unreadable" : "empty" };
 }
+
+const UNRESOLVABLE_BECAUSE = {
+  unmarked: "it is not marked (no segments field)",
+  unreadable: "its segments file could not be read",
+  empty: "its segments file has no segments",
+};
 
 // ---------------------------------------------------------------- 2. dna ----------------------
 
@@ -256,8 +271,9 @@ function spineFields(raw, d, here, idPrefix) {
   const items = list(d.writing?.materials?.items);
   const itemsById = new Map(items.map((m) => [str(m?.id), m]).filter(([id]) => id));
   const materialIds = new Set(itemsById.keys());
-  // A material whose segments file could not be read at all (missing segments: field, missing
-  // file, unparsable header) makes every #segment ref against it equally unresolvable. Report that
+  // A material whose segments cannot be resolved at all (no segments: field, a segments file that
+  // cannot be read, or one with no segment lines) makes every #segment ref against it equally
+  // unresolvable. Report that
   // once per material, not once per ref: two claims both pointing at "m1#s1" and "m1#s2" when m1
   // is unmarked are the same underlying problem, not two.
   const segmentsCache = new Map();
@@ -285,11 +301,11 @@ function spineFields(raw, d, here, idPrefix) {
         // A bare material id (no #segment) stays valid on its own; only a ref naming a specific
         // segment needs resolving against that material's segments file.
         if (!segId) return;
-        const { segments, loaded } = segmentsFor(mid);
+        const { segments, loaded, why } = segmentsFor(mid);
         if (!loaded) {
           if (!reportedUnresolvable.has(mid)) {
             out.push(f(4, `${idPrefix}-materials-segments-unresolvable-${mid}`, "fail",
-              `spine claims point at material "${mid}"'s segments, but its segments file could not be read`,
+              `spine claims point at material "${mid}"'s segments, but ${UNRESOLVABLE_BECAUSE[why]}`,
               "Run `hyperspec segments init` on the material, label every segment, then re-check the spine refs."));
             reportedUnresolvable.add(mid);
           }

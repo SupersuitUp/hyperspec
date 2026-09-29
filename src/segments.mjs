@@ -14,7 +14,7 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { sha256 } from "./hash.mjs";
-import { MATERIAL_LABELS } from "./writing.mjs";
+import { MATERIAL_LABELS } from "./labels.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const nonEmptyStr = (v) => typeof v === "string" && v.trim() !== "";

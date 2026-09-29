@@ -564,6 +564,38 @@ test("spine: two claims referencing the same unmarked material's segments report
   assert.deepEqual(f.map((x) => x.id).sort(), ["writing-materials-unmarked", "writing-spine-materials-segments-unresolvable-m1"]);
 });
 
+// The unresolvable-segments spine finding names WHY the refs could not be resolved, since the three
+// causes need three different fixes: no segments: field at all, a segments file that could not be
+// read, and a segments file that was read but holds no segment lines.
+const C1_BARE = "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1]\n";
+const C1_SEG = "      - id: c1\n        text: a hyperspec is a contract a linter can check, not a prompt someone wrote once\n        materials: [m1#s1]\n";
+const unresolvable = (s) => lintSpec(s).find((x) => x.id === "writing-spine-materials-segments-unresolvable-m1");
+
+test("spine: an unresolvable-segments finding for an unmarked material says it is not marked", () => {
+  const s = variant((t) => t.replace("        segments: materials/call-2026-09-28.md.segments.jsonl\n", "").replace(C1_BARE, C1_SEG));
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /not marked/);
+  assert.doesNotMatch(u.message, /could not be read|has no segments/);
+});
+
+test("spine: an unresolvable-segments finding for a segments file that does not exist says it could not be read", () => {
+  const s = variant((t) => t
+    .replace("segments: materials/call-2026-09-28.md.segments.jsonl", "segments: materials/nowhere.segments.jsonl")
+    .replace(C1_BARE, C1_SEG));
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /could not be read/);
+});
+
+test("spine: an unresolvable-segments finding for a segments file with a header and no segment lines says it has no segments, not that it could not be read", () => {
+  const s = segmentsVariant((t) => t.replace(C1_BARE, C1_SEG), (t) => `${t.split("\n")[0]}\n`);
+  const u = unresolvable(s);
+  assert.ok(u, JSON.stringify(fails(s)));
+  assert.match(u.message, /has no segments/);
+  assert.doesNotMatch(u.message, /could not be read/);
+});
+
 test("sources: unsourced_claim outside fail/warn fails test 1", () => {
   const s = variant((t) => t.replace("unsourced_claim: fail", "unsourced_claim: ignore"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-sources-unsourced-claim"]]);
