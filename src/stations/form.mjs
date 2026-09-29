@@ -57,10 +57,16 @@ function partPresent(lines, part) {
 export function run(spec, draft) {
   const form = spec?.data?.writing?.form ?? {};
   const length = form.length && typeof form.length === "object" ? form.length : {};
-  const unit = typeof length.unit === "string" ? length.unit.trim() : "";
+  // Trimmed and case-folded for the comparison: lint only requires length.unit to be non-
+  // placeholder text (writing-fields.mjs's formFields), not literally the lowercase word
+  // "words", so a spec author who writes "Words" or "WORDS" still gets the word count checked
+  // rather than a silent skip. The reason message on a genuine skip still shows the unit as
+  // written, never lowercased, since that is what the spec actually says.
+  const rawUnit = typeof length.unit === "string" ? length.unit.trim() : "";
+  const unit = rawUnit.toLowerCase();
 
   if (unit !== "words") {
-    return { station: name, status: "skip", findings: [], reason: `length unit ${unit || "(none)"} is not measured yet` };
+    return { station: name, status: "skip", findings: [], reason: `length unit ${rawUnit || "(none)"} is not measured yet` };
   }
 
   const findings = [];

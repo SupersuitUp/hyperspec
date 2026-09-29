@@ -23,12 +23,13 @@ import { STATIONS, STATION_NAMES } from "./stations/index.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
 
-// 1-based line array: text.split("\n"), so array index i holds line i + 1. A "\r\n" line ending
-// leaves the "\r" on the end of the PREVIOUS line's entry (split only breaks on "\n"), which is
-// fine: it is still one line break, and every 1-based line number a finding names still points
-// at the right line.
+// 1-based line array: text.split("\n"), so array index i holds line i + 1. A trailing "\r" (a
+// CRLF file) is stripped from every entry here, at the source, so every station that reads
+// draft.lines sees a clean line ("# Claim", never "# Claim\r") without needing to know CRLF
+// exists; the line COUNT and every 1-based line number are unaffected, since stripping a
+// trailing byte from an entry never changes how many entries there are.
 function splitLines(text) {
-  return text.split("\n");
+  return text.split("\n").map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
 }
 
 // Every well-formed kind: "check" line already in the ledger, in file order (oldest first). A
@@ -41,6 +42,36 @@ function priorCheckLines(text) {
     .filter((l) => l.trim())
     .map((l) => { try { return JSON.parse(l); } catch { return null; } })
     .filter((v) => v && typeof v === "object" && !Array.isArray(v) && v.kind === "check");
+}
+
+// runStation(station, spec, draft, ctx): runs one station's run(spec, draft, ctx), converting a
+// throw into a single failing finding rather than letting it crash the whole command. A station
+// is pure and deterministic BY CONTRACT, but that contract is not enforced by the type system,
+// and later stations (terms, claims, quotes, private, dna) read JSONL ledgers, segments files
+// and regexes over untrusted draft text, which is a lot more surface for a bug to throw from
+// than form's own narrow reading. A throw here must never crash the whole command (no raw stack
+// trace, no half-finished --json, no skipped ledger line): every OTHER station and the ledger
+// write still run normally, the same way lintSpec's own crash in bin/hyperspec.mjs's `lint`
+// handler becomes a reported error rather than an uncaught exception. Exported (and taking the
+// station object rather than reading STATIONS itself) so this exact wrapping is testable against
+// a station built to throw, without needing one registered in the shared registry
+// (src/stations/index.mjs), which this file does not own.
+export function runStation(station, spec, draft, ctx) {
+  try {
+    return station.run(spec, draft, ctx);
+  } catch (e) {
+    return {
+      station: station.name,
+      status: "fail",
+      findings: [{
+        station: station.name,
+        id: `station-${station.name}-crashed`,
+        severity: "fail",
+        message: e?.message ?? String(e),
+        fix: "Fix the station or file an issue; it should never throw.",
+      }],
+    };
+  }
 }
 
 // runCheck(specPathArg, draftPathArg, { only }): specPathArg and draftPathArg are exactly what
@@ -88,7 +119,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   const draft = { path: draftPathArg, text, lines: splitLines(text), sha256: sha256(draftBuf) };
 
   const ctx = {};
-  const results = stationsToRun.map((s) => s.run(spec, draft, ctx));
+  const results = stationsToRun.map((s) => runStation(s, spec, draft, ctx));
   const failing = results.filter((r) => r.status === "fail").map((r) => r.station);
   const code = failing.length ? 1 : 0;
 
@@ -113,15 +144,22 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
       // changed between two checks) whose stations map recorded at least one failure.
       const priorSamePathFailing = prior.filter((l) => l.draft === draft.path && Object.values(l.stations ?? {}).includes("fail"));
 
-      // one-shot means never having gotten anything wrong on this piece: passing now, on a draft
-      // whose exact bytes have never been checked before, AND with no failing attempt anywhere in
-      // this path's own history either. That last clause is not in the one-line rule for one-shot
-      // by itself, but it has to hold for "improved" to ever be reachable in its own most common
-      // case (a draft edited after a failing check always has a fresh sha), so one-shot is read
-      // here as the narrower of the two conditions and checked, and lost, first.
+      // Both one-shot and improved require !sameShaBefore: an already-checked, byte-identical
+      // draft is a REPEAT of a verdict already recorded, never a fresh one, whether or not that
+      // earlier history ever failed. Without this guard on "improved" too, a draft that failed
+      // once, was fixed once, and is then re-checked unchanged forever (exactly the common
+      // "confirm nothing regressed" workflow) would report "improved" on every single re-check,
+      // since priorSamePathFailing never empties out. The two verdicts differ only in whether
+      // this path's history ever failed:
+      //   - one-shot: passing now, this exact sha never checked before, AND no failing attempt
+      //     anywhere in this path's history either (nothing was ever wrong).
+      //   - improved: passing now, this exact sha never checked before, but an earlier line for
+      //     this path DID fail (something was wrong and this fresh draft fixes it).
+      // A repeat check of a sha already on record (pass or fail, improved or not) always falls
+      // through to the final else below, regardless of this path's failure history.
       if (passedNow && !sameShaBefore && priorSamePathFailing.length === 0) {
         verdict = "one-shot";
-      } else if (passedNow && priorSamePathFailing.length > 0) {
+      } else if (passedNow && !sameShaBefore && priorSamePathFailing.length > 0) {
         verdict = "improved";
         // The most recently written prior failing line for this path is the one this pass
         // actually follows; its own failing station names are what "now pass" describes.
@@ -132,10 +170,10 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
         verdict = "not-improved";
         verdictDetail.reason = `failing stations: ${failing.join(", ")}`;
       } else {
-        // passedNow, and this exact sha was already checked and already passed, with no failure
-        // anywhere in this path's history: a repeat check of an already-clean, unchanged draft.
-        // Neither one-shot (it was already checked before) nor improved (nothing was ever wrong),
-        // so it falls to the closed vocabulary's only remaining bucket.
+        // passedNow, and sameShaBefore: this exact draft was already checked, whatever this
+        // path's wider history looks like. A repeat check of a draft already on record, changed
+        // or not since, reports nothing new, so it falls to the closed vocabulary's only
+        // remaining bucket rather than re-claiming one-shot or improved a second time.
         verdict = "not-improved";
         verdictDetail.reason = "draft unchanged since a prior check that already passed";
       }
@@ -152,7 +190,10 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
         ...verdictDetail,
       };
       appendFileSync(ledgerAbs, `${JSON.stringify(line)}\n`);
-      ledgerPath = ledgerAbs;
+      // Reported exactly as the spec wrote it (improvement.ledger's own string), never resolved:
+      // every other path this command returns or prints is echoed as given, and the ledger's
+      // declared path already IS relative to spec.dir, so there is nothing to re-relativize.
+      ledgerPath = ledgerDecl;
     }
   }
 

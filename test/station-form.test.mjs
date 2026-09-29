@@ -109,6 +109,16 @@ test("length.unit missing entirely: skip, reason names it as (none)", () => {
   assert.equal(result.reason, "length unit (none) is not measured yet");
 });
 
+test("length.unit is matched case-insensitively and trimmed: 'Words', 'WORDS', ' words ' all measure length", () => {
+  for (const unit of ["Words", "WORDS", " words ", "wOrDs"]) {
+    const form = { ...FORM, length: { min: 10, max: 20, unit } };
+    const draft = draftOf(`# Claim\n\n# Evidence\n\n# Close\n\n${words(2)}`);
+    const result = run(specWith(form), draft);
+    assert.equal(result.status, "fail", `unit "${unit}" should still measure length, not skip`);
+    assert.ok(result.findings.some((x) => x.id === "station-form-length"), `unit "${unit}"`);
+  }
+});
+
 test("two required parts that slug to the same id both still get a distinct finding", () => {
   const form = { ...FORM, required_parts: ["Close!", "close?"] };
   const draft = draftOf(words(15));
