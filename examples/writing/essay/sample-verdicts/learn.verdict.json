@@ -1,0 +1,30 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a learn verdict looks like and what learn record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "edits": [
+    {
+      "id": "E1",
+      "block": "persona",
+      "why": "persona.will_not_say already rules out a claim about what most managers do, and the factory still wrote one, so the rule needs saying more plainly"
+    },
+    {
+      "id": "E2",
+      "block": "none",
+      "why": "a typo; no block of the spec governs spelling"
+    },
+    {
+      "id": "E3",
+      "block": "materials",
+      "why": "the paragraph retells the voice memo segment marked aside, which no spine claim cites; the marking held it back and the factory used it anyway"
+    },
+    {
+      "id": "E4",
+      "block": "dna",
+      "why": "no golden and no style rule shows advice given flat, so the factory hedged it (can be helpful, may, might); a golden that states a habit as an instruction, or a rule against hedged advice, would have prevented it"
+    },
+    {
+      "id": "E5",
+      "block": "dna",
+      "why": "the same hedge in one sentence: this writer gives instructions, and nothing in the scope says so"
+    }
+  ]
+}

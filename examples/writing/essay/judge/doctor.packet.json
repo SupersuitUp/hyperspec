@@ -1,0 +1,108 @@
+{
+  "hyperspec_judge": "0.1",
+  "station": "doctor",
+  "spec": "essay.hyperspec.md",
+  "spec_sha256": "65022fe47218fd72a057dc948417ee282f3295280a7b3e08e4dd29863b50f132",
+  "draft": "essay/draft.md",
+  "draft_sha256": "aa4a1d99604f7b2b398b67305b368abbb72651356c38bfffad1452db6be62f65",
+  "rubric": "the doctor grades the draft against every condition; the simulated reader is asked whether it would copy the questions now",
+  "instructions": "Grade the draft (inputs.draft) against each condition in inputs.conditions: a condition passes unless the draft does what its fails_when describes. For every judgment, quote the draft as evidence: each evidence field is a span copied verbatim from inputs.draft. Then answer whether this reader, having read the draft, would take the next step (inputs.goal.next_if_worked) now, and quote the passage that decided it. Answer only in the verdict shape given in verdict_schema: one entry per condition id, each exactly once, with pass and would_take_next_step as true or false, and a note saying why for every condition that fails.",
+  "inputs": {
+    "goal": {
+      "from": "plans to run the first one-on-one from their own list",
+      "to": "hands the first one-on-one to the report and asks the three questions",
+      "next_if_worked": "copies the three questions into their calendar invite",
+      "change": {
+        "kind": "action",
+        "text": "the reader asks the three questions in their next one-on-one and waits after each"
+      }
+    },
+    "conditions": [
+      {
+        "id": "r1",
+        "text": "the opening line tells the reader who sets the agenda of a first one-on-one",
+        "fails_when": "a reader shown only the first two sentences cannot say who should set the agenda"
+      },
+      {
+        "id": "r2",
+        "text": "the three questions appear word for word as the voice memo states them",
+        "fails_when": "any of the three questions differs from essay/materials/voice-memo.md by a word"
+      },
+      {
+        "id": "r3",
+        "text": "every survey figure in the draft matches the verified survey summary",
+        "fails_when": "a figure in the draft has no entry in the claims ledger pointing at essay/materials/team-survey.md, or differs from it"
+      },
+      {
+        "id": "r4",
+        "text": "the draft argues only the four claims in the spine, in order",
+        "fails_when": "a paragraph advances a point that traces to none of c1 to c4, or c3 lands before c2"
+      },
+      {
+        "id": "r5",
+        "text": "the draft tells the reader what to do with silence in the meeting",
+        "fails_when": "the draft never says to wait after asking a question"
+      },
+      {
+        "id": "r6",
+        "text": "the draft stays inside its length envelope",
+        "fails_when": "the word count is under 700 or over 1,100"
+      }
+    ],
+    "draft": "# Hand your first one-on-one to the person you manage\n\n## Who sets the agenda\n\nYour first one-on-one with a new report is the only meeting on your calendar where they should\nset the agenda. Everything else you run. This one you hand over.\n\nIf you walk in with a list, you have told your report what the meeting is for, and it is for\nyou. They will answer your list politely and leave. You will know nothing you did not know when\nyou sat down, and so will they.\n\nMy team ran a [survey](materials/team-survey.md) this spring. 29 of 41 people said their most useful one-on-one in the last\nquarter was one where they brought the first topic. The meeting that worked for them was the one\nthey started.\n\nSo give them the start. The simplest way to do it is a running agenda: one shared document per\nperson, kept for as long as you manage them. Your report adds items before each meeting, and you\nadd yours last, at the bottom. That is how an engineering manager I interviewed, eight years into\nthe job, runs hers. Her rule is short: the report owns the agenda.\n\n## My first one-on-one\n\nMy first one-on-one as a manager was a disaster, and the reason was simple: I ran it. I had a\nlist, and I went down the list. Project status, blockers, the thing from Tuesday. Thirty minutes\nlater my report said thanks and left, and I had learned nothing I could not have read in the\ntracker.\n\nWhat I ran was a status meeting, which is a meeting spent reading out loud what the tracker\nalready says. Your report wrote those updates. Asking them to recite the updates to you teaches\nyou nothing new, and it spends the one half hour a week that belongs to them.\n\nThe survey shows the cost from their side. 11 of 41 said at least one of their one-on-ones in the\nlast quarter was mostly project status. Read the tracker before you walk in, and leave status\nthere.\n\n## The three questions\n\nHere is what I ask now, in this order, and then I let the report take over:\n\n1. What is taking more of your energy than it should?\n2. What do you want to be doing more of in six months?\n3. What should I stop doing, or start doing, that would make your week easier?\n\nThree is enough to hand the meeting over. The first asks about this week. The second asks about\nthe next six months. The third asks about you, and it is the one your report will not raise\nwithout being asked. A fourth question starts to look like your list again, and the list is what\nyou came to give up.\n\nAsk them in the same words every time. Your report will learn them, and after a few weeks they\nwill walk in with answers already half formed. That is the point of fixing the words: the meeting\nstarts on their topic before you have said anything at all.\n\nThe second question is the one my own team asked for. The most common free-text request in the\nsurvey, in 9 responses, was to be asked what they want to work on next.\n\nAfter the third question, stop talking.\n\n## What to do with the answers\n\nWait after each question, longer than you want to. Dana, the engineering manager I interviewed,\nputs it in three short sentences: \"Wait. Count to five. The real answer is the second one.\" The first\nanswer your report gives is the tidy one, the version they could give anyone. The second is what\nthey came in with, and you only hear it if you let the silence run.\n\nWrite down what they say, in their words, at the top of the running agenda. That list is where\nyour next one-on-one starts, so the meeting stays theirs the week after too.\n\nDo not try to fix everything in the room. Pick one thing you can act on this week, say what you\nwill do, and do it before you meet again. The rest stays on the running agenda until it is done\nor your report takes it off.\n\nAnd keep your own urgent items out of it. She told me: \"If I have something urgent, it is not a\none-on-one topic. I send it the day it happens.\" Your report should never have to wait a week to\nhear something you needed them to know on Monday.\n\n## Before the meeting\n\nOpen the invite and delete your list from it. Ask your report to add the first item to the\nrunning agenda instead.\n\nSo write the three questions on a card. Ask the first one. Then wait, longer than feels polite,\nbecause the first answer is the one they rehearsed and the second one is the one you came for.\n"
+  },
+  "verdict_schema": {
+    "type": "object",
+    "required": [
+      "conditions",
+      "would_take_next_step",
+      "evidence"
+    ],
+    "properties": {
+      "conditions": {
+        "type": "array",
+        "description": "one entry per condition id, each exactly once",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "pass",
+            "evidence",
+            "note"
+          ],
+          "properties": {
+            "id": {
+              "enum": [
+                "r1",
+                "r2",
+                "r3",
+                "r4",
+                "r5",
+                "r6"
+              ]
+            },
+            "pass": {
+              "type": "boolean"
+            },
+            "evidence": {
+              "type": "string",
+              "description": "a span copied verbatim from the draft"
+            },
+            "note": {
+              "type": "string",
+              "description": "why; required when pass is false"
+            }
+          }
+        }
+      },
+      "would_take_next_step": {
+        "type": "boolean",
+        "description": "whether this reader would take inputs.goal.next_if_worked now"
+      },
+      "evidence": {
+        "type": "string",
+        "description": "a span copied verbatim from the draft that decided would_take_next_step"
+      }
+    }
+  }
+}

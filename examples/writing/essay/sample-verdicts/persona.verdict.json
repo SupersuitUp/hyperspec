@@ -1,0 +1,4 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "breaks": []
+}

@@ -1,0 +1,81 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "lines": [
+    {
+      "id": "L1",
+      "speaker": "ines"
+    },
+    {
+      "id": "L2",
+      "speaker": "theo"
+    },
+    {
+      "id": "L3",
+      "speaker": "ines"
+    },
+    {
+      "id": "L4",
+      "speaker": "theo"
+    },
+    {
+      "id": "L5",
+      "speaker": "ines"
+    },
+    {
+      "id": "L6",
+      "speaker": "ines"
+    },
+    {
+      "id": "L7",
+      "speaker": "ines"
+    },
+    {
+      "id": "L8",
+      "speaker": "theo"
+    },
+    {
+      "id": "L9",
+      "speaker": "theo"
+    },
+    {
+      "id": "L10",
+      "speaker": "ines"
+    },
+    {
+      "id": "L11",
+      "speaker": "theo"
+    },
+    {
+      "id": "L12",
+      "speaker": "theo"
+    },
+    {
+      "id": "L13",
+      "speaker": "ines"
+    },
+    {
+      "id": "L14",
+      "speaker": "theo"
+    },
+    {
+      "id": "L15",
+      "speaker": "theo"
+    },
+    {
+      "id": "L16",
+      "speaker": "ines"
+    },
+    {
+      "id": "L17",
+      "speaker": "ines"
+    },
+    {
+      "id": "L18",
+      "speaker": "theo"
+    },
+    {
+      "id": "L19",
+      "speaker": "ines"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "hyperspec_judge": "0.1",
+  "station": "doctor",
+  "spec": "story.hyperspec.md",
+  "spec_sha256": "8f417ebce7777cb4130afc8f0e2a1e4a483f1d4c7e7bcbadca202fda2208c6a9",
+  "draft": "story/draft.md",
+  "draft_sha256": "fdf8dd1ee311a376e45cca31b50f0b01f1157a889cb332620cbd178e9c510306",
+  "rubric": "the doctor grades the draft against every condition; the simulated reader is asked what the starter jar meant and whether it would look for the author's next story",
+  "instructions": "Grade the draft (inputs.draft) against each condition in inputs.conditions: a condition passes unless the draft does what its fails_when describes. For every judgment, quote the draft as evidence: each evidence field is a span copied verbatim from inputs.draft. Then answer whether this reader, having read the draft, would take the next step (inputs.goal.next_if_worked) now, and quote the passage that decided it. Answer only in the verdict shape given in verdict_schema: one entry per condition id, each exactly once, with pass and would_take_next_step as true or false, and a note saying why for every condition that fails.",
+  "inputs": {
+    "goal": {
+      "from": "has never read the author",
+      "to": "finishes the story and remembers the starter jar",
+      "next_if_worked": "looks for the author's other stories",
+      "change": {
+        "kind": "feeling",
+        "text": "the reader feels the handover of the starter jar as the moment the two say what neither says aloud"
+      }
+    },
+    "conditions": [
+      {
+        "id": "r1",
+        "text": "the two voices cannot be confused",
+        "fails_when": "a judge shown ten lines of dialogue with the speaker hidden names the wrong speaker for more than one of them"
+      },
+      {
+        "id": "r2",
+        "text": "no one says what they could not know yet",
+        "fails_when": "Theo mentions the sale before scene-3, or Ines mentions the school before scene-4"
+      },
+      {
+        "id": "r3",
+        "text": "the bakery's process matches a real working morning",
+        "fails_when": "a proofing time, the tray turn, or the opening time differs from story/materials/bakery-visit.md"
+      },
+      {
+        "id": "r4",
+        "text": "the story is the four scenes of the scene list, in order",
+        "fails_when": "the draft has more or fewer than four scenes, or they run out of the scene list's order"
+      },
+      {
+        "id": "r5",
+        "text": "the last line is about bread",
+        "fails_when": "the final sentence names a feeling, or does not mention bread, dough, flour or the starter"
+      },
+      {
+        "id": "r6",
+        "text": "the story stays inside its length envelope",
+        "fails_when": "the word count is under 2,500 or over 4,000"
+      }
+    ],
+    "draft": "# The Rye\n\n## 3:40\n\nThe alarm at the bakery went at 3:20, but Ines was always there first, so in three years I never\nonce heard it. What I heard, coming in the back door at twenty to four with my hands in my\npockets, was the mixer. It had a knock in it, a slow one, like it was trying to remember\nsomething.\n\nShe was standing over the bowl with her sleeves pushed past the elbow and her glasses on top of\nher head, where they stayed until the till opened. She did not look round. She never did. The\nback door sticks in winter and you have to put your shoulder to it, so she always knew it was me\nbefore she could have seen me.\n\n\"You're late,\" she said.\n\nI wasn't. She knew I wasn't. The clock over the proving cabinet said 3:41, and it runs a minute\nfast, and she was the one who set it that way.\n\n\"The bus,\" I said anyway, because that is how we started.\n\n\"Flour first. Then you can talk.\"\n\nSo I did the flour. Flour is weighed at Ines's, never scooped. There is a scoop in the bin, a\nsteel one with a dent in the lip, and in three years I have only ever seen it used to push the\nflour level before the lid goes back on. I set the bowl on the scale and zeroed it and poured\nuntil the number stopped where she wanted it, and then I took out a handful and put back half\nof that, because the last few grams go in by hand, and she was watching the scale even though\nshe was not watching me.\n\nBehind us the deck oven was coming up to heat. The deck oven is three stone shelves stacked one\nover another inside a steel wall, each with its own door, and it takes the better part of an\nhour to get hot enough. Somewhere in that hour it starts to make the noise. It is not loud. It\nis a kind of tick, then a longer sound like somebody dragging a chair in the flat upstairs, then\nnothing for a while, then the tick again.\n\nIt made the noise while I was weighing the second batch. I looked at the oven and then at Ines,\nand she did not look at either of us.\n\n\"Okay but like,\" I said, \"if the oven's made that noise since March, is it a noise, or is that just\nhow the oven talks now?\"\n\n\"Water,\" she said.\n\nShe put the thermometer in the water herself, the way she did for every batch, and read it and\nsaid nothing, which meant it was right. The water temperature is checked every batch at Ines's,\neven when the water comes out of the same tap at the same time on the same morning as the day\nbefore. I have never asked her why. I check it too.\n\nWe worked. There is a radio on the shelf above the sink and nobody has turned it on since I have\nworked there. The mixer knocked. The oven ticked and dragged its chair. Outside it was still\ncompletely dark, and the street lamp at the corner made the frost on the window look like a\nthumbprint.\n\nThe letter from the school was in the inside pocket of my coat, which was on the hook by the back\ndoor. I had moved it there from my bag on the bus, and then back to my bag, and then back to the\ncoat, because the coat was closer. It was two pages. The first page said I had a place, and the\nsecond page said when term started, which was the autumn, in a city four hours away by train. I\nhad read both pages enough times that the fold had gone soft.\n\nI did not look at the coat. I looked at the dough.\n\nOn the calendar by the till, which I could see from the bench if I leaned, somebody had drawn a\nring round Friday in red pen. Ines does not use red pen. She uses a pencil she keeps behind her\near and sharpens with a knife. I leaned, and looked, and leaned back.\n\nThe starter was on the shelf above the mixer, where it always was. The starter is a wide glass\njar with a cloth over the top held on by a rubber band, and everything we make that is sour\ncomes out of it. It is the only thing in the bakery she has never let me touch. I have fed the\nmixer and cleaned the oven floor and scraped the bins and carried the flour sacks up from the\ncellar two at a time, and I have never once taken the cloth off that jar.\n\n\"Is the rye going in the big bowl?\" I asked, although it always went in the big bowl.\n\n\"Big bowl,\" she said.\n\n## 4:30\n\nInes does not talk while she shapes. Talking happens at the mixer and at the till, and the bench\nis for your hands. I learned that in my first week and I have never had to be told it twice. The\nsilence at the bench is the kind that makes you hear how loud your own questions are.\n\nSo at half past four we stood at the bench with the dough between us and did not talk.\n\nShe cut the white dough into pieces with the bench knife, and weighed each piece, and pushed each\none across to me, and I rounded them and set them seam up on the floured cloth in rows. Her\nknife was faster than my hands. It always was. She would cut the last piece and wipe the blade\nand wait, and I would still have six to go, and she would not help, and she would not watch me\neither. She would look at the window, where there was nothing yet to look at.\n\nWhen the white was done she went to the big bowl and turned the rye out onto the bench. Rye does\nnot behave like the white. It is heavy and it is wet and it sticks to everything, and it does not\nstretch so much as slump, and you have to shape it quickly with wet hands before it decides to\nbe the shape of the bench instead of the shape of the basket.\n\nShe cut it into four and weighed the four. Then she wiped the knife and put it down on my side of\nthe bench, and she went to the sink, and she wet her hands, and she dried them.\n\nI stood there. The rye sat there. The oven ticked.\n\n\"I can do the rye,\" I said, and then I remembered where we were and said the rest quietly. \"I\nmean, I think I can do the rye. I did it Tuesday, kind of.\"\n\nOn Tuesday I had held the basket while she shaped. That was what I meant by kind of.\n\nShe did not answer. That was allowed, at the bench. She took the cloth off the white rounds and\nchecked them with one finger, and put the cloth back, and then she went through to the front and\nstarted taking the chairs down off the tables, which was the job she always gave me.\n\nSo I did the rye.\n\nI wet my hands the way she did, up to the wrist. I took the first piece and folded it in on itself\nand turned it and folded it, and it stuck to my palm and I wet my hand again and it stuck again,\nand I could hear the chairs going down in the front, one leg and then the other three, and I did\nnot look up. The second piece was better. The third piece tore and I had to fold the torn side\nunder and hope. The fourth piece was the best one I have ever done, and there was nobody at the\nbench to see it, which I think was the point, or I think now was the point, and I did not think\neither of those things at the time. At the time I only thought about my hands.\n\nI put the four of them seam up in the baskets and dusted them and covered them. The baskets are\nold, and the rye has worn a pattern into the cane that is there even when they are empty.\n\nThe proof is the long wait after shaping, when the dough sits and rises before it goes in the\noven, and with rye you cannot hurry it. In winter the rye proofs about three hours at room\ntemperature. Ines will not put it in the proving cabinet. She says the cabinet is for the white.\nSo the four baskets went on the shelf by the window, and would sit there until well after the\ndoors opened, and nothing either of us did in the meantime would make them go any faster.\n\nShe came back from the front with flour on the knees of her trousers from the chairs. She looked\nat the four baskets on the shelf for about as long as it takes to read a price, and then she\nlooked at the bench, which I had scraped clean, and then she went to the mixer.\n\n\"Scrape the bowl,\" she said.\n\nI scraped the bowl.\n\n## 5:50\n\nBy ten to six the oven was full and the kitchen smelled the way it smells only for about an hour\na day, which is the hour I would pick if somebody made me pick one.\n\nThe back left of the deck oven runs hot, so every tray is turned halfway through the bake. Ines\nhas a timer on a string round her neck for it. She does not trust the ones on the oven. When it\ngoes she opens each door in turn and pulls each tray out with the peel, and spins it, and pushes\nit back, so that the side that was at the back is at the front, and nothing comes out darker on\none end than the other.\n\n\"Left side runs hot,\" she said, as the first tray went in, as if I had not been turning those\ntrays with her since I was sixteen. \"Turn them at eight minutes.\"\n\nI set my own timer, which I did not need to do, because hers would go at the same time.\n\nWe stood in front of the oven. There is nothing to do in that eight minutes except stand in front\nof the oven and not open it. The noise came and went. The street outside was starting to go from\nblack to the color of dishwater. A van went past without stopping.\n\nThe timer went. She opened the top door, and the heat came out, and she slid the peel under the\nfirst tray and drew it out onto the lip of the door and started to turn it.\n\n\"It's sold,\" she said.\n\nShe said it to the tray. She turned the tray, and pushed it back in, and pulled out the second.\n\nI did not say anything, because I did not know yet that she had said anything. It went past me\nthe way the van had gone past. Then it came back.\n\n\"What's sold?\" I said. I knew what was sold.\n\n\"The bakery. Friday.\" She turned the second tray and pushed it back and shut the top door and\nopened the middle one.\n\n\"Sold like,\" I said, \"sold? Like someone else is going to be here? Like I come in on Monday and\nsomebody else is at the mixer, is that what, is that the sold you mean?\"\n\n\"Not a bakery,\" she said. \"They want the room. Not the ovens.\"\n\nShe pulled out the third tray and turned it. She had not burnt herself on a tray in all the time\nI had known her, and she did not burn herself then. Her hands did exactly what they always did.\nI watched them because I did not know what else to watch.\n\n\"Then what happens to the ovens?\" I said. \"Then what happens to the mixer. Is somebody going to buy\nthe mixer? It knocks. Does the person who buys it know it knocks?\"\n\nShe shut the middle door and opened the bottom one.\n\n\"Is that why there's a ring round Friday?\" I said. \"Is that what the red pen is?\"\n\n\"Sold means sold,\" she said. \"Get the next tray.\"\n\nI got the next tray. It was the seeded rolls, which I had shaped at five, and I put them on the\npeel and she put them in, and I stood with the empty peel in my hands while she shut the door and\nthe heat stopped coming out.\n\nI wanted to ask how long she had known. I wanted to ask whether the new people had been in, and\nwhen, and whether they had stood in this kitchen while I was at home asleep, and whether they had\nlooked at the baskets on the shelf and thought they were just baskets. I did not ask any of it.\nI stood there with the peel and I thought about the letter in my coat, and I thought, she has\nknown this for days, maybe weeks, and every one of those mornings she came in before me and set\nthe clock a minute fast and told me I was late.\n\nThat was the only time all morning I nearly told her. The words got as far as the back of my\nteeth.\n\nThe timer on the string went. She turned the next tray.\n\n\"Rolls come out at sixteen,\" she said. \"Get the racks.\"\n\nI got the racks.\n\n## 6:55\n\nAt five to seven the front was ready. The chairs were down, the counter was wiped, the white was\nin the baskets behind the till and the rolls were on the racks, and the four rye loaves were still\non the shelf by the window under their cloths, still rising, a long way from done.\n\nThe doors open to customers at 7:00. The first person in is usually a regular. Through the glass\nI could see Walter already standing on the step with his collar up and his dog sitting on his\nfoot, which was what the dog did in winter. Ines keeps a biscuit in her apron for the dog and has\nnever once said so.\n\nShe was counting the float into the till. I stood behind the counter with my hands flat on it.\nThe letter was still in my coat. The coat was still on the hook by the back door, which was as\nfar from the counter as you can get in the bakery and still be inside it.\n\n\"I got into a school,\" I said.\n\nShe went on counting. She got to the end of the coins and closed the drawer.\n\n\"A baking school,\" I said. \"In the city. It's a proper one, it's the one with the, they do the whole\nyear on bread, and then pastry, and I applied in the spring and I didn't think, I mean I didn't\nthink I'd get in, and then I did. It starts in the autumn. I was going to tell you. I was going to\ntell you the day the letter came, and then I got here and you were at the mixer and it felt like,\nI don't know. It felt like the wrong time to say anything to anybody.\"\n\nShe looked at the four baskets on the shelf by the window.\n\nThen she walked past me into the back, and I heard her feet on the flour-dusty floor, and I heard\nher stop by the mixer, and I stood there with my hands on the counter and looked at Walter's dog.\n\nWhen she came back she had the starter.\n\nShe had the jar in both hands, the way you carry something you have filled too full. The cloth\nwas still on, and the rubber band, and the glass had a rim of dried flour at the top where it had\nrisen in the night and fallen back. She put it on the counter between us and took her hands away.\n\n\"Feed it at noon,\" she said. \"Equal weight flour and water. Weigh it.\"\n\nI looked at the jar. I did not pick it up. I have scraped the bins and carried the sacks and\ncleaned the oven floor, and I had never once taken the cloth off that jar, and now it was on the\ncounter in front of me with nobody's hands on it.\n\n\"Every day,\" she said. \"Not most days. Keep it out of the sun.\"\n\n\"Okay,\" I said. \"Okay. So is that a yes, or is that the face you make when it's a yes?\"\n\nShe took the glasses off the top of her head and put them on, which she only does for the till.\n\n\"Doors,\" she said.\n\nI picked up the jar. It was heavier than it looked, and it was warm on the side that had faced\nthe oven. I held it against my chest with one arm while she walked to the front and turned the\nsign and let Walter in, and Walter said good morning to her by name, and she said good morning to\nhim by his, and she bent down to the dog with her hand already in her apron.\n\nBehind me, on the shelf by the window, under their cloths, the four rye loaves I had shaped were\nstill rising, and the dough had lifted the cloth off the edge of the first basket by the width of\na finger.\n"
+  },
+  "verdict_schema": {
+    "type": "object",
+    "required": [
+      "conditions",
+      "would_take_next_step",
+      "evidence"
+    ],
+    "properties": {
+      "conditions": {
+        "type": "array",
+        "description": "one entry per condition id, each exactly once",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "pass",
+            "evidence",
+            "note"
+          ],
+          "properties": {
+            "id": {
+              "enum": [
+                "r1",
+                "r2",
+                "r3",
+                "r4",
+                "r5",
+                "r6"
+              ]
+            },
+            "pass": {
+              "type": "boolean"
+            },
+            "evidence": {
+              "type": "string",
+              "description": "a span copied verbatim from the draft"
+            },
+            "note": {
+              "type": "string",
+              "description": "why; required when pass is false"
+            }
+          }
+        }
+      },
+      "would_take_next_step": {
+        "type": "boolean",
+        "description": "whether this reader would take inputs.goal.next_if_worked now"
+      },
+      "evidence": {
+        "type": "string",
+        "description": "a span copied verbatim from the draft that decided would_take_next_step"
+      }
+    }
+  }
+}

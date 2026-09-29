@@ -1,0 +1,20 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "breaks": [
+    {
+      "evidence": "it takes the better part of an hour to get hot enough",
+      "kind": "unsourced_fact",
+      "why": "how long the deck oven takes to heat is a process detail, and no claim in the ledger holds it"
+    },
+    {
+      "evidence": "Rolls come out at sixteen",
+      "kind": "unsourced_fact",
+      "why": "a bake time for the rolls is a process detail the ledger does not hold, and the bakery visit notes give none"
+    },
+    {
+      "evidence": "Equal weight flour and water.",
+      "kind": "unsourced_fact",
+      "why": "how the starter is fed is a process detail the ledger does not hold"
+    }
+  ]
+}

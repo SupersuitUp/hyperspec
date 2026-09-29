@@ -1,0 +1,43 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "conditions": [
+    {
+      "id": "r1",
+      "pass": true,
+      "evidence": "Your first one-on-one with a new report is the only meeting on your calendar where they should set the agenda.",
+      "note": "the first sentence says the report sets the agenda"
+    },
+    {
+      "id": "r2",
+      "pass": true,
+      "evidence": "What should I stop doing, or start doing, that would make your week easier?",
+      "note": "all three numbered questions read word for word as the voice memo has them"
+    },
+    {
+      "id": "r3",
+      "pass": true,
+      "evidence": "11 of 41 said at least one of their one-on-ones in the last quarter was mostly project status.",
+      "note": "each survey figure (29 of 41, 11 of 41, 9 responses) has a ledger line pointing at the survey summary, and matches it"
+    },
+    {
+      "id": "r4",
+      "pass": true,
+      "evidence": "Three is enough to hand the meeting over.",
+      "note": "the sections carry c1, c2, c3 and c4 in that order; the paragraphs on writing the answers down and keeping urgent items out serve c1, that the meeting stays the report's"
+    },
+    {
+      "id": "r5",
+      "pass": true,
+      "evidence": "Wait after each question, longer than you want to.",
+      "note": "it says to wait after each question, and why the second answer is the one worth having"
+    },
+    {
+      "id": "r6",
+      "pass": true,
+      "evidence": "Open the invite and delete your list from it.",
+      "note": "about 830 words, inside 700 to 1,100"
+    }
+  ],
+  "would_take_next_step": false,
+  "evidence": "So write the three questions on a card."
+}

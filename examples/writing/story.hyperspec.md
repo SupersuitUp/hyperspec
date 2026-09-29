@@ -291,8 +291,8 @@ fiction: true
 A worked example of the writing profile for fiction: a short story with two characters, each
 specified well enough that an agent can write their dialogue and a judge can tell them apart.
 Every file this spec names ships beside it. The draft is `story/draft.md`, and the claims ledger
-written while drafting it is `story/claims.jsonl`: every process detail in the draft, pointed at
-the bakery visit notes. The draft passes every deterministic station:
+written while drafting it is `story/claims.jsonl`: the process details and facts the draft takes
+from the materials, each pointed at its source. The draft passes every deterministic station:
 
 ```bash
 npx @supersuit/hyperspec check story.hyperspec.md --draft story/draft.md
@@ -300,4 +300,8 @@ npx @supersuit/hyperspec check story.hyperspec.md --draft story/draft.md
 
 The four required parts are the scene headings, one per scene of the scene list, in its order.
 The story is fiction, so the quotes station skips it: its dialogue is invented, not quoted from
-a material, and is checked against each character's lines by a later release's character stations.
+a material. The judgment stations test it instead: `attribution` asks a judge to name the speaker
+of each tagged line from the characters' speech alone, and `knowledge` asks whether anyone knows
+something before their timeline gives it to them. The packets `hyperspec judge prepare` writes
+for this draft are in `story/judge/`, and `story/sample-verdicts/` holds one sample verdict for
+each, filled in by hand to show the shape.
