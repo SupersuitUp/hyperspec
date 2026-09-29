@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { startRecipe } from "../src/writer.mjs";
 import { regenerate } from "../src/regenerate.mjs";
 import { readRecipe } from "../src/recipe.mjs";
+import { loadSpec } from "../src/load.mjs";
+import { lintSpec } from "../src/rules.mjs";
 import { compare } from "../src/compare.mjs";
 
 // Same tmp-project convention as writer/regenerate tests: a .git folder so storeRoot's walk-up
@@ -161,6 +163,82 @@ test("ledger: one compare line is appended when the spec declares improvement.le
   assert.ok(line.change.includes("swapped input note"));
   assert.equal(typeof line.parent, "string");
   assert.equal(typeof line.child, "string");
+  // R15: a regression (strictly lower) is a not-improved verdict with a "regression: "-prefixed
+  // reason, since test 9's vocabulary has no "compare" verdict of its own.
+  assert.equal(line.verdict, "not-improved");
+  assert.match(line.reason, /^regression: compare: child scored 2 vs parent 10 after /);
+});
+
+test("ledger: an improved child gets verdict improved, with change as its required field", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" }); // 10 bytes
+  const childRecipe = buildChild(dir, parent, "x".repeat(33)); // 33 bytes, higher score
+
+  const res = compare(childRecipe, { doctor: doctorCmd(dir) });
+
+  assert.equal(res.ok, true, res.error);
+  const lines = readFileSync(res.ledger, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const line = lines[lines.length - 1];
+  assert.equal(line.verdict, "improved");
+  assert.equal(line.reason, undefined);
+  assert.ok(line.change.includes("swapped input note"));
+});
+
+test("ledger: an equal (non-regressed) but not-higher score is not-improved with no regression prefix", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" }); // 10 bytes
+  const childRecipe = buildChild(dir, parent, "abcdefghij"); // 10 bytes, tied
+
+  const res = compare(childRecipe, { doctor: doctorCmd(dir) });
+
+  assert.equal(res.ok, true, res.error);
+  assert.equal(res.regressed, false);
+  const lines = readFileSync(res.ledger, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const line = lines[lines.length - 1];
+  assert.equal(line.verdict, "not-improved");
+  assert.match(line.reason, /^compare: child scored 10 vs parent 10 after /);
+  assert.equal(line.reason.startsWith("regression:"), false);
+});
+
+test("R15: a spec whose ledger received compare lines (improved and not-improved) still passes lintSpec test 9", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" }); // 10 bytes; spec declares ledger: runs.jsonl
+  const runner = writeRunner(dir);
+
+  writeFileSync(join(dir, "materials", "higher.txt"), "x".repeat(33));
+  const improved = regenerate(parent.recipePath, {
+    out: join(dir, "essay-improved.md"),
+    clicker: "gary-sheng",
+    change: { swapInput: { name: "note", path: join(dir, "materials", "higher.txt") } },
+    run: `/bin/sh ${sq(runner)}`,
+  });
+  assert.equal(improved.ok, true, improved.error);
+
+  writeFileSync(join(dir, "materials", "lower.txt"), "ab");
+  const regressedRun = regenerate(parent.recipePath, {
+    out: join(dir, "essay-regressed.md"),
+    clicker: "gary-sheng",
+    change: { swapInput: { name: "note", path: join(dir, "materials", "lower.txt") } },
+    run: `/bin/sh ${sq(runner)}`,
+  });
+  assert.equal(regressedRun.ok, true, regressedRun.error);
+
+  const doctor = doctorCmd(dir);
+  const improvedCompare = compare(improved.childRecipe, { doctor });
+  assert.equal(improvedCompare.ok, true, improvedCompare.error);
+  const regressedCompare = compare(regressedRun.childRecipe, { doctor });
+  assert.equal(regressedCompare.ok, true, regressedCompare.error);
+  assert.equal(improvedCompare.ledger, regressedCompare.ledger); // same spec, same ledger file
+
+  const lines = readFileSync(improvedCompare.ledger, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].verdict, "improved");
+  assert.equal(lines[1].verdict, "not-improved");
+
+  const specLoaded = loadSpec(parent.specPath);
+  assert.equal(specLoaded.error, undefined);
+  const findings = lintSpec(specLoaded);
+  assert.deepEqual(findings.filter((f) => f.test === 9 && f.severity === "fail"), []);
 });
 
 test("no ledger line, and ledger stays null, when the spec declares no improvement.ledger", () => {

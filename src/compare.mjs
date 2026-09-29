@@ -102,6 +102,13 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
     } else {
       const ledgerAbs = resolve(specDir, ledgerDecl);
       const ledgerDir = dirname(ledgerAbs);
+      const childChange = child.change ?? null;
+      // R15: a compare line must satisfy test 9 ("it improves itself"), which only knows the
+      // verdict vocabulary one-shot/improved/not-improved — never a new "compare" verdict. A
+      // strictly higher child score is improved (and already carries change, which doubles as
+      // that verdict's required field). Equal or lower is not-improved, with a reason a later
+      // session can argue with; when it's a genuine regression (strictly lower, not merely tied)
+      // the reason is prefixed to say so.
       const line = {
         at: new Date().toISOString(),
         kind: "compare",
@@ -109,8 +116,15 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
         child: relative(ledgerDir, childRecipeAbs),
         scores: { parent: parentGraded.score, child: childGraded.score },
         regressed,
-        change: child.change ?? null,
+        change: childChange,
       };
+      if (childGraded.score > parentGraded.score) {
+        line.verdict = "improved";
+      } else {
+        line.verdict = "not-improved";
+        const reasonBase = `compare: child scored ${childGraded.score} vs parent ${parentGraded.score} after ${childChange}`;
+        line.reason = regressed ? `regression: ${reasonBase}` : reasonBase;
+      }
       appendFileSync(ledgerAbs, `${JSON.stringify(line)}\n`);
       ledgerPath = ledgerAbs;
     }
