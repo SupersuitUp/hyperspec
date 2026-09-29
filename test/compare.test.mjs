@@ -71,6 +71,7 @@ function writeRunner(dir) {
     `input=$(cat)
 first=$(printf '%s' "$input" | sed 's/.*"reads":\\[{"ref":"[^"]*","sha256":"[^"]*","path":"\\([^"]*\\)".*/\\1/')
 cat "$first"
+printf 'VERDICT {"pass":true}\\n' >&2
 `,
   );
   return path;

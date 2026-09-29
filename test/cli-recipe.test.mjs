@@ -82,14 +82,16 @@ function buildThreeStageParent(dir) {
 
 const sq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-// A pass-through runner: prints the bytes of the first (only) read. Deterministic, always exits 0.
-function passThroughRunner(dir) {
-  const path = join(dir, "pass-through.sh");
+// A pass-through runner: prints the bytes of the first (only) read and a passing verdict.
+// Deterministic, always exits 0. With silent, it reports no verdict at all.
+function passThroughRunner(dir, { silent = false } = {}) {
+  const path = join(dir, silent ? "pass-through-silent.sh" : "pass-through.sh");
   writeFileSync(
     path,
     `input=$(cat)
 first=$(printf '%s' "$input" | sed 's/.*"reads":\\[{"ref":"[^"]*","sha256":"[^"]*","path":"\\([^"]*\\)".*/\\1/')
 cat "$first"
+${silent ? "" : `printf 'VERDICT {"pass":true}\\n' >&2`}
 `,
   );
   return `/bin/sh ${sq(path)}`;
@@ -104,6 +106,7 @@ function failingRunner(dir, failStage) {
 stage=$(printf '%s' "$input" | sed 's/^{"stage":"\\([^"]*\\)".*/\\1/')
 if [ "$stage" = "${failStage}" ]; then echo "boom" >&2; exit 4; fi
 printf 'ok'
+printf 'VERDICT {"pass":true}\\n' >&2
 `,
   );
   return `/bin/sh ${sq(path)}`;
@@ -118,7 +121,7 @@ function failingVerdictRunner(dir, failStage) {
 stage=$(printf '%s' "$input" | sed 's/^{"stage":"\\([^"]*\\)".*/\\1/')
 first=$(printf '%s' "$input" | sed 's/.*"reads":\\[{"ref":"[^"]*","sha256":"[^"]*","path":"\\([^"]*\\)".*/\\1/')
 cat "$first"
-if [ "$stage" = "${failStage}" ]; then printf 'VERDICT {"station":"s","pass":false,"note":"nope"}\\n' >&2; fi
+if [ "$stage" = "${failStage}" ]; then printf 'VERDICT {"station":"s","pass":false,"note":"nope"}\\n' >&2; else printf 'VERDICT {"pass":true}\\n' >&2; fi
 `,
   );
   return `/bin/sh ${sq(path)}`;
@@ -440,6 +443,24 @@ test("regenerate: a failing verdict still writes the child, exit 1", () => {
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout, /child written despite failing verdict\(s\): compose/);
   assert.ok(existsSync(`${out}.recipe.json`));
+});
+
+test("regenerate: a runner that reports no verdict is a failing verdict, exit 1", () => {
+  const dir = project();
+  const { recipePath } = buildSimpleParent(dir);
+  const swapped = join(dir, "materials", "swapped.txt");
+  writeFileSync(swapped, "different bytes");
+  const out = join(dir, "essay-v2.md");
+  const r = run(
+    "regenerate", recipePath,
+    "--out", out, "--clicker", "gary-sheng",
+    "--swap-input", `note=${swapped}`,
+    "--run", passThroughRunner(dir, { silent: true }),
+  );
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /child written despite failing verdict\(s\): compose/);
+  const child = JSON.parse(readFileSync(`${out}.recipe.json`, "utf8"));
+  assert.deepEqual(child.stages[0].verdict, { station: "runner", pass: false, note: "runner reported no verdict" });
 });
 
 test("regenerate: no change flag is a usage error, exit 2", () => {

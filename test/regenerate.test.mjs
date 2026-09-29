@@ -52,7 +52,8 @@ requirements:
 // which stages ran and what they were handed), pulls the stage id and the first read's temp-file
 // path out of that JSON with sed (JSON.stringify fixes the field order: stage, reads, model; ref,
 // sha256, path), and prints the upper-cased bytes of that file followed by " [<stage>]". The
-// second argument names a stage to fail on, the third a verdict line for stderr ("-" for neither).
+// second argument names a stage to fail on, the third a verdict line for stderr ("-" for none).
+// runCmd passes a passing verdict unless a test asks for another, or for silence with "-".
 function writeRunner(dir) {
   const path = join(dir, "runner.sh");
   writeFileSync(
@@ -72,7 +73,7 @@ if [ "$3" != "-" ]; then printf 'some noise\\n%s\\n' "$3" >&2; fi
 
 // Single-quoted for sh, so a verdict argument may carry a real newline.
 const sq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-function runCmd(dir, { failOn = "-", verdict = "-", before = "" } = {}) {
+function runCmd(dir, { failOn = "-", verdict = 'VERDICT {"pass":true}', before = "" } = {}) {
   return `${before}/bin/sh ${sq(join(dir, "runner.sh"))} ${sq(join(dir, "run.log"))} ${sq(failOn)} ${sq(verdict)}`;
 }
 function runLog(dir) {
@@ -227,8 +228,18 @@ test("rerun stages carry the parent's model and recompute their key with the chi
     assert.deepEqual(s.model, parent.stages[i].model);
     assert.notEqual(s.key, parent.stages[i].key);
   });
-  // No reported verdict: the default one.
-  assert.deepEqual(child.stages[0].verdict, { station: "runner", pass: true, note: "no verdict reported" });
+  // A bare passing verdict gets the default station and note.
+  assert.deepEqual(child.stages[0].verdict, { station: "runner", pass: true, note: "" });
+});
+
+test("a runner that reports no verdict records a failing one, and the stage counts as a failed verdict", () => {
+  const dir = project();
+  const { recipePath } = buildParent(dir);
+  const res = regenerate(recipePath, { out: join(dir, "essay-v2.md"), clicker: "gary-sheng", change: { factoryVersion: "0.4.0" }, run: runCmd(dir, { verdict: "-" }) });
+  assert.equal(res.ok, true, res.error);
+  const child = readRecipe(res.childRecipe).data;
+  for (const s of child.stages) assert.deepEqual(s.verdict, { station: "runner", pass: false, note: "runner reported no verdict" });
+  assert.deepEqual(res.failedVerdicts, ["outline", "notes", "draft"]);
 });
 
 test("the child passes checkRecipe except approver, and reproduces once approved", () => {

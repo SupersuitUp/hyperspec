@@ -1,7 +1,8 @@
 // The runner `hyperspec regenerate --run "node runner.mjs"` calls once per stage it must rerun.
 // stdin: { stage, reads: [{ ref, sha256, path }], model }. Each read is a temp file holding the
 // exact bytes that ref resolved to. stdout: the stage's output, byte for byte. The last stderr
-// line starting "VERDICT " is the stage's verdict.
+// line starting "VERDICT " is the stage's verdict. A runner that prints none fails the stage:
+// silence is not a verdict.
 import { readFileSync } from "node:fs";
 import { claims, draft, terms, verdict } from "./stages.mjs";
 

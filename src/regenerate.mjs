@@ -254,6 +254,8 @@ function markPending(stage, key) {
 // Runs one stage through the caller's runner. The runner gets, on stdin, the stage id, its
 // resolved reads (each materialized from its blob into a temp file) and its model; its stdout,
 // byte for byte, is the stage's output. A final `VERDICT {...}` line on stderr is the verdict.
+// A runner that reports no verdict gets a failing one: silence is not a verdict, and a recipe
+// must never claim a station checked something that nothing checked.
 function runStage(run, recipe, index, fetch) {
   const stage = recipe.stages[index];
   const tmp = mkdtempSync(join(tmpdir(), "hyperspec-run-"));
@@ -286,7 +288,7 @@ function runStage(run, recipe, index, fetch) {
 
 function parseVerdict(stderr) {
   const lines = stderr.split(/\r?\n/).filter((l) => l.startsWith("VERDICT "));
-  if (!lines.length) return { value: { station: "runner", pass: true, note: "no verdict reported" } };
+  if (!lines.length) return { value: { station: "runner", pass: false, note: "runner reported no verdict" } };
   const text = lines[lines.length - 1].slice("VERDICT ".length).trim();
   let value;
   try { value = JSON.parse(text); } catch (e) { return { error: `invalid VERDICT line from the runner: ${e.message}` }; }
