@@ -16,11 +16,24 @@ import { splitSegments } from "../src/segments.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
 import { str } from "../src/placeholder.mjs";
+import { runCheck } from "../src/check.mjs";
 
 const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
+  check <spec> --draft <file> [--json] [--only a,b]
+                               lint the spec first (a spec that does not pass lint, or is
+                               blocked, exits with lint's own code and runs no station: a draft
+                               cannot be checked against a spec that is not ready); then run
+                               every deterministic station (or the --only subset, by name) against
+                               the draft, printing pass, fail (with findings) or skip (with a
+                               reason) per station; appends one line to the spec's
+                               improvement.ledger (declaring one is required to pass lint) naming
+                               the stations' verdicts: one-shot, improved, or not-improved with a
+                               reason
+                               exit 0 every run station passed, 1 a station failed, 2 usage
+                               (including a missing draft file or an unknown --only name)
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
   init <file> --profile writing [--title T] [--form F] [--fiction]
                                write a writing-profile skeleton: every required block (materials,
@@ -280,6 +293,56 @@ if (cmd === "lint") {
     for (const f of r.findings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
   }
   process.exit(worst);
+}
+
+if (cmd === "check") {
+  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--draft", "--only"], boolFlags: ["--json"] });
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [specPath] = parsed.positionals;
+  const json = parsed.values["--json"];
+  if (!specPath) { console.error("check needs a spec path"); process.exit(2); }
+  if (!parsed.values["--draft"]) { console.error("check needs --draft <file>"); process.exit(2); }
+  const only = parsed.values["--only"]
+    ? parsed.values["--only"].split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
+  const result = runCheck(specPath, parsed.values["--draft"], { only });
+
+  // Usage errors (an unreadable spec, an unknown --only name, a missing draft file) are always a
+  // plain message, exit 2, the same as every other usage error in this CLI; --json is for a
+  // result, not for this.
+  if (result.usage) {
+    console.error(result.error);
+    process.exit(2);
+  }
+
+  if (result.lintBlocked) {
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else {
+      const r = result.lintScore;
+      console.log(`${result.specPath}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
+      for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
+      for (const f of result.lintFindings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
+      console.log("no stations run: the spec is not ready (run `hyperspec lint` on it for details)");
+    }
+    process.exit(result.code);
+  }
+
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    for (const s of result.stations) {
+      if (s.status === "skip") { console.log(`${s.station}: skip (${s.reason})`); continue; }
+      console.log(`${s.station}: ${s.status}`);
+      for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (line ${finding.line})` : ""}\n    fix: ${finding.fix}`);
+    }
+    if (result.verdict) {
+      const detail = result.verdictDetail.change ?? result.verdictDetail.reason;
+      console.log(`verdict: ${result.verdict}${detail ? ` (${detail})` : ""}`);
+    }
+    if (result.ledgerWarning) console.log(`warn: ${result.ledgerWarning}`);
+  }
+  process.exit(result.code);
 }
 
 // Generic flag/positional parser for the recipe verbs below. A value-taking flag (valueFlags,
