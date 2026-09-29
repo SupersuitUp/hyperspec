@@ -280,6 +280,7 @@ if (cmd === "regenerate") {
       console.log(`pending; stages waiting for a runner: ${waiting.join(", ") || "(none)"}`);
       printPlan(result.plan);
       console.log(`child recipe: ${result.childRecipe}`);
+      console.log("a pending child cannot be finished in place yet; to produce the output, rerun regenerate on the parent with --run <command> and a new --out");
     }
     process.exit(3);
   }

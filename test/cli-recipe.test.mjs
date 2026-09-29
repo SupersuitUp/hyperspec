@@ -407,6 +407,7 @@ test("regenerate: no --run leaves the changed stage pending, exit 3", () => {
   const r = run("regenerate", recipePath, "--out", out, "--clicker", "gary-sheng", "--swap-input", `note=${swapped}`);
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stdout, /pending; stages waiting for a runner: compose/);
+  assert.match(r.stdout, /rerun regenerate on the parent with --run <command> and a new --out/);
   assert.ok(existsSync(`${out}.recipe.json`));
   assert.ok(!existsSync(out));
 });
