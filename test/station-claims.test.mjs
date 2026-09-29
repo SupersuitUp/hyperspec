@@ -92,6 +92,17 @@ test("a claim with no source fails as unsourced", () => {
   assert.equal(f.severity, "fail");
 });
 
+test("an unsourced claim names its ledger line as such and carries the draft line where the claim appears", () => {
+  const { spec } = workspace([{ text: "first claim", source: "notes#s1" }, { text: "a hyperspec is a contract", source: "" }]);
+  const result = run(spec, draftOf("Intro, first claim.\n\nSecond paragraph.\n\nSomewhere: a hyperspec is a contract.\n"));
+  const f = result.findings.find((x) => x.id === "station-claims-unsourced");
+  assert.match(f.message, /^ledger line 2, "a hyperspec is a contract",/);
+  assert.equal(f.line, 5);
+  const stale = run(workspace([{ text: "not in the draft", source: "x" }]).spec, draftOf("Nothing here.\n")).findings[0];
+  assert.match(stale.message, /^ledger line 1, "not in the draft",/);
+  assert.equal("line" in stale, false, "a stale claim has no draft line to point at");
+});
+
 test("a placeholder source (TODO) counts as missing", () => {
   const { spec } = workspace([{ text: "a hyperspec is a contract", source: "TODO" }]);
   const draft = draftOf("Somewhere: a hyperspec is a contract, stated plainly.");

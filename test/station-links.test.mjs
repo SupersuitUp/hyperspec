@@ -197,12 +197,29 @@ test("a reference with no matching definition fails as undefined, naming the lab
   assert.match(result.findings[0].message, /"nope" has no matching/);
 });
 
-test("a shortcut reference with no matching definition also fails as undefined", () => {
+// A bare "[label]" is a shortcut reference only when a definition for that label exists; with none
+// it is ordinary text, the way CommonMark renders it: an editorial [sic], a task-list [x], a
+// footnote-style [1].
+test("a bare [label] with no definition is ordinary text, not a link: [sic], [x] and [1] pass", () => {
   const dir = tempDir("hs-links-");
-  const draft = draftIn(dir, "See [some random note] here, never defined.");
+  const draft = draftIn(dir, "She said the report owns the agenda [sic].\n\n- [x] done\n- [ ] not done\n\nAs shown before [1], and [some random note] here.\n");
   const result = run({ dir }, draft);
+  assert.equal(result.status, "pass", JSON.stringify(result.findings));
+  assert.deepEqual(result.findings, []);
+});
+
+test("a collapsed reference [text][] with no definition still fails as undefined", () => {
+  const dir = tempDir("hs-links-");
+  const result = run({ dir }, draftIn(dir, "See [the spec][] here, never defined.\n"));
   assert.equal(result.status, "fail");
   assert.equal(result.findings[0].id, "station-links-undefined-reference");
+});
+
+test("a bare https:// with no host at all fails as malformed", () => {
+  const dir = tempDir("hs-links-");
+  const result = run({ dir }, draftIn(dir, "See https:// and nothing else.\n"));
+  assert.equal(result.status, "fail");
+  assert.equal(result.findings[0].id, "station-links-malformed");
 });
 
 test("a definition line's own URL is not also counted as a bare URL", () => {

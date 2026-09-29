@@ -10,15 +10,13 @@
 //   - inline: [text](url)
 //   - reference, full or collapsed: [text][ref] / [ref][], resolved against a [ref]: url
 //     definition elsewhere in the draft (label matching is case-insensitive and whitespace-
-//     collapsed); a reference with no matching definition is its own
-//     finding, station-links-undefined-reference, naming the label -- this is a MECHANICAL match
-//     on bracket syntax, not CommonMark's true link-vs-plain-text disambiguation, so an ordinary
-//     "[bracketed note]" with no definition anywhere reads as an undefined reference too. Narrow
-//     and literal on purpose, matching this codebase's own convention (see form.mjs's
-//     required_parts matching) rather than attempting real ambiguity resolution.
-//   - shortcut reference: [ref] alone (no second bracket pair), resolved the same way once every
-//     inline link, reference definition and full/collapsed reference has already been matched and
-//     masked out of the text, so a shortcut can only ever be what is left over.
+//     collapsed); a full or collapsed reference with no matching definition is its own
+//     finding, station-links-undefined-reference, naming the label, since the second bracket
+//     pair says a link was meant.
+//   - shortcut reference: [ref] alone (no second bracket pair), checked only when a definition
+//     for that label exists, once every inline link, reference definition and full/collapsed
+//     reference has already been matched and masked out of the text. With no definition it is
+//     ordinary text, as CommonMark renders it: [sic], a task-list [x], a footnote-style [1].
 //
 // Anchors: the "#fragment" part of any link is stripped before checking anything else, so
 // "notes.md#section-two" is checked as "notes.md" (its target heading is never verified), and a
@@ -96,9 +94,9 @@ function fullReferences(text) {
 
 // Every remaining "[label]" span, in document order: { start, end, label }. Run AFTER inline
 // links, definitions and full/collapsed references are already masked out, so whatever "[...]"
-// is left is either a genuine shortcut reference or ordinary bracketed prose with no way to tell
-// the two apart mechanically -- see the header comment's note on this being a deliberately literal
-// reading.
+// is left is either a shortcut reference or ordinary bracketed prose. The caller keeps only the
+// ones whose label has a definition: CommonMark renders an undefined "[label]" as plain text, so
+// an editorial [sic], a task-list [x] or a footnote-style [1] is never a link.
 const SHORTCUT_REF_RE = /\[([^\]]+)\]/g;
 
 function shortcutReferences(text) {
@@ -114,8 +112,9 @@ function shortcutReferences(text) {
 
 // Every bare "http://" or "https://" URL left in `text` (after every other link form has been
 // masked out of it), stopping at whitespace or a closing bracket/paren/angle-bracket that is more
-// likely to be surrounding punctuation than part of the URL itself.
-const BARE_URL_RE = /https?:\/\/[^\s)>\]]+/g;
+// likely to be surrounding punctuation than part of the URL itself. The host part may be empty,
+// so a bare "https://" is matched and fails as malformed rather than passing unseen.
+const BARE_URL_RE = /https?:\/\/[^\s)>\]]*/g;
 
 function bareUrls(text) {
   const out = [];
@@ -246,7 +245,7 @@ export function run(spec, draft) {
   const fullRefs = fullReferences(working);
   working = maskRanges(working, fullRefs);
 
-  const shortcutRefs = shortcutReferences(working);
+  const shortcutRefs = shortcutReferences(working).filter((r) => defs.has(normalizeLabel(r.label)));
   working = maskRanges(working, shortcutRefs);
 
   const bare = bareUrls(working);

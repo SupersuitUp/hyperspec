@@ -13,13 +13,14 @@
 // silently assume another file's invariant holds.
 
 import { appendFileSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { loadSpec } from "./load.mjs";
 import { lintSpec } from "./rules.mjs";
 import { score, exitCode } from "./score.mjs";
 import { sha256 } from "./hash.mjs";
 import { insideDir } from "./fsutil.mjs";
 import { STATIONS, STATION_NAMES } from "./stations/index.mjs";
+import { str } from "./placeholder.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
 
@@ -44,6 +45,17 @@ function priorCheckLines(text) {
     .filter((v) => v && typeof v === "object" && !Array.isArray(v) && v.kind === "check");
 }
 
+// A crash message with every absolute path in it made relative to the working directory, or cut to
+// "<path>/<file name>" when it lies outside it, so a station that hits a filesystem error never
+// prints this machine's layout.
+function withoutAbsolutePaths(message) {
+  return message.replace(/(?:[A-Za-z]:\\|\/)[^\s'"`,)]+/g, (p) => {
+    if (!isAbsolute(p)) return p;
+    const rel = relative(process.cwd(), p);
+    return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel : `<path>/${basename(p)}`;
+  });
+}
+
 // runStation(station, spec, draft, ctx): runs one station's run(spec, draft, ctx), converting a
 // throw into a single failing finding rather than letting it crash the whole command. A station
 // is pure and deterministic BY CONTRACT, but that contract is not enforced by the type system,
@@ -60,6 +72,7 @@ export function runStation(station, spec, draft, ctx) {
   try {
     return station.run(spec, draft, ctx);
   } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
     return {
       station: station.name,
       status: "fail",
@@ -67,7 +80,7 @@ export function runStation(station, spec, draft, ctx) {
         station: station.name,
         id: `station-${station.name}-crashed`,
         severity: "fail",
-        message: e?.message ?? String(e),
+        message: withoutAbsolutePaths(raw),
         fix: "Fix the station or file an issue; it should never throw.",
       }],
     };
@@ -84,6 +97,9 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
 
   const spec = loadSpec(specPathArg);
   if (spec.error) return { usage: true, error: spec.error };
+  // Every station reads the writing profile's blocks; a spec without it has nothing for them to
+  // read, and a run against it would fail quotations it has no materials for.
+  if (str(spec.data?.profile) !== "writing") return { usage: true, error: "check needs a writing spec (profile: writing)" };
 
   // --only: every name must be one this build's registry knows; unknown names are a usage error
   // (exit 2) rather than a silent no-op, and the run order always follows the registry, never the
@@ -115,7 +131,10 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   let draftBuf;
   try { draftBuf = readFileSync(resolve(draftPathArg)); }
   catch { return { usage: true, error: `cannot read draft: ${draftPathArg}` }; }
-  const text = draftBuf.toString("utf8");
+  // One leading UTF-8 BOM is not part of the draft's text: stripped here, so a heading on line 1
+  // is found and every offset and line number counts from the first real character. sha256 stays
+  // over the raw bytes.
+  const text = draftBuf.toString("utf8").replace(/^\uFEFF/, "");
   const draft = { path: draftPathArg, text, lines: splitLines(text), sha256: sha256(draftBuf) };
 
   const ctx = {};
@@ -124,10 +143,28 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   const code = failing.length ? 1 : 0;
 
   // ---- ledger: one line of evidence per check, only when the spec declares one -----------------
+  // What a line says, and why each reason is true:
+  //   - A run with --only is partial: verdict not-improved, reason "partial run: <stations>",
+  //     partial: true. Later verdicts ignore partial lines, so a subset never claims (or uses up)
+  //     the verdict for the whole draft.
+  //   - A full run compares with the most recent earlier FULL line for the same draft path (the
+  //     path relative to the spec's folder). "Changed" means the draft's bytes (draft_sha256) or
+  //     the spec's bytes (spec_sha256); files the spec names are not hashed.
+  //       none, and every station passes              -> one-shot
+  //       none, and a station fails                   -> not-improved "failing stations: X"
+  //       it failed, every station passes now         -> improved "stations now pass: X", exactly
+  //                                                      the stations that failed then and pass now
+  //       it passed, nothing changed, passing         -> not-improved "no change since the last passing check"
+  //       it passed, something changed, passing       -> not-improved "<what> changed; every station still passes"
+  //       failing now                                  -> not-improved "[<what> changed; |no change since
+  //                                                      the last check; ]still failing: X" when every
+  //                                                      failing station also failed then, else
+  //                                                      "[<what> changed; ]failing stations: X"
   let ledgerPath = null;
   let ledgerWarning = null;
   let verdict = null;
   let verdictDetail = {};
+  const partial = Boolean(only && only.length);
   const ledgerDecl = spec.data?.improvement?.ledger;
   if (present(ledgerDecl)) {
     if (!insideDir(spec.dir, ledgerDecl)) {
@@ -136,63 +173,57 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
       const ledgerAbs = resolve(spec.dir, ledgerDecl);
       let priorText = "";
       try { priorText = readFileSync(ledgerAbs, "utf8"); } catch { /* not written yet; a first check creates it */ }
-      const prior = priorCheckLines(priorText);
 
-      const passedNow = failing.length === 0;
-      const sameShaBefore = prior.some((l) => l.draft_sha256 === draft.sha256);
-      // Every prior check of THIS draft path (any sha: the spec, not just the draft, can be what
-      // changed between two checks) whose stations map recorded at least one failure.
-      const priorSamePathFailing = prior.filter((l) => l.draft === draft.path && Object.values(l.stations ?? {}).includes("fail"));
+      // The draft as the ledger records it: relative to the spec's folder, with forward slashes, so
+      // "./draft.md", "draft.md" and an absolute path are one history, and no absolute path lands
+      // in a ledger that is usually committed.
+      const draftKey = relative(resolve(spec.dir), resolve(draftPathArg)).split(sep).join("/");
+      const specSha = sha256(readFileSync(resolve(specPathArg)));
+      const statusNow = Object.fromEntries(results.map((r) => [r.station, r.status]));
+      const list = (names) => names.join(", ");
 
-      // Both one-shot and improved require !sameShaBefore: an already-checked, byte-identical
-      // draft is a REPEAT of a verdict already recorded, never a fresh one, whether or not that
-      // earlier history ever failed. Without this guard on "improved" too, a draft that failed
-      // once, was fixed once, and is then re-checked unchanged forever (exactly the common
-      // "confirm nothing regressed" workflow) would report "improved" on every single re-check,
-      // since priorSamePathFailing never empties out. The two verdicts differ only in whether
-      // this path's history ever failed:
-      //   - one-shot: passing now, this exact sha never checked before, AND no failing attempt
-      //     anywhere in this path's history either (nothing was ever wrong).
-      //   - improved: passing now, this exact sha never checked before, but an earlier line for
-      //     this path DID fail (something was wrong and this fresh draft fixes it).
-      // A repeat check of a sha already on record (pass or fail, improved or not) always falls
-      // through to the final else below, regardless of this path's failure history.
-      if (passedNow && !sameShaBefore && priorSamePathFailing.length === 0) {
-        verdict = "one-shot";
-      } else if (passedNow && !sameShaBefore && priorSamePathFailing.length > 0) {
-        verdict = "improved";
-        // The most recently written prior failing line for this path is the one this pass
-        // actually follows; its own failing station names are what "now pass" describes.
-        const last = priorSamePathFailing[priorSamePathFailing.length - 1];
-        const namesThen = Object.entries(last.stations ?? {}).filter(([, st]) => st === "fail").map(([n]) => n);
-        verdictDetail.change = `stations now pass: ${namesThen.join(", ") || "(none recorded)"}`;
-      } else if (!passedNow) {
+      if (partial) {
         verdict = "not-improved";
-        verdictDetail.reason = `failing stations: ${failing.join(", ")}`;
+        verdictDetail.reason = `partial run: ${list(results.map((r) => r.station))}`;
       } else {
-        // passedNow, and sameShaBefore: this exact draft was already checked, whatever this
-        // path's wider history looks like. A repeat check of a draft already on record, changed
-        // or not since, reports nothing new, so it falls to the closed vocabulary's only
-        // remaining bucket rather than re-claiming one-shot or improved a second time.
-        verdict = "not-improved";
-        verdictDetail.reason = "draft unchanged since a prior check that already passed";
+        const last = priorCheckLines(priorText).filter((l) => l.draft === draftKey && l.partial !== true).at(-1);
+        const failedThen = last ? Object.entries(last.stations ?? {}).filter(([, st]) => st === "fail").map(([n]) => n) : [];
+        const draftChanged = Boolean(last) && last.draft_sha256 !== draft.sha256;
+        const specChanged = Boolean(last) && last.spec_sha256 !== specSha;
+        const what = draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : draftChanged ? "draft" : null;
+        const passedNow = failing.length === 0;
+
+        if (!last) {
+          if (passedNow) verdict = "one-shot";
+          else { verdict = "not-improved"; verdictDetail.reason = `failing stations: ${list(failing)}`; }
+        } else if (passedNow && failedThen.length) {
+          const nowPass = failedThen.filter((n) => statusNow[n] === "pass");
+          if (nowPass.length) { verdict = "improved"; verdictDetail.change = `stations now pass: ${list(nowPass)}`; }
+          else { verdict = "not-improved"; verdictDetail.reason = `${what ? `${what} changed; ` : ""}stations that failed last time now skip: ${list(failedThen)}`; }
+        } else if (passedNow) {
+          verdict = "not-improved";
+          verdictDetail.reason = what ? `${what} changed; every station still passes` : "no change since the last passing check";
+        } else {
+          verdict = "not-improved";
+          const still = failing.every((n) => failedThen.includes(n));
+          const prefix = what ? `${what} changed; ` : still ? "no change since the last check; " : "";
+          verdictDetail.reason = `${prefix}${still ? "still failing" : "failing stations"}: ${list(failing)}`;
+        }
       }
 
-      const stationsMap = {};
-      for (const r of results) stationsMap[r.station] = r.status;
       const line = {
         at: new Date().toISOString(),
         kind: "check",
-        draft: draft.path,
+        draft: draftKey,
         draft_sha256: draft.sha256,
-        stations: stationsMap,
+        spec_sha256: specSha,
+        stations: statusNow,
+        ...(partial ? { partial: true } : {}),
         verdict,
         ...verdictDetail,
       };
       appendFileSync(ledgerAbs, `${JSON.stringify(line)}\n`);
-      // Reported exactly as the spec wrote it (improvement.ledger's own string), never resolved:
-      // every other path this command returns or prints is echoed as given, and the ledger's
-      // declared path already IS relative to spec.dir, so there is nothing to re-relativize.
+      // Reported exactly as the spec wrote it (improvement.ledger's own string), never resolved.
       ledgerPath = ledgerDecl;
     }
   }
@@ -204,6 +235,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
     draftSha256: draft.sha256,
     stations: results,
     failing,
+    partial,
     verdict,
     verdictDetail,
     ledgerPath,

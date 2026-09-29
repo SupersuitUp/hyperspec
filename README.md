@@ -44,7 +44,7 @@ test fails, 3 when every test passes but a decision is still open (blocked), and
 error or a file that cannot be read, has broken frontmatter, or is not a hyperspec.
 
 `hyperspec check` exits 0 when every station it ran passed, 1 when one failed, and 2 on a usage
-error or a draft that cannot be read. A spec that is not ready to check against exits with lint's
+error, a draft that cannot be read, or a spec without `profile: writing`. A spec that is not ready to check against exits with lint's
 own code, 1 or 3, and no station runs.
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2

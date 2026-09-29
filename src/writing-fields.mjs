@@ -372,16 +372,20 @@ function audienceFields(raw, d, here, idPrefix) {
   // checks are defined at first use. The KEY being absent is fine and does not change the
   // audience block's completeness (the same "absence is 0.4/0.5 behavior" shape scope_dir and
   // characters use elsewhere in this file): nothing below runs, and the block can still be
-  // complete with no terms: field at all. Present, though, every entry must be real text: a
-  // non-string entry is named on its own (mirroring the top-level `rejects` list's own item
-  // check in src/rules.mjs), and a list with a key but no real entries fails as a whole, the same
-  // "declared but empty" shape audience.knows already uses one line up.
+  // complete with no terms: field at all. Present, though, it must be a list of real text: a
+  // scalar is named as not a list, an empty list fails as a whole (the "declared but empty" shape
+  // audience.knows already uses one line up), and each non-string, placeholder or empty entry is
+  // named on its own (mirroring the top-level `rejects` list's own item check in src/rules.mjs).
   if (raw.terms !== undefined) {
-    const terms = list(raw.terms);
-    const notStrings = terms.map((x, i) => (x != null && typeof x !== "string" ? i + 1 : 0)).filter(Boolean);
-    notStrings.forEach((n) => out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${n} is not a plain string`, "Write each term as plain text, e.g. a word or short phrase.")));
-    if (!notStrings.length && !terms.some((x) => str(x))) {
+    if (!Array.isArray(raw.terms)) {
+      out.push(f(1, `${idPrefix}-terms`, "fail", "writing.audience.terms is not a list", "Write terms as a list, one term per line starting \"- \"."));
+    } else if (!raw.terms.length) {
       out.push(f(1, `${idPrefix}-terms`, "fail", "writing.audience.terms is present but has no real entries", "List at least one term, or remove terms: entirely; it is optional."));
+    } else {
+      raw.terms.forEach((x, i) => {
+        if (x != null && typeof x !== "string") out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${i + 1} is not a plain string`, "Write each term as plain text, e.g. a word or short phrase."));
+        else if (!str(x)) out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${i + 1} is ${typeof x === "string" && x.trim() ? "a placeholder" : "empty"}`, "Replace it with the real term, or remove the item."));
+      });
     }
   }
 

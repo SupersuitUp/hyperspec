@@ -35,7 +35,7 @@ import { join, resolve } from "node:path";
 import { str } from "../placeholder.mjs";
 import { measureFeatures, readScope } from "../dna.mjs";
 import { featuresStaleness } from "../writing-fields.mjs";
-import { maskCode } from "./util.mjs";
+import { lineAt, maskCode } from "./util.mjs";
 
 export const name = "dna";
 
@@ -92,7 +92,8 @@ export function run(spec, draft) {
   try { scopeFeatures = JSON.parse(readFileSync(featuresPath, "utf8")).features; } catch { scopeFeatures = null; }
   if (!isObj(scopeFeatures)) return skip(`writing.dna.scope_dir "${scopeDir}" has no features.json (or it is not valid JSON); ${measure}`);
 
-  const draftFeatures = measureFeatures([maskCode(draft.text)]);
+  const masked = maskCode(draft.text);
+  const draftFeatures = measureFeatures([masked]);
   const findings = [];
 
   const scopeEm = scopeFeatures.rates_per_1000_words?.em_dash;
@@ -103,6 +104,7 @@ export function run(spec, draft) {
       station: name,
       id: "station-dna-em-dash",
       severity: "warn",
+      line: lineAt(draft.text, masked.indexOf("\u2014")),
       message: `the draft uses em dashes (${fmt(draftEm)} per 1000 words); the scope's goldens use none (0)`,
       fix: "Rewrite each em dash as the punctuation the goldens use instead: a comma, a colon, parentheses or a new sentence.",
     });

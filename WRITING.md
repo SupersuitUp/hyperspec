@@ -827,13 +827,17 @@ links: pass
 verdict: one-shot
 ```
 
-`--only form,terms` runs just those stations, still in the fixed order. `--json` prints the whole
-result, every finding included. A finding names the draft line it points at where there is one,
-quotes at most 80 characters of the draft, and never prints an absolute path.
+`--only form,terms` runs just those stations, still in the fixed order, and its ledger line is
+marked partial (see [The runs ledger](#the-runs-ledger)). `--json` prints the whole result, every
+finding included; a spec that is not ready prints lint's result with `lintBlocked: true` instead,
+and a usage error prints `{ "spec", "draft", "error" }`. A finding names the draft line it points
+at where there is one, quotes at most 80 characters of the draft, and never prints an absolute
+path. A UTF-8 byte order mark at the start of the draft is ignored.
 
 Exit codes: **0** every station that ran passed (a skip or a warning does not fail it); **1** a
-station failed; **2** usage: no spec path, no `--draft`, a draft that cannot be read, or an
-unknown station name after `--only`; and lint's own **1** or **3** when the spec is not ready.
+station failed; **2** usage: no spec path, no `--draft`, a draft that cannot be read, a spec
+without `profile: writing`, or an `--only` that names no known station; and lint's own **1** or
+**3** when the spec is not ready.
 
 Every station is a plain function of the spec and the draft. None of them calls a model, and none
 of them touches the network. What each one checks, and what it cannot:
@@ -842,10 +846,12 @@ of them touches the network. What each one checks, and what it cannot:
 
 Counts the draft's words, by the same word definition `dna measure` uses, against
 `form.length`. Only `unit: words` is measured; any other unit skips the whole station rather than
-checking half of it. Every `required_parts` entry must appear as a Markdown heading of any level
-whose text equals the part, ignoring case, or as a line that starts with the part and a colon, for
-the fields a form fills in place (`To:`, `Subject:`). It cannot tell whether the section under a
-heading does what the part is for, so write `required_parts` as the headings the piece will carry,
+checking half of it. Every `required_parts` entry must appear as an ATX heading (`#` to
+`######`, indented at most three spaces, closing `#`s allowed) whose text equals the part,
+ignoring case, or as a line that starts with the part and a colon, for the fields a form fills in
+place (`To:`, `Subject:`). An underlined (Setext) heading does not count, and neither does
+anything inside a code block. It cannot tell whether the section under a heading does what the
+part is for, so write `required_parts` as the headings the piece will carry,
 as both examples do.
 
 | Id | Severity | Meaning |
@@ -889,8 +895,8 @@ what the claim says.
 |---|---|---|
 | `station-claims-ledger-missing` | fail | the ledger file does not exist or cannot be read |
 | `station-claims-json-line-<n>` | fail | ledger line n is not JSON, not an object, or has no `text` |
-| `station-claims-stale` | fail | a claim's text no longer appears in the draft |
-| `station-claims-unsourced` | fail, or warn under `unsourced_claim: warn` | a claim has no source, or only a placeholder |
+| `station-claims-stale` | fail | the claim on a ledger line no longer appears in the draft |
+| `station-claims-unsourced` | fail, or warn under `unsourced_claim: warn` | the claim on a ledger line has no source, or only a placeholder; points at the draft line where the claim appears |
 
 ### quotes
 
@@ -934,7 +940,8 @@ Runs when `dna.scope_dir` is set and its `features.json` is current. It measures
 way `dna measure` measures goldens and compares the sentence length mean, both paragraph length
 means, every per-1000-word punctuation rate, and the contraction and person rates with the
 scope's. For a scope value v, a draft value outside v ÷ 1.5 to the larger of v × 1.5 and v + 5 is
-reported with both values. An em dash in a draft whose scope has none is its own finding. Both
+reported with both values. An em dash in a draft whose scope has none is its own finding,
+pointing at the first one. Both
 are warnings and the station never fails: it measures, and whether a draft sounds like its writer
 is a judgment. The essay's warning is an example of what to read: its goldens are instructions in
 the second person, and the essay tells the author's own story in the first. With no `scope_dir`,
@@ -951,22 +958,25 @@ Every Markdown link (inline, reference, collapsed and shortcut) and every bare U
 `https` URL must parse and name a host, a `mailto:` link must carry an address, and any other
 scheme fails. A relative link must resolve to a file, relative to the draft's own folder; the
 part after `#` is not checked. A link that starts with `/` is relative to a site root the station
-cannot see, so it warns. A reference link needs its definition. Code blocks and inline code are
-ignored. It never touches the network, so it cannot tell you a URL is live.
+cannot see, so it warns. A full or collapsed reference, `[text][label]` or `[label][]`, needs a
+definition for its label. A bare `[label]` is a link only when that label has a definition;
+otherwise it is ordinary text, as Markdown renders it, so an editorial `[sic]`, a task list's
+`[x]` and a numbered note `[1]` pass. Code blocks and inline code are ignored. It never touches
+the network, so it cannot tell you a URL is live.
 
 | Id | Severity | Meaning |
 |---|---|---|
-| `station-links-malformed` | fail | an http or https URL with no host, or a `mailto:` with no address |
+| `station-links-malformed` | fail | an http or https URL with no host (a bare `https://` included), or a `mailto:` with no address |
 | `station-links-bad-scheme` | fail | a scheme other than http, https or mailto |
 | `station-links-broken-relative` | fail | a relative link names no file beside the draft |
 | `station-links-root-relative` | warn | a link starting with `/`, which cannot be resolved without the site |
-| `station-links-undefined-reference` | fail | a reference link whose label has no definition |
+| `station-links-undefined-reference` | fail | a full or collapsed reference link whose label has no definition |
 
 ### Any station
 
 | Id | Severity | Meaning |
 |---|---|---|
-| `station-<name>-crashed` | fail | the station threw; the other stations and the ledger line still run |
+| `station-<name>-crashed` | fail | the station threw; the message is the error's, with any absolute path shortened; the other stations and the ledger line still run |
 
 ### The runs ledger
 
@@ -974,17 +984,28 @@ Each `check` appends one line to the spec's `improvement.ledger`, the same file 
 reads:
 
 ```json
-{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass"},"verdict":"one-shot"}
+{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass"},"verdict":"one-shot"}
 ```
 
-`draft` is the path as you gave it and `stations` holds each run station's status. The verdict:
+`draft` is the draft's path relative to the spec's folder, however you spelled it, so one draft
+has one history. `draft_sha256` and `spec_sha256` hash the two files' bytes; the files the spec
+names (materials, the claims ledger, a scope folder) are not hashed, so "changed" below means the
+draft or the spec. `stations` holds each station's status.
 
-- **one-shot**: every station passed, this exact draft has not been checked before, and no
-  earlier check of the same draft path failed.
-- **improved**: every station passed on a draft not checked before, after an earlier check of the
-  same path failed; `change` names the stations that now pass.
-- **not-improved**: a station failed, and `reason` lists which; or the exact draft was already
-  checked, and `reason` says so.
+A run with `--only` is partial: its line carries `partial: true`, its verdict is `not-improved`
+with the reason `partial run: <stations>`, and later verdicts ignore it, so a subset never claims
+the verdict for the whole draft. A full run is compared with the most recent earlier full line for
+the same draft:
+
+- **one-shot**: there is none, and every station passes.
+- **improved**: that line failed and every station passes now; `change` names exactly the
+  stations that failed then and pass now.
+- **not-improved** otherwise, with a `reason` that says which case it is: `failing stations: ...`
+  on a first check that fails; `no change since the last passing check`; `draft changed; every
+  station still passes` (or `spec changed`, or `spec and draft changed`); `still failing: ...`,
+  after `no change since the last check;` or after what changed, when every failing station failed
+  last time too; `failing stations: ...` after what changed when a station fails that passed last
+  time; and `stations that failed last time now skip: ...` when a spec change stopped them running.
 
 A ledger path that leads outside the spec's folder is not written, and `check` prints a warning.
 

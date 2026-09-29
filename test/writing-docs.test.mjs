@@ -316,7 +316,7 @@ test("the page's sample claims ledger line is a line of the essay's own ledger",
 test("the page's sample runs-ledger line has exactly the fields check writes, and every station", async () => {
   const { STATION_NAMES } = await import("../src/stations/index.mjs");
   const sample = JSON.parse(fence(checkingSubs().find((s) => s.heading === "The runs ledger").body, "json"));
-  assert.deepEqual(Object.keys(sample), ["at", "kind", "draft", "draft_sha256", "stations", "verdict"]);
+  assert.deepEqual(Object.keys(sample), ["at", "kind", "draft", "draft_sha256", "spec_sha256", "stations", "verdict"]);
   assert.deepEqual(Object.keys(sample.stations), [...STATION_NAMES]);
   assert.equal(sample.kind, "check");
   const d = tempDir("hs-writing-doc-ledger-");

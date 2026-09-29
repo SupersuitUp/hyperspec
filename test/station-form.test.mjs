@@ -86,11 +86,22 @@ test("every missing part gets its own finding", () => {
   ]);
 });
 
-test("a heading with no leading whitespace only: an indented '#' line is not read as a heading", () => {
+// ATX headings as CommonMark reads them: up to three spaces of indent, and an optional closing run
+// of "#"s. Four spaces is indented code, not a heading.
+test("an ATX heading indented up to three spaces, or closed with #s, counts; four spaces does not", () => {
   const form = { ...FORM, required_parts: ["claim"] };
-  const draft = draftOf(`  # Claim\n\n${words(15)}`);
-  const result = run(specWith(form), draft);
-  assert.equal(result.findings.some((x) => x.id === "station-form-required-part-claim"), true);
+  for (const heading of ["  # Claim", "   ## Claim", "## Claim ##", "# Claim #"]) {
+    const result = run(specWith(form), draftOf(`${heading}\n\n${words(15)}`));
+    assert.equal(result.status, "pass", `${heading}: ${JSON.stringify(result.findings)}`);
+  }
+  const indented = run(specWith(form), draftOf(`    # Claim\n\n${words(15)}`));
+  assert.equal(indented.findings.some((x) => x.id === "station-form-required-part-claim"), true);
+});
+
+test("a heading or part: line inside a fenced code block does not count as the part", () => {
+  const form = { ...FORM, required_parts: ["claim", "to"] };
+  const result = run(specWith(form), draftOf(`\`\`\`\n# Claim\nTo: someone\n\`\`\`\n\n${words(15)}`));
+  assert.deepEqual(result.findings.map((x) => x.id).sort(), ["station-form-required-part-claim", "station-form-required-part-to"]);
 });
 
 test("length.unit other than words: skip, with a reason naming the unit, no findings", () => {

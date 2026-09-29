@@ -23,17 +23,18 @@ const HELP = `hyperspec <command> [options]
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
   check <spec> --draft <file> [--json] [--only a,b]
-                               lint the spec first (a spec that does not pass lint, or is
-                               blocked, exits with lint's own code and runs no station: a draft
-                               cannot be checked against a spec that is not ready); then run
-                               every deterministic station (or the --only subset, by name) against
-                               the draft, printing pass, fail (with findings) or skip (with a
-                               reason) per station; appends one line to the spec's
-                               improvement.ledger (declaring one is required to pass lint) naming
-                               the stations' verdicts: one-shot, improved, or not-improved with a
-                               reason
+                               needs a writing spec (profile: writing); lints it first (a spec
+                               that does not pass lint, or is blocked, exits with lint's own code
+                               and runs no station: a draft cannot be checked against a spec that
+                               is not ready); then runs every deterministic station (or the
+                               --only subset, by name) against the draft, printing pass, fail
+                               (with findings) or skip (with a reason) per station; appends one
+                               line to the spec's improvement.ledger with a verdict: one-shot,
+                               improved, or not-improved with a reason (an --only run is partial:
+                               not-improved, and ignored by later verdicts)
                                exit 0 every run station passed, 1 a station failed, 2 usage
-                               (including a missing draft file or an unknown --only name)
+                               (including a missing draft file, a spec without the writing
+                               profile, or an --only that names no known station)
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
   init <file> --profile writing [--title T] [--form F] [--fiction]
                                write a writing-profile skeleton: every required block (materials,
@@ -300,21 +301,26 @@ if (cmd === "check") {
   if (parsed.error) { console.error(parsed.error); process.exit(2); }
   const [specPath] = parsed.positionals;
   const json = parsed.values["--json"];
-  if (!specPath) { console.error("check needs a spec path"); process.exit(2); }
-  if (!parsed.values["--draft"]) { console.error("check needs --draft <file>"); process.exit(2); }
-  const only = parsed.values["--only"]
-    ? parsed.values["--only"].split(",").map((s) => s.trim()).filter(Boolean)
-    : undefined;
+  // A usage error exits 2: a plain message on stderr, or under --json one document on stdout,
+  // { spec, draft, error }, the way lint --json reports a file it could not read.
+  const usage = (error) => {
+    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error }, null, 2));
+    else console.error(error);
+    process.exit(2);
+  };
+  if (!specPath) usage("check needs a spec path");
+  if (!parsed.values["--draft"]) usage("check needs --draft <file>");
+  let only;
+  if (parsed.values["--only"] !== undefined) {
+    only = parsed.values["--only"].split(",").map((s) => s.trim()).filter(Boolean);
+    if (!only.length) usage("--only names no station");
+  }
 
   const result = runCheck(specPath, parsed.values["--draft"], { only });
 
-  // Usage errors (an unreadable spec, an unknown --only name, a missing draft file) are always a
-  // plain message, exit 2, the same as every other usage error in this CLI; --json is for a
-  // result, not for this.
-  if (result.usage) {
-    console.error(result.error);
-    process.exit(2);
-  }
+  // Usage errors (an unreadable spec, a spec without the writing profile, an unknown --only name,
+  // a missing draft file): exit 2, as above.
+  if (result.usage) usage(result.error);
 
   if (result.lintBlocked) {
     if (json) console.log(JSON.stringify(result, null, 2));

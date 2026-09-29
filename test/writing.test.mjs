@@ -650,6 +650,18 @@ test("audience: a non-string terms entry fails test 1, naming which entry", () =
   assert.equal(fails(s)[0].message, "writing.audience.terms item 2 is not a plain string");
 });
 
+test("audience: a placeholder terms entry beside a real one fails test 1, naming the entry", () => {
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms:\n      - TODO\n      - running agenda\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-terms"]]);
+  assert.equal(fails(s)[0].message, "writing.audience.terms item 1 is a placeholder");
+});
+
+test("audience: terms written as one value rather than a list fails test 1, saying so", () => {
+  const s = variant((t) => t.replace("    reader: person\n", "    reader: person\n    terms: running agenda\n"));
+  assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-audience-terms"]]);
+  assert.equal(fails(s)[0].message, "writing.audience.terms is not a list");
+});
+
 test("goal: change.kind outside belief/action/feeling fails test 1", () => {
   const s = variant((t) => t.replace("kind: belief", "kind: mindset"));
   assert.deepEqual(fails(s).map((x) => [x.test, x.id]), [[1, "writing-goal-change-kind"]]);

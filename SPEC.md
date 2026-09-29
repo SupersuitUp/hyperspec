@@ -236,7 +236,7 @@ A profile adds its own conditions to these rows. The writing profile's are in [W
 Every run of a skill that works from a hyperspec writes one line to the ledger named in `improvement.ledger`, one JSON object per line, with a `verdict`:
 
 - **one-shot**: no intervention, nothing to learn.
-- **improved**: the skill, the spec template, or a component library changed, and the line carries `change`, naming what changed.
+- **improved**: the skill, the spec template, or a component library changed, and the line carries `change`, naming what changed. On a `kind: "check"` line, which `hyperspec check` writes, it means the draft now passes every station after the last full check of it failed, and `change` names those stations.
 - **not-improved**: nothing changed, and the line carries `reason`, a reason a later session can argue with, such as "the correction was about this piece only" or "the fix belongs to a shipped skill and was filed as an issue".
 
 Silence is not a verdict. A run that learned nothing has to say so and why, and a ledger line with none of the three verdicts fails the ninth test.

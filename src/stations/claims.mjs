@@ -20,7 +20,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { str } from "../placeholder.mjs";
-import { truncate } from "./util.mjs";
+import { lineAt, truncate } from "./util.mjs";
 
 export const name = "claims";
 
@@ -34,6 +34,14 @@ function normalize(text) {
     .replace(/[“”„‟]/g, '"')
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Where a claim's text first appears in the original draft, under the same normalization the match
+// uses (any whitespace run for a space, any quote character for a quote), or -1.
+function firstOccurrence(text, claimText) {
+  const body = [...normalize(claimText)].map((c) => (c === " " ? "\\s+" : c === "'" ? "['‘’‚‛]" : c === '"' ? '["“”„‟]' : c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("");
+  const m = new RegExp(body).exec(text);
+  return m ? m.index : -1;
 }
 
 export function run(spec, draft) {
@@ -119,17 +127,19 @@ export function run(spec, draft) {
         station: name,
         id: "station-claims-stale",
         severity: "fail",
-        message: `ledger claim on line ${n}, "${tag}", does not appear verbatim in the draft`,
+        message: `ledger line ${n}, "${tag}", does not appear verbatim in the draft`,
         fix: "Update the ledger's text to match the draft exactly, or remove the stale claim.",
       });
     }
 
     if (!str(obj.source)) {
+      const at = firstOccurrence(draft.text, claimText);
       findings.push({
         station: name,
         id: "station-claims-unsourced",
         severity: unsourcedSeverity,
-        message: `ledger claim on line ${n}, "${tag}", has no source (or it is a placeholder)`,
+        ...(at >= 0 ? { line: lineAt(draft.text, at) } : {}),
+        message: `ledger line ${n}, "${tag}", has no source (or it is a placeholder)`,
         fix: "Add a real source: to the claim, or remove it from the ledger.",
       });
     }

@@ -16,19 +16,24 @@
 // sometimes names a field a form fills in inline rather than under its own heading (a memo's
 // "To:", an email's "Subject:"). Neither the schema nor the draft says which kind a given part
 // is, so both checks always run for every part, regardless of the form's name:
-//   - an ATX heading (1 to 6 "#" characters, no leading whitespace, then exactly one space)
-//     whose text, trimmed and case-folded, equals the part name; or
+//   - an ATX heading (up to three spaces of indent, 1 to 6 "#" characters, a space, the text, an
+//     optional closing run of "#"s) whose text, trimmed and case-folded, equals the part name; or
 //   - a line whose text, trimmed and case-folded, starts with the part name immediately
 //     followed by ":".
-// This is a literal, narrow reading on purpose: it will miss a heading spelled "## The Claim"
-// against a required part "claim", or one styled "**Claim**". Widening the match is a later
+// Fenced and inline code are masked first. This is a literal, narrow reading on purpose: it will
+// miss a heading spelled "## The Claim" against a required part "claim", a Setext heading
+// (underlined with === or ---), or one styled "**Claim**". Widening the match is a later
 // station's decision once real drafts show what this narrow reading actually misses.
 
 import { wordsOf } from "../dna.mjs";
+import { maskCode } from "./util.mjs";
 
 export const name = "form";
 
-const ATX_HEADING = /^(#{1,6}) (.*)$/;
+// An ATX heading as CommonMark reads it: up to three spaces of indent, 1 to 6 "#"s, then a space
+// or tab and the text (or nothing); an optional closing run of "#"s is not part of the text.
+const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
+const headingText = (m) => (m[2] ?? "").replace(/(^|[ \t]+)#+[ \t]*$/, "").trim();
 
 // A finding id's slug half: lowercase, non [a-z0-9] runs collapsed to one "-", no leading or
 // trailing "-". Falls back to `fallback` when nothing alphanumeric survives (e.g. a required
@@ -44,7 +49,7 @@ function partPresent(lines, part) {
   const needle = part.trim().toLowerCase();
   for (const line of lines) {
     const heading = ATX_HEADING.exec(line);
-    if (heading && heading[2].trim().toLowerCase() === needle) return true;
+    if (heading && headingText(heading).toLowerCase() === needle) return true;
     if (line.trim().toLowerCase().startsWith(`${needle}:`)) return true;
   }
   return false;
@@ -83,10 +88,13 @@ export function run(spec, draft) {
     });
   }
 
+  // Code is masked first, like every station that reads prose: a heading shown inside a fenced
+  // block is an example, not the draft's own part.
+  const lines = maskCode(draft.text).split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
   const parts = Array.isArray(form.required_parts) ? form.required_parts.filter((p) => typeof p === "string" && p.trim()) : [];
   const usedIds = new Set();
   for (const part of parts) {
-    if (partPresent(draft.lines, part)) continue;
+    if (partPresent(lines, part)) continue;
     let id = `station-form-required-part-${slug(part, "part")}`;
     // Two required parts that slug to the same string (e.g. "Close" and "close!") would
     // otherwise collide on one finding id; the second and later ones get a numeric suffix so

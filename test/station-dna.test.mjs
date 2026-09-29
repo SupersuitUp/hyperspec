@@ -73,6 +73,8 @@ test("an em dash in a draft whose scope never uses one is station-dna-em-dash, n
   assert.equal(r.findings[0].id, "station-dna-em-dash");
   assert.equal(r.findings[0].severity, "warn");
   assert.match(r.findings[0].message, /31\.25/);
+  assert.equal(r.findings[0].line, 1, "the em dash finding points at the first em dash");
+  assert.equal(run(spec, draftOf(`${OPENING}\n\nAnd then \u2014 more.\n`)).findings.find((x) => x.id === "station-dna-em-dash").line, 3);
 });
 
 test("an em dash inside fenced or inline code is not measured", () => {
