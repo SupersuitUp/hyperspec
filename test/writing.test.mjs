@@ -90,12 +90,20 @@ test("deferring a block with a delegated decision (and a rule) is not blocked an
   assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
 });
 
-test("a delegated decision with no rule still fails test 1, the ordinary decision rule, not a writing- id", () => {
+// R3: "delegated (with a rule)" is a precondition on the exemption, not a description of
+// delegated's normal shape. A rule-less delegated decision has deferred to nothing, so it does
+// not stand in for the block: writing-<block>-missing still fires, alongside the ordinary
+// decision-level delegated-rule finding (test 1) the ordinary decision rules already produce for
+// any delegated decision with no rule.
+test("R3: a delegated decision with no rule does NOT exempt the block: writing-<block>-missing fires alongside delegated-rule", () => {
   const s = variant((t) => t
     .replace(/  goal:\n(    .*\n|      .*\n)+  form:/, "  form:")
     .replace("decisions:\n", 'decisions:\n  - id: writing-goal\n    state: delegated\n    source: goal interview\n    author: gary-sheng\n    chosen_by: human\n'));
   const f = fails(s);
-  assert.deepEqual(f.map((x) => [x.test, x.id]), [[1, "delegated-rule"]]);
+  assert.deepEqual(f.map((x) => [x.test, x.id]).sort(), [[1, "delegated-rule"], [1, "writing-goal-missing"]].sort());
+  const sc = score(lintSpec(s), s.data);
+  assert.equal(sc.status, "fail");
+  assert.equal(exitCode(sc.status), 1);
 });
 
 test("writing.progress is forbidden: stored progress fails test 7 as writing-progress", () => {
@@ -131,6 +139,29 @@ test("characters: each character entry carries its own check, source and author,
   const f = fails(s);
   assert.deepEqual(f.map((x) => [x.test, x.id]), [[3, "writing-characters-1-check"], [4, "writing-characters-1-author"]]);
   const sc = score(lintSpec(s), s.data);
+  assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
+});
+
+// Fix round 1, Finding 1: a PRESENT but unrequired block (characters, with fiction: false) still
+// gets its content validated and still counts against completeness when broken. Before the fix,
+// `required()` gated the whole per-block loop body, so a written-but-broken characters block with
+// fiction: false produced zero findings and was credited complete.
+test("fix 1: a present characters block with fiction: false is still validated: missing check/source/author fails and is not counted complete", () => {
+  const s = variant((t) => t.replace("fiction: false", [
+    "  characters:",
+    "    - id: jerry",
+    "fiction: false",
+  ].join("\n") + "\n"));
+  const f = fails(s);
+  assert.deepEqual(f.map((x) => [x.test, x.id]), [
+    [3, "writing-characters-0-check"],
+    [4, "writing-characters-0-source"],
+    [4, "writing-characters-0-author"],
+  ]);
+  const sc = score(lintSpec(s), s.data);
+  assert.equal(sc.status, "fail");
+  // Every other block is complete (8), and the broken-but-written characters block is NOT
+  // credited just because it was unrequired: 8 of 9, not 9 of 9.
   assert.deepEqual(sc.profile, { name: "writing", complete: 8, total: 9 });
 });
 

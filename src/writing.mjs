@@ -40,17 +40,24 @@ function blockPresent(block, raw) {
   return isObj(raw) && Object.keys(raw).length > 0;
 }
 
-// A block is deferred when a decision with id "writing-<block>" exists in state open or
-// delegated. Open defers it to a question only a human can answer, so the spec is blocked on
-// that decision the same way any open decision blocks a spec (score.mjs already does this; no
-// separate mechanism is needed here). Delegated defers it to a standing rule the agent follows
-// instead of writing the block out. Either way the block's absence from writing: is not itself a
-// finding; the ordinary decision rules (test 1: has a question or a rule; test 4: source, author,
-// chosen_by) still apply to the decision entry, because it is a decision like any other.
+// A block is deferred when a decision with id "writing-<block>" exists in state open, or in
+// state delegated WITH a rule. Open defers it to a question only a human can answer, so the spec
+// is blocked on that decision the same way any open decision blocks a spec (score.mjs already
+// does this; no separate mechanism is needed here); it exempts the block on state alone, since
+// whether it also carries a well-formed question is the ordinary decision rule's job (test 1),
+// not this one's. Delegated defers it to a standing rule the agent follows instead of writing the
+// block out, and "delegated (with a rule)" is a precondition on the exemption, not just a
+// description of delegated's normal shape: a delegated decision with no rule has deferred to
+// nothing, so it does not stand in for the block, and writing-<block>-missing still fires
+// alongside the decision's own delegated-rule finding (test 1). Either way, when a deferral does
+// apply, the block's absence from writing: is not itself a finding.
 function deferredBy(decisions, block) {
   const d = decisions.find((x) => str(x?.id) === `writing-${block}`);
-  const st = d && str(d.state);
-  return st === "open" || st === "delegated" ? st : null;
+  if (!d) return null;
+  const st = str(d.state);
+  if (st === "open") return st;
+  if (st === "delegated" && str(d.rule)) return st;
+  return null;
 }
 
 // check: (station: or rubric:), source: and author: on one owner object (a block, or one
@@ -88,13 +95,19 @@ export function lintWriting(spec) {
   }
 
   for (const block of BLOCKS) {
-    if (!required(block, fiction)) continue;
     const raw = writing[block];
     if (!blockPresent(block, raw)) {
+      // Missing is only ever a finding for a REQUIRED block; an unrequired, unwritten block (only
+      // characters, only with fiction: false) is simply absent, nothing to check and nothing to
+      // defer. A required block's absence fails test 1, unless deferred.
+      if (!required(block, fiction)) continue;
       if (deferredBy(decisions, block)) continue;
       out.push(f(1, `writing-${block}-missing`, "fail", `writing.${block} is missing`, `Add writing.${block}, or defer it with a decision id "writing-${block}" in state open (a question) or delegated (a rule).`));
       continue;
     }
+    // Present, so its content is checked whether or not the block was required: an author who
+    // wrote a characters: list with fiction: false still owes it a real check/source/author on
+    // every entry, the same as any other present block.
     if (block === "characters") {
       raw.forEach((c, i) => {
         const cid = str(c?.id) || `#${i + 1}`;
@@ -109,9 +122,11 @@ export function lintWriting(spec) {
 }
 
 // Derives the "writing: k/9 blocks complete" count from the same data and findings lintWriting
-// just produced, so the two can never disagree. A block counts complete when it is required and
-// present with no fail-severity finding attributed to it, or when it is not required (characters,
-// with fiction: false) regardless of whether it was written at all.
+// just produced, so the two can never disagree. A block counts complete when it has no
+// fail-severity finding attributed to it AND (it is present, or it is simply not required, only
+// characters with fiction: false). A block that is present but unrequired is still held to the
+// same bar as any other present block: writing it with broken content does not count as complete
+// just because nothing required it to be written at all.
 export function blockStatus(data, findings) {
   const d = data || {};
   const writing = isObj(d.writing) ? d.writing : {};
@@ -119,8 +134,11 @@ export function blockStatus(data, findings) {
   const failedIds = new Set((Array.isArray(findings) ? findings : []).filter((x) => x.severity === "fail").map((x) => x.id));
   let complete = 0;
   for (const block of BLOCKS) {
-    if (!required(block, fiction)) { complete += 1; continue; }
-    if (!blockPresent(block, writing[block])) continue;
+    const present = blockPresent(block, writing[block]);
+    if (!present) {
+      if (!required(block, fiction)) complete += 1;
+      continue;
+    }
     const broken = [...failedIds].some((id) => typeof id === "string" && id.startsWith(`writing-${block}-`));
     if (!broken) complete += 1;
   }
