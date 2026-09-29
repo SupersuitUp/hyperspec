@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tempDir } from "./tmp.mjs";
 import { join } from "node:path";
 import { startRecipe } from "../src/writer.mjs";
@@ -451,4 +451,47 @@ test("a doctor score that overflows to Infinity or -Infinity is a usage error na
   assert.equal(negRes.ok, false);
   assert.equal(negRes.usage, true);
   assert.match(negRes.error, /numeric score/);
+});
+
+// ---- the bytes graded are the bytes each recipe records ----
+
+test("a parent output edited by hand since its recipe is refused before the doctor runs, and no ledger line is written", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" });
+  const childRecipe = buildChild(dir, parent, "x".repeat(12));
+  writeFileSync(parent.outputPath, "0123456789 plus three bullets added by hand");
+  const doctorLog = join(dir, "doctor-ran");
+
+  const res = compare(childRecipe, { doctor: `touch ${sq(doctorLog)}; ${doctorCmd(dir)}` });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.usage, undefined);
+  assert.equal(res.error, "parent output does not match its recipe; run hyperspec reproduce --restore");
+  assert.equal(existsSync(doctorLog), false, "the doctor never ran");
+  assert.equal(existsSync(join(dir, "runs.jsonl")), false, "nothing was written to the ledger");
+});
+
+test("a child output edited by hand since its recipe is refused the same way", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" });
+  const childRecipe = buildChild(dir, parent, "ab");
+  writeFileSync(join(dir, "essay-v2.md"), "an inflated child that would have scored higher");
+
+  const res = compare(childRecipe, { doctor: doctorCmd(dir) });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "child output does not match its recipe; run hyperspec reproduce --restore");
+  assert.equal(existsSync(join(dir, "runs.jsonl")), false);
+});
+
+test("a spec that moved since the parent was made is a warning, so text mode says so too", () => {
+  const dir = project();
+  const parent = buildParent(dir, { content: "0123456789" });
+  const childRecipe = buildChild(dir, parent, "abcdefghij");
+  const otherSpecPath = writeSpec(dir, { ledger: "other-runs.jsonl" });
+
+  const res = compare(childRecipe, { doctor: doctorCmd(dir), spec: otherSpecPath });
+
+  assert.equal(res.ok, true, res.error);
+  assert.deepEqual(res.warnings, ["spec changed since the parent was made; both outputs graded against the current file"]);
 });

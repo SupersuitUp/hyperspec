@@ -68,19 +68,30 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
   // graded against now differs from what the parent was made under. Both outputs still get graded
   // against this one spec file either way — never each against its own.
   const specChanged = parentRecipe.spec?.sha256 !== specHash;
+  if (specChanged) warnings.push("spec changed since the parent was made; both outputs graded against the current file");
 
   // ---- Output files, resolved against each recipe's own directory --------------------------------
   const childOutputPath = child.output?.path;
   if (!present(childOutputPath)) return failed("the child recipe has no output path");
   if (!insideDir(childDir, childOutputPath)) return failed("the child recipe's output path escapes its recipe directory");
   const childOutputAbs = resolve(childDir, childOutputPath);
-  try { readFileSync(childOutputAbs); } catch { return failed(`cannot read the child's output: ${childOutputPath}`); }
+  let childOutputBytes;
+  try { childOutputBytes = readFileSync(childOutputAbs); } catch { return failed(`cannot read the child's output: ${childOutputPath}`); }
 
   const parentOutputPath = parentRecipe.output?.path;
   if (!present(parentOutputPath)) return failed("the parent recipe has no output path");
   if (!insideDir(parentDir, parentOutputPath)) return failed("the parent recipe's output path escapes its recipe directory");
   const parentOutputAbs = resolve(parentDir, parentOutputPath);
-  try { readFileSync(parentOutputAbs); } catch { return failed(`cannot read the parent's output: ${parentOutputPath}`); }
+  let parentOutputBytes;
+  try { parentOutputBytes = readFileSync(parentOutputAbs); } catch { return failed(`cannot read the parent's output: ${parentOutputPath}`); }
+
+  // A score is attributed to a recipe, so the bytes graded must be the bytes that recipe records.
+  // A file edited by hand since (or never the recipe's output at all) would turn a hand edit into
+  // a regression or an improvement blamed on the change, and write that into the ledger. Refuse
+  // before the doctor runs; reproduce --restore puts the recorded bytes back.
+  const stale = (bytes, recipe) => sha256(bytes) !== recipe.output?.sha256;
+  if (stale(parentOutputBytes, parentRecipe)) return failed("parent output does not match its recipe; run hyperspec reproduce --restore");
+  if (stale(childOutputBytes, child)) return failed("child output does not match its recipe; run hyperspec reproduce --restore");
 
   // ---- Grade, same doctor command for both, same spec for both -----------------------------------
   const parentGraded = runDoctor(doctor, parentOutputAbs, specAbs);

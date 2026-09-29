@@ -612,3 +612,33 @@ test("compare: an unknown flag is a usage error, exit 2", () => {
   const r = run("compare", res.childRecipe, "--doctor", doctorCmd(dir), "--bogus");
   assert.equal(r.status, 2, r.stdout + r.stderr);
 });
+
+test("compare: a parent output edited by hand since its recipe exits 2 and names the fix", () => {
+  const dir = project();
+  const { recipePath, outputPath } = buildSimpleParent(dir, { content: "0123456789" });
+  const swapped = join(dir, "materials", "swapped.txt");
+  writeFileSync(swapped, "x".repeat(12));
+  const out = join(dir, "essay-v2.md");
+  const res = regenerate(recipePath, { out, clicker: "gary-sheng", change: { swapInput: { name: "note", path: swapped } }, run: passThroughRunner(dir) });
+  assert.equal(res.ok, true, res.error);
+  writeFileSync(outputPath, "0123456789 and a paragraph added by hand");
+
+  const r = run("compare", res.childRecipe, "--doctor", doctorCmd(dir));
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /parent output does not match its recipe; run hyperspec reproduce --restore/);
+});
+
+test("compare: text mode warns when the spec moved since the parent was made", () => {
+  const dir = project();
+  const { recipePath } = buildSimpleParent(dir, { content: "0123456789" });
+  const swapped = join(dir, "materials", "swapped.txt");
+  writeFileSync(swapped, "x".repeat(12));
+  const out = join(dir, "essay-v2.md");
+  const res = regenerate(recipePath, { out, clicker: "gary-sheng", change: { swapInput: { name: "note", path: swapped } }, run: passThroughRunner(dir) });
+  assert.equal(res.ok, true, res.error);
+  writeSpec(dir, { ledger: "runs.jsonl" }); // the spec on disk now differs from the one both were made from
+
+  const r = run("compare", res.childRecipe, "--doctor", doctorCmd(dir));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /warn: spec changed since the parent was made; both outputs graded against the current file/);
+});
