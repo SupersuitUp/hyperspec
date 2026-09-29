@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { cli, workspace, storyWorkspace, forStation, writeVerdict, ledgerLines, prepare, record, STORY_DRAFT } from "./judge-fixture.mjs";
-import { ATTRIBUTION_INSTRUCTIONS, EXCLUDED, SPEECH_VERBS, derive, dialogueLines, skipReason } from "../src/judges/attribution.mjs";
+import { ATTRIBUTION_INSTRUCTIONS, EXCLUDED, INVERTED_VERBS, SPEECH_VERBS, derive, dialogueLines, skipReason } from "../src/judges/attribution.mjs";
 
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 function ready(w = storyWorkspace()) {
@@ -154,6 +154,54 @@ test("a tag before a quote counts when it ends in a comma or colon; tags naming 
   ].join("\n"));
   assert.deepEqual(keyed(r), [["Water now.", "ines"], ["Why the big one?", "theo"], ["Not yet.", "ines"]]);
   assert.deepEqual(left(r), [["Water.", EXCLUDED.noTag], ["Hold on,", EXCLUDED.conflict]]);
+});
+
+test("the verb-then-name form is only for tag-only verbs: the person told, asked or called is never the speaker (R16)", () => {
+  assert.deepEqual(INVERTED_VERBS, ["said", "says", "replied", "replies", "whispered", "whispers", "shouted", "shouts", "went on", "goes on"]);
+  const draft = [
+    "Ines told Theo, \"Fine.\"",
+    "",
+    "Ines asked Theo, \"Are you sure?\"",
+    "",
+    "Ines called Theo, \"Come here.\"",
+    "",
+    "\"Fine,\" told Theo, still stunned.",
+    "",
+    "\"Fine,\" Ines told Theo.",
+    "",
+    "\"Are you sure?\" Ines asked Theo.",
+    "",
+    "\"Fine,\" said Ines.",
+    "",
+    "\"Sure,\" replied Theo.",
+    "",
+    "\"Wait,\" Ines added, and Theo answered nothing.",
+  ].join("\n");
+  for (const narrator of [null, "theo"]) {
+    const r = lines(draft, [INES, THEO], narrator);
+    assert.deepEqual(keyed(r), [["Fine,", "ines"], ["Are you sure?", "ines"], ["Fine,", "ines"], ["Sure,", "theo"], ["Wait,", "ines"]], `narrator ${narrator}`);
+    assert.deepEqual(left(r).map(([t, why]) => [t, why]), [["Fine.", EXCLUDED.noTag], ["Are you sure?", EXCLUDED.noTag], ["Come here.", EXCLUDED.noTag], ["Fine,", EXCLUDED.noTag]], `narrator ${narrator}`);
+    assert.ok(!r.lines.some((l) => l.speaker === "theo" && l.text !== "Sure,"), "never keyed to the person spoken to");
+  }
+});
+
+test("\"I told Theo\" keys to the narrator or is left out, never to theo; two candidates by any rule leave the line out (R16)", () => {
+  const draft = [
+    "\"Fine,\" I told Theo.",
+    "",
+    "I told Theo, \"Fine.\"",
+    "",
+    "I said, \"Fine,\" Theo said.",
+    "",
+    "She said, \"Now,\" I said.",
+    "",
+    "Ines said, \"Now,\" she said.",
+  ].join("\n");
+  const r = lines(draft, [INES, THEO], "ines");
+  // Ines narrates, so "she" is Theo: "Ines said ... she said" names two speakers and is left out.
+  assert.deepEqual(keyed(r), [["Fine,", "ines"]]);
+  assert.deepEqual(left(r), [["Fine.", EXCLUDED.noTag], ["Fine,", EXCLUDED.conflict], ["Now,", EXCLUDED.conflict], ["Now,", EXCLUDED.conflict]]);
+  assert.ok(!r.lines.some((l) => l.speaker === "theo"));
 });
 
 test("the narrator and the pronoun rules: \"I\" needs a narrator, \"she\" needs a two-hander with the narrator in it", () => {

@@ -16,7 +16,9 @@
 // The true speaker (ruling R11) comes ONLY from a speech tag: narration in the same paragraph that
 // sits right against the quote, directly after its closing mark (`"...," Ines said`, `"...," said
 // Ines`) or directly before its opening mark, ending in a comma or colon (`Ines said, "..."`). A
-// tag is a subject next to a verb from SPEECH_VERBS. The subject can be:
+// tag is a subject next to a verb from SPEECH_VERBS; the inverted form, verb before name ("said
+// Ines"), only with INVERTED_VERBS, since "Ines told Theo" names Theo as the one spoken to. The
+// subject can be:
 //   - a character's id or name, whole words, any case ("Ines said", "said Ines"); a possessive
 //     ("Ines's") is not a name, and an action beat ("Theo nodded") is not a tag;
 //   - "I", when persona.identity is character:<id>: the narrator speaks;
@@ -24,7 +26,8 @@
 //     characters have speech blocks and one of them is the narrator: the other one speaks.
 // Anything else leaves the line out, counted in the packet (excluded) and listed in the key with its
 // reason. The key must never be wrong, so every doubt excludes: no tag, a tag whose subject cannot
-// be resolved to a character with a speech block, tags naming two speakers.
+// be resolved to a character with a speech block, and any line whose tags yield two different
+// candidate speakers, by any of the rules above (ruling R16).
 //
 // A line of three or more words that contains, or is contained in, any character's golden or
 // rejected line (compared as lower-cased words) is left out too (ruling R13): shown beside the
@@ -47,6 +50,12 @@ export const SPEECH_VERBS = Object.freeze([
   "whispered", "whispers", "shouted", "shouts", "answered", "answers", "added", "adds", "went on", "goes on",
 ]);
 
+// The speech verbs that also make an inverted tag, verb before name ("said Ines"), ruling R16. The
+// rest (told, asked, called, answered, added) take a person as their object as often as they tag
+// speech ("Ines told Theo"), so for them only the name-then-verb form counts: an inversion there
+// would credit the person spoken to.
+export const INVERTED_VERBS = Object.freeze(["said", "says", "replied", "replies", "whispered", "whispers", "shouted", "shouts", "went on", "goes on"]);
+
 // Why a dialogue line was left out, as the key records it.
 export const EXCLUDED = Object.freeze({
   noTag: "no speech tag",
@@ -67,7 +76,9 @@ const texts = (v) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 const WORD = "\\p{L}\\p{N}";
 const HAS_WORD = new RegExp(`[${WORD}]`, "u");
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const VERB = `(?:${SPEECH_VERBS.map((v) => v.split(" ").map(escapeRe).join("\\s+")).join("|")})`;
+const verbAlternation = (verbs) => `(?:${verbs.map((v) => v.split(" ").map(escapeRe).join("\\s+")).join("|")})`;
+const VERB = verbAlternation(SPEECH_VERBS);
+const INVERTED = verbAlternation(INVERTED_VERBS);
 // A name or verb ends at a non-word character, and an apostrophe is not an end: "Ines's" is not "Ines".
 const END = `(?![${WORD}'’])`;
 const START = `(?<![${WORD}'’])`;
@@ -94,7 +105,7 @@ function tagMatchers(cast, narrator) {
   for (const c of cast) {
     for (const src of [nameSource(c.id), c.name ? nameSource(c.name) : null].filter(Boolean)) {
       const speaker = speakerOr(c.id);
-      out.push({ after: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${VERB}\\s+${src})${END}`, "iu"), before: new RegExp(`${START}(?:${src}\\s+${VERB}|${VERB}\\s+${src})\\s*[,:]\\s*$`, "iu"), speaker });
+      out.push({ after: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})${END}`, "iu"), before: new RegExp(`${START}(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})\\s*[,:]\\s*$`, "iu"), speaker });
     }
   }
   out.push({ after: new RegExp(`^\\s*I\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}I\\s+${VERB}\\s*[,:]\\s*$`, "u"), speaker: speakerOr(narratorId) });
