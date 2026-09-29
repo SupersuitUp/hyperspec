@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -155,6 +155,7 @@ test("essay: a lineup that failed, re-judged after a golden is added, is improve
   assert.equal(j.verdictDetail.change, "the DNA scope (dna/essay-new-managers-teach: scope.md and goldens) changed; stations now pass: lineup");
   const lines = ledger(d, "essay").filter((l) => l.station === "lineup");
   assert.notEqual(lines[0].packet_sha256, lines[1].packet_sha256);
+  assert.notEqual(lines[0].inputs_sha256, lines[1].inputs_sha256);
   assert.equal(lines[0].draft_sha256, lines[1].draft_sha256);
   assert.equal(lines[0].spec_sha256, lines[1].spec_sha256);
   // Recorded again on the same packet, a different answer is the judge, not the work.
@@ -163,6 +164,31 @@ test("essay: a lineup that failed, re-judged after a golden is added, is improve
   ({ j } = recordJson(d, "essay/judge/lineup.packet.json", "pass.verdict.json"));
   assert.equal(j.verdict, "not-improved");
   assert.equal(j.verdictDetail.reason, "the verdict changed; nothing the judge was shown changed");
+});
+
+test("essay: after a release rewords a station's instructions, the improved line says the packet's fixed text changed, not the DNA scope", () => {
+  const d = copy("hs-judge-ex-reworded-");
+  let { j } = recordJson(d, "essay/judge/lineup.packet.json", "essay/sample-verdicts/lineup.verdict.json");
+  assert.equal(j.status, "fail");
+  // A later hyperspec whose lineup instructions differ by one word, the DNA scope untouched.
+  const next = tempDir("hs-judge-next-release-");
+  for (const f of ["bin", "src", "package.json"]) cpSync(join(ROOT, f), join(next, f), { recursive: true });
+  symlinkSync(join(ROOT, "node_modules"), join(next, "node_modules"), "dir");
+  const lineupSrc = join(next, "src", "judges", "lineup.mjs");
+  const before = readFileSync(lineupSrc, "utf8");
+  const after = before.replace("judging by voice alone", "judging by the voice alone");
+  assert.notEqual(after, before);
+  writeFileSync(lineupSrc, after);
+  const nextCli = (args) => spawnSync(process.execPath, [join(next, "bin", "hyperspec.mjs"), ...args], { cwd: d, encoding: "utf8" });
+  assert.equal(nextCli(["judge", "prepare", "essay.hyperspec.md", "--draft", "essay/draft.md", "--out", "essay/judge", "--only", "lineup", "--force"]).status, 0);
+  const key = JSON.parse(readFileSync(join(d, "essay", "judge", "lineup.key.json"), "utf8"));
+  writeFileSync(join(d, "pass.verdict.json"), JSON.stringify({ pick: key.candidates.find((c) => c.source !== "draft").label, confidence: 0.3, reason: "a guess" }));
+  j = JSON.parse(nextCli(["judge", "record", "essay/judge/lineup.packet.json", "--verdict", "pass.verdict.json", "--json"]).stdout);
+  assert.equal(j.verdict, "improved");
+  assert.equal(j.verdictDetail.change, "the packet's fixed text (hyperspec's instructions or format) changed; stations now pass: lineup");
+  const lines = ledger(d, "essay").filter((l) => l.station === "lineup");
+  assert.equal(lines[0].inputs_sha256, lines[1].inputs_sha256);
+  assert.notEqual(lines[0].packet_sha256, lines[1].packet_sha256);
 });
 
 test("story: a persona that failed, re-judged after the missing claims are added, is improved, naming the claims ledger", () => {

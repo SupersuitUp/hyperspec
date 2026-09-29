@@ -26,7 +26,8 @@ keep lint's test 9 passing.
   each. Exit 0 written, 1 a station crashed, 2 usage, or lint's own 1 or 3.
 - The two blind tests write an answer key beside their packets, `lineup.key.json` and
   `attribution.key.json`, for a person to read. Hand a judge only the `*.packet.json` files, and
-  the two blind packets to a judge in a fresh context with no access to the draft: their
+  each of the two blind packets to its own fresh context, with no access to the draft and apart
+  from the other packets, which carry it: their
   instructions say to decide from the packet's inputs alone and open no file it names, but a judge
   that can open the draft can always cheat. `record` never reads a key: it builds it again.
 - `hyperspec judge record <packet> --verdict <file> [--json]` hashes the spec and the draft again
@@ -43,22 +44,24 @@ keep lint's test 9 passing.
   `goal.next_if_worked` now. `lineup`: the draft's paragraph nearest the goldens' median length
   beside up to three goldens' paragraphs, each reflowed to one line and shuffled with a seed
   derived from the draft's full text, which the packet does not carry, so the packet cannot reveal
-  the order; it passes when the judge picks a golden, which a random pick does three times in four.
+  the order (a draft that is one paragraph and nothing else skips, since its hash would name its
+  candidate); it passes when the judge picks a golden, which a random pick does three times in four.
   `reader`: where the audience's reader got lost (warnings) or stopped, and whether they would
   take their own next step. `persona`: every break of stance, assertion, `will_not_say` or an
   unsourced fact, against the claims ledger's texts (`null` with no ledger, and then no
   unsourced fact may be reported). `attribution`, fiction only: the speaker of each dialogue line
   whose speech tag names one, scored per speaker and averaged, passing at 80 percent; a line whose
-  speaker is in doubt (a split quote whose joining narration names a second speaker included), or
-  that repeats a golden or rejected line, is left out and counted, so the
-  key is never wrong (the worked story tests 19 of its 36 lines). `knowledge`, fiction only: every
+  speaker is in doubt (a split quote joins only across exactly one speech tag, and the part after
+  any longer narration is left out), or that repeats a golden or rejected line, is left out and
+  counted, so the key is never wrong (the worked story tests 19 of its 36 lines). `knowledge`, fiction only: every
   place a character knows something before their timeline gives it to them.
-- Judge ledger lines carry `packet_sha256`, the hash of what the judge was shown, and follow
-  check's rules against the last judge line for the same station and draft, saying `judgment`
-  where check says `check` ("no change since the last passing judgment"), with three more: what
-  changed is judged by the packet, naming the draft, the spec, or the file the station reads
-  besides them (the DNA scope, the claims ledger), so adding the golden or the claims a failing
-  station asked for and passing is improved; one-shot needs draft bytes never judged by that
+- Judge ledger lines carry `packet_sha256`, the hash of what the judge was shown, and
+  `inputs_sha256`, the hash of its inputs, and follow check's rules against the last judge line
+  for the same station and draft, saying `judgment` where check says `check` ("no change since the
+  last passing judgment"), with three more: what changed is judged by the packet, naming the
+  draft, the spec, the file the station reads besides them when the inputs changed (the DNA scope,
+  the claims ledger), or the packet's fixed text when only that changed, so adding the golden or
+  the claims a failing station asked for and passing is improved; one-shot needs draft bytes never judged by that
   station under any name; and improved needs the packet to have changed, since a judge answering
   differently about the same packet is not the work improving ("the verdict changed; nothing the
   judge was shown changed").

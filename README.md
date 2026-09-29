@@ -228,7 +228,8 @@ npx @supersuit/hyperspec judge record essay/judge/doctor.packet.json --verdict d
 Hand the judge the `*.packet.json` files only: the answer keys are written beside them. Give the
 two blind packets (`lineup`, `attribution`) to a judge in a fresh context with no access to the
 draft, such as a new conversation, never to an agent working in the draft's folder: a judge that
-can open the draft can always find the answer, whatever the packet tells it. `learn`
+can open the draft can always find the answer, whatever the packet tells it. Give each blind
+packet its own context, apart from the other packets too, since those carry the draft. `learn`
 closes the loop from the other end. Given the first draft a factory wrote and the draft a person
 approved, `learn prepare` lists the edits, a judge names the spec block that should have prevented
 each, and `learn record` counts them by block and names one next move, such as "add a golden or a

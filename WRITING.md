@@ -1063,7 +1063,9 @@ attribution answer. Both stations' instructions tell the judge to decide from th
 alone and open no file the packet names, and a judge with file access can still ignore that, so
 the instruction is not a guarantee. Paste the packet into a new conversation, or hand it to a
 person who has not read the draft, rather than to an agent working in the folder the draft is in.
-The other four packets carry the draft in their inputs and hide nothing.
+The other four packets carry the draft in their inputs and hide nothing, which is why each blind
+packet goes to its own context, apart from the other packets as well as from the folder: a judge
+that has read the doctor, reader or persona packet has read the draft.
 
 Exit codes for `prepare`: **0** written; **1** a station crashed; **2** usage: no spec path, no
 `--draft`, no `--out`, an `--out` that is missing or not a folder, a draft that cannot be read, a
@@ -1184,7 +1186,8 @@ step. It passes when every condition passes and the reader would take the next s
 
 A blind test of voice. Applies when `writing.dna` names a `scope_dir` whose goldens can be read
 and its check has a rubric, at least one golden has a prose paragraph, and the draft has a prose
-paragraph that is not already a golden's. A prose paragraph is a run of non-blank lines that are
+paragraph that is not already a golden's. A draft that is one paragraph and nothing else is
+skipped: its candidate would be the whole file, and the packet's `draft_sha256` would identify it. A prose paragraph is a run of non-blank lines that are
 all plain text: headings and code fences end one, and a block holding a list item, a quotation, a
 table row, a thematic break or HTML is left out whole, as is indented code.
 
@@ -1258,10 +1261,13 @@ least two speakers.
 
 A dialogue line is a double-quoted span, straight or curly, inside one paragraph, outside code. A
 quote split by a speech tag (`"Twenty minutes," Ines said, "then we fold it."`) is one line when
-its first part and the tag both end in a comma. The narration joining the parts is read as a tag
-for the part after it too, and may hold only one speech verb, so `"Leave it there," Ines said, and
-Theo said, "No chance at all."` names two speakers and is left out, as is `Ines said to Theo, who
-said,` between the parts. A line's speaker comes only from a speech tag:
+its first part ends in a comma and the narration between the parts is exactly one tag and its
+comma, nothing else. Narration that holds anything more joins nothing: in `"Leave it there," Ines
+said, and Theo muttered, "No chance at all."` the first part is Ines's, and the second is left
+out, since a second speaker brought in by a beat, a pronoun or a verb off the list cannot be read
+mechanically. The second part is left out whatever ends that narration, even another tag (`Ines
+said, and Theo said,`), and so is the second part of `"Twenty minutes," Ines said, wiping her
+hands, "then we fold it."`. A line's speaker comes only from a speech tag:
 narration in the same paragraph directly after the closing mark (`"...," Ines said`) or directly
 before the opening mark, ending in a comma or colon (`Ines said, "..."`). A tag is a subject and
 one of the verbs said, asked, told, replied, called, whispered, shouted, answered, added and went
@@ -1341,19 +1347,22 @@ them by order. Write `by` as something a reader of the draft can find.
 Each recorded verdict appends one line to the spec's `improvement.ledger`:
 
 ```json
-{"at":"2026-09-29T16:27:36.883Z","kind":"judge","station":"lineup","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","packet_sha256":"<sha256 of the packet>","status":"fail","verdict":"not-improved","reason":"failing stations: lineup"}
+{"at":"2026-09-29T16:27:36.883Z","kind":"judge","station":"lineup","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","packet_sha256":"<sha256 of the packet>","inputs_sha256":"<sha256 of its inputs>","status":"fail","verdict":"not-improved","reason":"failing stations: lineup"}
 ```
 
 `draft` is relative to the spec's folder, as in a check line. `packet_sha256` is the SHA-256 of
 the packet the judge was shown, taken with its two paths written as the ledger writes them
 (relative to the spec's folder), so the same packet prepared from another folder, or as
-`./draft.md`, hashes the same. The verdict follows the same rules as a check line, compared with
+`./draft.md`, hashes the same. `inputs_sha256` is the SHA-256 of the packet's `inputs` alone. The
+verdict follows the same rules as a check line, compared with
 the most recent earlier judge line for the same station and the same draft, with three more:
 
 - **What changed** is judged by the packet. The draft or the spec is named when its bytes
-  changed; when neither did and the packet did, the files the station reads besides them are
-  named: `the DNA scope (<scope_dir>: scope.md and goldens)` for `lineup`, `the claims ledger
-  (<path>)` for `persona`. So adding the golden a failing lineup asked for, or the claims a
+  changed. When neither did and the packet's inputs did, the files the station reads besides them
+  are named: `the DNA scope (<scope_dir>: scope.md and goldens)` for `lineup`, `the claims ledger
+  (<path>)` for `persona`. When only the rest of the packet changed, which a later hyperspec
+  release can do by rewording a station's instructions, the reason says `the packet's fixed text
+  (hyperspec's instructions or format) changed`. So adding the golden a failing lineup asked for, or the claims a
   failing persona asked for, and passing on the new packet is `improved`, "the DNA scope
   (dna/essay-new-managers-teach: scope.md and goldens) changed; stations now pass: lineup". An
   improved judge line always names what changed, "draft changed; stations now pass: doctor".

@@ -327,6 +327,25 @@ test("lineup is skipped when the draft has no prose paragraph", () => {
   assert.deepEqual(readdirSync(w.out), []);
 });
 
+test("lineup is skipped when the draft is one paragraph: its candidate would be the whole draft, which draft_sha256 identifies", () => {
+  const whole = "The draft is one short paragraph and nothing else, so its candidate is all of it.";
+  for (const draft of [`${whole}\n`, whole, "The draft is one short paragraph and nothing else,\nso its candidate is all of it.\n"]) {
+    const w = forStation(workspace({ draft }), "lineup");
+    const r = prepare(w, "--only", "lineup");
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /^lineup: skip \(the draft is one paragraph, the passage the lineup would show, so the packet's draft_sha256 could identify it\)$/m, JSON.stringify(draft));
+    assert.deepEqual(readdirSync(w.out), []);
+  }
+  // A heading beside the paragraph is enough: the candidate no longer reconstructs the file.
+  const w = forStation(workspace({ draft: `# A title\n\n${whole}\n` }), "lineup");
+  assert.equal(prepare(w, "--only", "lineup").status, 0);
+  assert.deepEqual(readdirSync(w.out).sort(), ["lineup.key.json", "lineup.packet.json"]);
+  const p = json(w.packet);
+  for (const c of p.inputs.candidates) {
+    for (const tail of ["", "\n"]) assert.notEqual(createHash("sha256").update(c.text + tail).digest("hex"), p.draft_sha256);
+  }
+});
+
 test("lineup is skipped when the scope has no goldens (lint refuses that spec, so asked directly)", () => {
   const w = workspace();
   const spec = { dir: w.dir, data: { writing: { dna: { scope_dir: "empty-scope", check: { rubric: "a lineup" } } } } };

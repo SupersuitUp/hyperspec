@@ -10,10 +10,11 @@
 // paired within one paragraph with code masked first: the quotes station's own quotedSpans
 // (src/stations/quotes.mjs). A span with no letter or digit is not a line. A quote split by a
 // speech tag ("Twenty minutes," Ines said, "then we fold it.") is one line: the first part ends in
-// a comma, and the narration between the parts is a speech tag ending in a comma. That narration is
-// read as a tag in both directions, after the part it follows and before the part it precedes, and
-// it may hold only one speech verb, so a second speaker in it ("Ines said, and Theo said,", "Ines
-// said to Theo, who said,") makes the merged line a conflict, left out.
+// a comma, and the narration between the parts is exactly one speech tag and its comma, nothing
+// else. Narration that holds anything more ("Ines said, and Theo muttered,", "Ines said, wiping her
+// hands,") joins nothing: the first part keeps the tag that opens it, and the second part, whose
+// narration is all of it, is left out, since what else that narration holds (a second speaker by
+// a beat, a pronoun or a verb off the list) cannot be read mechanically.
 // Lines keep draft order and are numbered L1..Ln over the lines that are attributed.
 //
 // The true speaker comes ONLY from a speech tag: narration in the same paragraph that
@@ -64,6 +65,7 @@ export const EXCLUDED = Object.freeze({
   noTag: "no speech tag",
   unknown: "the speech tag names no character with a speech block",
   conflict: "speech tags name more than one speaker",
+  split: "follows a split quote whose narration is more than one speech tag",
   repeats: "repeats a golden or rejected line",
 });
 
@@ -83,15 +85,12 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const verbAlternation = (verbs) => `(?:${verbs.map((v) => v.split(" ").map(escapeRe).join("\\s+")).join("|")})`;
 const VERB = verbAlternation(SPEECH_VERBS);
 const INVERTED = verbAlternation(INVERTED_VERBS);
-// A second speaker, as tagged() cannot resolve it: two speech verbs in the narration joining the
-// parts of a split quote mean two tags, whoever the second names ("who said").
-const SECOND_SPEAKER = Symbol("second speaker");
+
 // A name or verb ends at a non-word character, and an apostrophe is not an end: "Ines's" is not "Ines".
 const END = `(?![${WORD}'’])`;
 const START = `(?<![${WORD}'’])`;
 const UNKNOWN = Symbol("unknown speaker");
-const SPEECH_VERB_ANYWHERE = new RegExp(`${START}${VERB}${END}`, "giu");
-const speechVerbCount = (narration) => (narration.match(SPEECH_VERB_ANYWHERE) ?? []).length;
+
 
 // A character's id or name as the pattern source of its words (split on anything that is not a
 // letter or digit, so the id "old-man" reads as "old man"), joined in the text by whitespace,
@@ -101,8 +100,10 @@ function nameSource(value) {
   return words.length ? words.map(escapeRe).join("[\\s_-]+") : null;
 }
 
-// The tag matchers for one cast: each { after, before, speaker }, where after is anchored at the
-// start of the narration following a quote and before at the end of the narration preceding one;
+// The tag matchers for one cast: each { after, before, only, speaker }, where after is anchored at
+// the start of the narration following a quote, before at the end of the narration preceding one,
+// and only matches narration that is that one tag and its comma and nothing else (the tag that
+// joins a split quote);
 // speaker is a character id, or UNKNOWN when the subject cannot be resolved (a first-person tag with
 // no narrator, a pronoun outside a two-hander). cast: [{ id, name, speech }]; narrator: an id or null.
 function tagMatchers(cast, narrator) {
@@ -114,11 +115,11 @@ function tagMatchers(cast, narrator) {
   for (const c of cast) {
     for (const src of [nameSource(c.id), c.name ? nameSource(c.name) : null].filter(Boolean)) {
       const speaker = speakerOr(c.id);
-      out.push({ after: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})${END}`, "iu"), before: new RegExp(`${START}(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})\\s*[,:]\\s*$`, "iu"), speaker });
+      out.push({ after: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})${END}`, "iu"), before: new RegExp(`${START}(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})\\s*[,:]\\s*$`, "iu"), only: new RegExp(`^\\s*(?:${src}\\s+${VERB}|${INVERTED}\\s+${src})\\s*,\\s*$`, "iu"), speaker });
     }
   }
-  out.push({ after: new RegExp(`^\\s*I\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}I\\s+${VERB}\\s*[,:]\\s*$`, "u"), speaker: speakerOr(narratorId) });
-  out.push({ after: new RegExp(`^\\s*(?:she|he)\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}(?:[Ss]he|[Hh]e)\\s+${VERB}\\s*[,:]\\s*$`, "u"), speaker: speakerOr(other) });
+  out.push({ after: new RegExp(`^\\s*I\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}I\\s+${VERB}\\s*[,:]\\s*$`, "u"), only: new RegExp(`^\\s*I\\s+${VERB}\\s*,\\s*$`, "u"), speaker: speakerOr(narratorId) });
+  out.push({ after: new RegExp(`^\\s*(?:she|he)\\s+${VERB}${END}`, "u"), before: new RegExp(`${START}(?:[Ss]he|[Hh]e)\\s+${VERB}\\s*[,:]\\s*$`, "u"), only: new RegExp(`^\\s*(?:she|he)\\s+${VERB}\\s*,\\s*$`, "u"), speaker: speakerOr(other) });
   return out;
 }
 
@@ -164,26 +165,25 @@ export function dialogueLines(draftText, cast, { narrator = null } = {}) {
     const { spans } = para;
     const narrationBefore = (i) => masked.slice(i === 0 ? para.start : spans[i - 1].end, spans[i].start);
     const narrationAfter = (i) => masked.slice(spans[i].end, i + 1 < spans.length ? spans[i + 1].start : para.end);
+    // Whether span k continues a split quote: the part before it has a word and ends in a comma,
+    // span k has a word, and the narration between them ends in a comma.
+    const splitAt = (k) => k > 0 && k < spans.length && HAS_WORD.test(spans[k - 1].inner) && /,\s*$/.test(spans[k - 1].inner)
+      && HAS_WORD.test(spans[k].inner) && /,\s*$/.test(narrationBefore(k));
     for (let i = 0; i < spans.length; i++) {
       if (!HAS_WORD.test(spans[i].inner)) continue;
       // Merge a quote split by a speech tag: this part ends in a comma, and the narration up to the
-      // next part is a tag that ends in a comma.
+      // next part is exactly one tag and its comma.
       let j = i;
-      while (j + 1 < spans.length && /,\s*$/.test(spans[j].inner) && HAS_WORD.test(spans[j + 1].inner)
-        && /,\s*$/.test(narrationAfter(j)) && tagged(matchers, narrationAfter(j), "after").length) j += 1;
+      while (splitAt(j + 1) && tagged(matchers, narrationAfter(j), "only").length) j += 1;
       const speakers = new Set([...tagged(matchers, narrationBefore(i), "before")]);
       for (let k = i; k <= j; k++) for (const s of tagged(matchers, narrationAfter(k), "after")) speakers.add(s);
-      // The narration joining two merged parts also sits before the later part, so it is read as a
-      // tag for that part too; and one speech verb is all a joining tag may hold.
-      for (let k = i + 1; k <= j; k++) {
-        const joining = narrationBefore(k);
-        for (const s of tagged(matchers, joining, "before")) speakers.add(s);
-        if (speechVerbCount(joining) > 1) speakers.add(SECOND_SPEAKER);
-      }
       const text = spans.slice(i, j + 1).map((s) => s.inner.replace(/\s+/g, " ").trim()).join(" ");
       const line = lineAt(draftText, spans[i].start);
       let reason = null;
       if (repeatsSpeechLine(text, speechKeys)) reason = EXCLUDED.repeats;
+      // The second part of a split quote whose narration was more than one tag: that narration can
+      // hold a second speaker hyperspec cannot see, so it is never keyed, whatever tag ends it.
+      else if (splitAt(i)) reason = speakers.size ? EXCLUDED.split : EXCLUDED.noTag;
       else if (!speakers.size) reason = EXCLUDED.noTag;
       else if (speakers.size > 1) reason = EXCLUDED.conflict;
       else if ([...speakers][0] === UNKNOWN) reason = EXCLUDED.unknown;
@@ -215,7 +215,7 @@ function narratorOf(spec) {
 function excludedBreakdown(excluded) {
   const counts = new Map();
   for (const e of excluded) counts.set(e.reason, (counts.get(e.reason) ?? 0) + 1);
-  const said = { [EXCLUDED.noTag]: "with no speech tag", [EXCLUDED.unknown]: "whose tag names no character with a speech block", [EXCLUDED.conflict]: "whose tags name more than one speaker", [EXCLUDED.repeats]: "repeating a golden or rejected line" };
+  const said = { [EXCLUDED.noTag]: "with no speech tag", [EXCLUDED.unknown]: "whose tag names no character with a speech block", [EXCLUDED.conflict]: "whose tags name more than one speaker", [EXCLUDED.split]: "following a split quote whose narration is more than a tag", [EXCLUDED.repeats]: "repeating a golden or rejected line" };
   return [...counts].map(([reason, n]) => `${n} ${said[reason]}`).join(", ");
 }
 

@@ -225,7 +225,7 @@ test("names by id words or by name, and the two-word verbs", () => {
 
 test("a quote split by a speech tag is one line; two tagged quotes in one paragraph stay two", () => {
   const r = lines([
-    "\"Twenty minutes,\" Ines said, wiping her hands, \"then we fold it.\"",
+    "\"Twenty minutes,\" Ines said, \"then we fold it.\"",
     "",
     "\"Hi,\" Ines said. \"Hello,\" Theo said.",
     "",
@@ -243,20 +243,39 @@ test("a quote split by a speech tag is one line; two tagged quotes in one paragr
   assert.deepEqual(left(r), [["Turn them.", EXCLUDED.noTag], ["First,", EXCLUDED.noTag]]);
 });
 
-test("a split quote whose joining narration names a second speaker is a conflict, left out, never keyed to the first", () => {
+test("a split quote joins only across exactly one speech tag; any more narration leaves the second part out, never keyed to the first speaker", () => {
   const cast = [{ ...INES, name: "Ines" }, { ...THEO, name: "Theo" }];
-  for (const draft of [
-    "\"Leave it there,\" Ines said, and Theo said, \"No chance at all.\"",
-    "\"Leave it there,\" Ines said, then Theo replied, \"No chance at all.\"",
-    "\"Leave it there,\" Ines said to Theo, who said, \"No chance at all.\"",
+  // Theo speaks the second part in every one of these; the narration shows it by a beat, a verb off
+  // the list, a pronoun, a possessive, or a second tag.
+  for (const joining of [
+    "Ines said, and Theo muttered,",
+    "Ines said, but Theo shook his head,",
+    "Ines said, then Theo snapped back,",
+    "Ines said, and Theo cut in,",
+    "Ines said; Theo laughed,",
+    "Ines said, and Theo,",
+    "Ines said, and Theo's answer came fast,",
+    "Ines said, and he snorted,",
+    "said Ines, and Theo grumbled,",
+    "Ines said, and Theo said,",
+    "Ines said, then Theo replied,",
+    "Ines said to Theo, who said,",
   ]) {
-    const r = dialogueLines(`${draft}\n`, cast, { narrator: null });
-    assert.deepEqual(keyed(r), [], draft);
-    assert.deepEqual(left(r), [["Leave it there, No chance at all.", EXCLUDED.conflict]], draft);
+    const r = dialogueLines(`"Leave it there," ${joining} "No chance at all."\n`, cast, { narrator: null });
+    assert.deepEqual(keyed(r), [["Leave it there,", "ines"]], joining);
+    assert.equal(r.excluded.length, 1, joining);
+    assert.equal(r.excluded[0].text, "No chance at all.", joining);
+    assert.ok([EXCLUDED.noTag, EXCLUDED.split].includes(r.excluded[0].reason), joining);
   }
-  // One speaker's split quote, with a beat inside the tag, is still one line keyed to her.
-  const one = dialogueLines("\"Twenty minutes,\" Ines said, \"then we fold it.\"\n\n\"Twenty minutes,\" Ines said, wiping her hands, \"then we fold it.\"\n", cast, { narrator: null });
-  assert.deepEqual(keyed(one), [["Twenty minutes, then we fold it.", "ines"], ["Twenty minutes, then we fold it.", "ines"]]);
+  // A second tag at the end is still not trusted: the narration held more than it.
+  const tagged = dialogueLines("\"Leave it there,\" Ines said, and Theo said, \"No chance at all.\"\n", cast, { narrator: null });
+  assert.deepEqual(left(tagged), [["No chance at all.", EXCLUDED.split]]);
+  // Exactly one tag and its comma joins, either word order, and a beat inside the tag does not.
+  assert.deepEqual(keyed(dialogueLines("\"Twenty minutes,\" Ines said, \"then we fold it.\"\n\n\"Twenty minutes,\" said Ines, \"then we fold it.\"\n", cast, { narrator: null })),
+    [["Twenty minutes, then we fold it.", "ines"], ["Twenty minutes, then we fold it.", "ines"]]);
+  const beat = dialogueLines("\"Twenty minutes,\" Ines said, wiping her hands, \"then we fold it.\"\n", cast, { narrator: null });
+  assert.deepEqual(keyed(beat), [["Twenty minutes,", "ines"]]);
+  assert.deepEqual(left(beat), [["then we fold it.", EXCLUDED.noTag]]);
 });
 
 test("the attribution instructions tell the judge to stay inside the packet", () => {

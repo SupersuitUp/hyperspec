@@ -212,7 +212,7 @@ test("a passing verdict: exit 0, one judge line, one-shot", () => {
   assert.match(r.stdout, /^verdict: one-shot$/m);
   const [line, ...rest] = ledgerLines(w.ledger);
   assert.equal(rest.length, 0);
-  assert.deepEqual(Object.keys(line), ["at", "kind", "station", "draft", "draft_sha256", "spec_sha256", "packet_sha256", "status", "verdict"]);
+  assert.deepEqual(Object.keys(line), ["at", "kind", "station", "draft", "draft_sha256", "spec_sha256", "packet_sha256", "inputs_sha256", "status", "verdict"]);
   assert.equal(line.kind, "judge");
   assert.equal(line.station, "doctor");
   assert.equal(line.draft, "draft.md", "relative to the spec's folder");
@@ -224,6 +224,7 @@ test("a passing verdict: exit 0, one judge line, one-shot", () => {
   // The packet's hash is taken with its paths as the ledger writes them; prepared with those paths,
   // it is the file's own hash.
   assert.equal(line.packet_sha256, createHash("sha256").update(`${JSON.stringify({ ...packet, spec: "spec.md", draft: "draft.md" }, null, 2)}\n`).digest("hex"));
+  assert.equal(line.inputs_sha256, createHash("sha256").update(JSON.stringify(packet.inputs)).digest("hex"));
 });
 
 test("fail then pass on an identical packet is not-improved: only the verdict changed", () => {

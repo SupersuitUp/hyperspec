@@ -181,12 +181,15 @@ function lineupPlan(spec, draft) {
   if (!drafted.length) return { skip: "the draft has no prose paragraph to put in the lineup" };
   const passage = pickPassage(drafted, lengths, { exclude: new Set(all.map((p) => p.text)) });
   if (!passage) return { skip: "every prose paragraph of the draft is already a golden in the scope, word for word", fromSources: true };
+  // A draft that is nothing but this paragraph would give the answer away: the packet carries the
+  // draft's hash, and the candidate's text (with or without a line break) is the whole draft.
+  if (reflow(draft.text) === passage.text) return { skip: "the draft is one paragraph, the passage the lineup would show, so the packet's draft_sha256 could identify it" };
   return { scope: disk.scope, goldens, passage };
 }
 
 // null when the lineup applies, otherwise why not: it needs a written dna block whose scope_dir is
 // set and whose check names a rubric, a golden with a prose paragraph in that scope, and a prose
-// paragraph in the draft that is not already a golden.
+// paragraph in the draft that is not already a golden and is not the whole draft.
 export function skipReason(spec, draft) {
   return lineupPlan(spec, draft).skip ?? null;
 }
