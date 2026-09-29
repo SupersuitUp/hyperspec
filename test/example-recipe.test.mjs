@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readdirSync, readFileSync, statSync, symlinkSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +22,7 @@ const expected = blocks[scriptAt + 1].body.split("\n").filter((l) => l.trim());
 // and its bin in node_modules/.bin. npx runs a locally installed bin from there; the npx() shell
 // function below does exactly that, so the walkthrough runs without the network.
 function installedProject() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-example-"));
+  const dir = tempDir("hs-example-");
   mkdirSync(join(dir, ".git"));
   mkdirSync(join(dir, "node_modules", "@supersuit"), { recursive: true });
   mkdirSync(join(dir, "node_modules", ".bin"));

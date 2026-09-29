@@ -20,8 +20,8 @@ const RUNNER_MAX_BUFFER = 512 * 1024 * 1024;
 // blob re-hashes to what the parent claims, and only if the parent's recorded key matches the
 // parent's own record. A stage whose key differs reruns. With a runner that is decided per stage
 // at run time, after upstream reruns have produced their real bytes, so a reader whose key is
-// unchanged is reused (R11). Without one, every transitive reader of a rerun stage is pending,
-// since its reads are unknown (R5: transitive readers, not every later stage).
+// unchanged is reused. Without one, every transitive reader of a rerun stage is pending,
+// since its reads are unknown (transitive readers, not every later stage).
 //
 // hyperspec never calls a model. Rerun stages are run by `run`, a shell command the caller
 // supplies; without one the child is written with those stages pending.
@@ -220,7 +220,7 @@ export function regenerate(parentRecipePath, { out, clicker, change, run, change
 
   for (const bytes of held.values()) putBlob(childRoot, bytes);
   if (!pending) {
-    // R3: the child's output is the last stage's blob, written atomically and read back.
+    // The child's output is the last stage's blob, written atomically and read back.
     writeFileAtomic(outAbs, fetch(child.output.sha256));
     if (sha256(readFileSync(outAbs)) !== child.output.sha256) {
       try { unlinkSync(outAbs); } catch { /* nothing to remove */ }

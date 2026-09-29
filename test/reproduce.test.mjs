@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join, resolve } from "node:path";
 import { blobPath } from "../src/blobs.mjs";
 import { readRecipe, writeRecipe } from "../src/recipe.mjs";
@@ -11,7 +11,7 @@ import { reproduce } from "../src/reproduce.mjs";
 // A tmp project dir with a .git folder, so storeRoot's walk-up finds a root without --store or
 // HYPERSPEC_STORE. Same convention as test/writer.test.mjs.
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-reproduce-"));
+  const dir = tempDir("hs-reproduce-");
   mkdirSync(join(dir, ".git"));
   return dir;
 }
@@ -183,7 +183,7 @@ test("reproduce() never restores from a blob that itself does not verify", () =>
   assert.equal(readFileSync(outputPath, "utf8"), "edited on disk too");
 });
 
-// ---- pending stage (R2) ----
+// ---- pending stage ----
 
 test("reproduce() reports a pending stage as a failing step, why 'stage is pending'", () => {
   const dir = project();
@@ -270,7 +270,7 @@ test("reproduce() refuses an absolute output.path pointing outside the recipe di
   const dir = project();
   const { recipePath } = buildRecipe(dir);
 
-  const elsewhere = mkdtempSync(join(tmpdir(), "hs-reproduce-elsewhere-"));
+  const elsewhere = tempDir("hs-reproduce-elsewhere-");
   const escapeTarget = join(elsewhere, "outside.md");
 
   const { data } = readRecipe(recipePath);
@@ -310,7 +310,7 @@ test("reproduce() honors an explicit store root", () => {
   // Without an explicit store, storeRoot would walk up to dir's own .git and find it fine —
   // so instead prove the explicit store IS the one consulted by pointing it at a directory with
   // no blobs at all, which must make every blob check fail.
-  const emptyStore = mkdtempSync(join(tmpdir(), "hs-empty-store-"));
+  const emptyStore = tempDir("hs-empty-store-");
   const result = reproduce(recipePath, { store: emptyStore });
 
   assert.equal(result.ok, false);

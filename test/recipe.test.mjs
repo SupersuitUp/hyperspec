@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { checkRecipe, readRecipe, resolveReads, stageKey, writeRecipe } from "../src/recipe.mjs";
@@ -56,7 +56,7 @@ function twoStageRecipe() {
   return recipe;
 }
 
-const tmpFile = (name) => join(mkdtempSync(join(tmpdir(), "hs-recipe-")), name);
+const tmpFile = (name) => join(tempDir("hs-recipe-"), name);
 
 // ---- readRecipe / writeRecipe ----
 
@@ -309,21 +309,21 @@ test("checkRecipe fails when a stage's recorded key does not match its recompute
   assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0].key"));
 });
 
-test("checkRecipe (R2) fails a stage with pending: true as pending", () => {
+test("checkRecipe fails a stage with pending: true as pending", () => {
   const recipe = validRecipe();
   recipe.stages[0].pending = true;
   const findings = checkRecipe(recipe);
   assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0]" && /is pending/.test(f.message)));
 });
 
-test("checkRecipe (R2) fails a stage with a null output as pending", () => {
+test("checkRecipe fails a stage with a null output as pending", () => {
   const recipe = validRecipe();
   recipe.stages[0].output = null;
   const findings = checkRecipe(recipe);
   assert.ok(findings.some((f) => f.severity === "fail" && f.field === "stages[0]" && /is pending/.test(f.message)));
 });
 
-test("checkRecipe fails on an empty stages array (R7: a recipe needs at least one stage)", () => {
+test("checkRecipe fails on an empty stages array (a recipe needs at least one stage)", () => {
   const recipe = validRecipe();
   recipe.stages = [];
   const findings = checkRecipe(recipe);

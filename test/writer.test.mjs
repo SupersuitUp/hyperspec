@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join, resolve } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { blobPath } from "../src/blobs.mjs";
@@ -12,7 +12,7 @@ import { approve as approveSelfRef, startRecipe as startRecipeSelfRef } from "@s
 // A tmp project dir with a .git folder, so storeRoot's walk-up finds a root without --store or
 // HYPERSPEC_STORE.
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-writer-"));
+  const dir = tempDir("hs-writer-");
   mkdirSync(join(dir, ".git"));
   return dir;
 }

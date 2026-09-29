@@ -75,7 +75,7 @@ export function lintSpec(spec) {
   const reqs = list(d.requirements);
   if (!reqs.length) out.push(f(2, "requirements", "fail", "no requirements are listed", "List what the finished work must meet under requirements:."));
   // One id namespace across decisions and requirements: a recipe maps every id to its author, so
-  // a shared id would silently lose one of them (ruling R8). Reported under test 1.
+  // a shared id would silently lose one of them. Reported under test 1.
   const decisionIds = new Set(decisions.map((x) => str(x?.id)).filter(Boolean));
   const reqSeen = new Set();
   reqs.forEach((r, i) => {

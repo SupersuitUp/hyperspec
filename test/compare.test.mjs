@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join } from "node:path";
 import { startRecipe } from "../src/writer.mjs";
 import { regenerate } from "../src/regenerate.mjs";
@@ -13,7 +13,7 @@ import { compare } from "../src/compare.mjs";
 // Same tmp-project convention as writer/regenerate tests: a .git folder so storeRoot's walk-up
 // finds a root without --store or HYPERSPEC_STORE.
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-compare-"));
+  const dir = tempDir("hs-compare-");
   mkdirSync(join(dir, ".git"));
   return dir;
 }
@@ -163,7 +163,7 @@ test("ledger: one compare line is appended when the spec declares improvement.le
   assert.ok(line.change.includes("swapped input note"));
   assert.equal(typeof line.parent, "string");
   assert.equal(typeof line.child, "string");
-  // R15: a regression (strictly lower) is a not-improved verdict with a "regression: "-prefixed
+  // A regression (strictly lower) is a not-improved verdict with a "regression: "-prefixed
   // reason, since test 9's vocabulary has no "compare" verdict of its own.
   assert.equal(line.verdict, "not-improved");
   assert.match(line.reason, /^regression: compare: child scored 2 vs parent 10 after /);
@@ -200,7 +200,7 @@ test("ledger: an equal (non-regressed) but not-higher score is not-improved with
   assert.equal(line.reason.startsWith("regression:"), false);
 });
 
-test("R15: a spec whose ledger received compare lines (improved and not-improved) still passes lintSpec test 9", () => {
+test("a spec whose ledger received compare lines (improved and not-improved) still passes lintSpec test 9", () => {
   const dir = project();
   const parent = buildParent(dir, { content: "0123456789" }); // 10 bytes; spec declares ledger: runs.jsonl
   const runner = writeRunner(dir);

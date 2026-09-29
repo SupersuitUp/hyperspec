@@ -117,7 +117,7 @@ export function checkRecipe(recipe, { root } = {}) {
       fail(`stages[${i}].verdict.pass`, `stage "${id}" verdict.pass is not a boolean`);
     }
 
-    // R2: pending: true, or a null/incomplete output, makes the stage incomplete by definition.
+    // pending: true, or a null/incomplete output, makes the stage incomplete by definition.
     if (stage?.pending === true || stage?.output == null || !present(stage.output?.sha256)) {
       fail(`stages[${i}]`, `stage ${id} is pending`);
     }

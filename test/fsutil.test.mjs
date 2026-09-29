@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join } from "node:path";
 import { insideDir, writeFileAtomic } from "../src/fsutil.mjs";
 
 function tmp() {
-  return mkdtempSync(join(tmpdir(), "hs-fsutil-"));
+  return tempDir("hs-fsutil-");
 }
 
 // ---- insideDir ----
@@ -27,7 +27,7 @@ test("insideDir: a `../` climb out of dir is refused", () => {
 
 test("insideDir: an absolute path pointing elsewhere is refused", () => {
   const dir = tmp();
-  const elsewhere = mkdtempSync(join(tmpdir(), "hs-fsutil-elsewhere-"));
+  const elsewhere = tempDir("hs-fsutil-elsewhere-");
   assert.equal(insideDir(dir, join(elsewhere, "essay.md")), false);
 });
 

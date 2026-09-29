@@ -24,7 +24,7 @@ test("SPEC.md states all nine tests by the names the linter uses", async () => {
   for (const t of TESTS) assert.ok(spec.includes(t.name), t.name);
 });
 
-test("I2: every relative example path in SPEC.md ships in the npm tarball", async () => {
+test("every relative example path in SPEC.md ships in the npm tarball", async () => {
   const { loadSpec } = await import("../src/load.mjs");
   const files = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).files;
   const spec = loadSpec(join(ROOT, "SPEC.md"));
@@ -36,7 +36,7 @@ test("I2: every relative example path in SPEC.md ships in the npm tarball", asyn
   }
 });
 
-test("M5: SPEC.md's improvement ledger ships in the npm tarball, so the packaged SPEC.md lints with no warning", async () => {
+test("SPEC.md's improvement ledger ships in the npm tarball, so the packaged SPEC.md lints with no warning", async () => {
   const { loadSpec } = await import("../src/load.mjs");
   const files = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).files;
   const ledger = loadSpec(join(ROOT, "SPEC.md")).data.improvement.ledger;

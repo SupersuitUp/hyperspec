@@ -90,7 +90,7 @@ if (cmd === "lint") {
 // repeatableFlags) never swallows a following --flag as its value (missing value is an error, not
 // a silent grab); a bool flag never eats the next token as a positional; any --flag not declared
 // for this verb is an error. This is the same discipline lint's own hand-rolled parser follows
-// above (I1: a stray flag never swallows a file), generalized once repeated-flag verbs (regenerate's
+// above (a stray flag never swallows a file), generalized once repeated-flag verbs (regenerate's
 // --reads) and value flags (--out, --by, --doctor, ...) showed up.
 function parseArgs(args, { valueFlags = [], boolFlags = [], repeatableFlags = [] } = {}) {
   const positionals = [];
@@ -315,7 +315,7 @@ if (cmd === "compare") {
   });
   if (json) console.log(JSON.stringify(result, null, 2));
 
-  // R16: both a usage error and a check-failed error (missing output, escaping path, ...) map to
+  // Both a usage error and a check-failed error (missing output, escaping path, ...) map to
   // 2 here — compare's own ok:false without a usage flag is still "could not grade", i.e. an
   // unreadable-input class failure, not a graded-but-worse-1 class one.
   if (!result.ok) {

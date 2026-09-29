@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join, resolve } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { blobPath, getBlob } from "../src/blobs.mjs";
@@ -13,7 +13,7 @@ import { regenerate } from "../src/regenerate.mjs";
 // A tmp project dir with a .git folder, so storeRoot's walk-up finds a root without --store or
 // HYPERSPEC_STORE. Same convention as the writer and reproduce tests.
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-regenerate-"));
+  const dir = tempDir("hs-regenerate-");
   mkdirSync(join(dir, ".git"));
   return dir;
 }
@@ -192,7 +192,7 @@ test("swap-input of an input read only by stage 1 reruns its transitive readers,
   });
 
   assert.equal(res.ok, true, res.error);
-  // notes reads only transcript-2, so it is not downstream of outline (R5) and is reused.
+  // notes reads only transcript-2, so it is not downstream of outline and is reused.
   assert.deepEqual(actions(res.plan), { outline: "rerun", notes: "reuse", draft: "rerun" });
   assert.deepEqual(runLog(dir).map((j) => j.stage), ["outline", "draft"]);
   const child = readRecipe(res.childRecipe).data;

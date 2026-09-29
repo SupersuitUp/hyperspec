@@ -109,7 +109,7 @@ export function compare(childRecipePath, { doctor, parent: parentOption, spec: s
       // not-improved `reason` below are never "after null" — both a broken persisted record and,
       // for the "improved" verdict, a lint failure (rules.mjs's verdict-change: `!str(v.change)`).
       const childChange = child.change ?? `compared against ${relative(ledgerDir, parentRecipeAbs)}`;
-      // R15: a compare line must satisfy test 9 ("it improves itself"), which only knows the
+      // A compare line must satisfy test 9 ("it improves itself"), which only knows the
       // verdict vocabulary one-shot/improved/not-improved — never a new "compare" verdict. A
       // strictly higher child score is improved (and already carries change, which doubles as
       // that verdict's required field). Equal or lower is not-improved, with a reason a later

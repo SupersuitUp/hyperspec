@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { join } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 
-const write = (text) => { const d = mkdtempSync(join(tmpdir(), "hs-")); const p = join(d, "s.md"); writeFileSync(p, text); return p; };
+const write = (text) => { const d = tempDir("hs-"); const p = join(d, "s.md"); writeFileSync(p, text); return p; };
 
 test("a file with a hyperspec key loads with its data, body and folder", () => {
   const p = write('---\nhyperspec: "0.1"\ntitle: T\n---\n# Body\n');

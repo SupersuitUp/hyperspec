@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startRecipe } from "../src/writer.mjs";
@@ -17,7 +17,7 @@ const run = (...a) => spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.
 // A tmp project dir with a .git folder, so storeRoot's walk-up finds a root with no --store or
 // HYPERSPEC_STORE. Same convention as test/writer.test.mjs, test/regenerate.test.mjs, etc.
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "hs-cli-recipe-"));
+  const dir = tempDir("hs-cli-recipe-");
   mkdirSync(join(dir, ".git"));
   return dir;
 }
@@ -297,7 +297,7 @@ test("reproduce: an unreadable recipe exits 2", () => {
 test("reproduce: an explicit empty --store makes every blob check fail, exit 1", () => {
   const dir = project();
   const { recipePath } = buildSimpleParent(dir);
-  const emptyStore = mkdtempSync(join(tmpdir(), "hs-cli-empty-store-"));
+  const emptyStore = tempDir("hs-cli-empty-store-");
   const r = run("reproduce", recipePath, "--store", emptyStore);
   assert.equal(r.status, 1, r.stdout + r.stderr);
 });
@@ -340,7 +340,7 @@ test("regenerate: with a runner, an unpending, fully-passing run exits 0 and wri
   assert.ok(existsSync(out));
 });
 
-test("regenerate: --reads only touches the named stage; a sibling stage is reused (R5)", () => {
+test("regenerate: --reads only touches the named stage; a sibling stage is reused", () => {
   const dir = project();
   const { recipePath } = buildThreeStageParent(dir);
   const extra = join(dir, "materials", "extra.txt");

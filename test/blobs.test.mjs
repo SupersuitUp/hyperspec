@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { tempDir } from "./tmp.mjs";
 import { dirname, join } from "node:path";
 import { sha256 } from "../src/hash.mjs";
 import { blobPath, getBlob, hasBlob, putBlob, storeRoot, verifyBlob } from "../src/blobs.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "hs-blobs-"));
+const tmp = () => tempDir("hs-blobs-");
 
 test("storeRoot prefers the store argument over everything else", () => {
   const dir = tmp();
