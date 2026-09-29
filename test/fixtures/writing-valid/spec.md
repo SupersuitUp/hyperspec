@@ -70,6 +70,7 @@ writing:
     items:
       - id: m1
         path: materials/call-2026-09-28.md
+        segments: materials/call-2026-09-28.md.segments.jsonl
         produced_by: gary-sheng
         captured: "2026-09-28"
         how: voice memo transcript

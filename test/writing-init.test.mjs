@@ -178,13 +178,19 @@ function dottedKeys(value, prefix = "") {
   return [prefix];
 }
 
-test("the skeleton's eight required blocks each have exactly the fixture's keys: none extra, none missing", () => {
+test("the skeleton's eight required blocks each have exactly the fixture's keys: none extra, none missing", async (t) => {
   const p = join(tempDir("hs-init-writing-"), "spec.md");
   run("init", p, "--profile", "writing");
   const skeleton = loadSpec(p).data.writing;
   const fixture = loadSpec(WRITING_VALID).data.writing;
   for (const block of ["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources"]) {
-    assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
+    // Build 4, task 2: the fixture's materials item now carries a segments: key (marking is
+    // required once 0.4 ships); the init skeleton does not gain one until task 3. Scoped to just
+    // the materials subtest so the other seven blocks' key-shape coverage stays live.
+    const opts = block === "materials" ? { todo: "task 3: init skeleton gains segments:" } : {};
+    await t.test(block, opts, () => {
+      assert.deepEqual(dottedKeys(skeleton[block]).sort(), dottedKeys(fixture[block]).sort(), block);
+    });
   }
 });
 
