@@ -4,7 +4,10 @@
 // which is also a valid YAML double-quoted scalar.
 const PLAIN = /^[A-Za-z0-9][A-Za-z0-9 _.,'()/-]*$/;
 const RESOLVES = /^(null|~|true|false|yes|no|on|off|y|n|[-+]?(\d[\d_]*)?\.?\d+([eE][-+]?\d+)?|0x[0-9a-f]+|0o[0-7]+|\.inf|\.nan)$/i;
-const scalar = (v) => (PLAIN.test(v) && !/\s$/.test(v) && !RESOLVES.test(v) ? v : JSON.stringify(v));
+// Exported so any other init-time template (writing-template.mjs's writingTemplate, and whatever
+// profile templates come after it) quotes titles, kinds and other free-text scalars the same way,
+// rather than re-deriving this regex pair.
+export const scalar = (v) => (PLAIN.test(v) && !/\s$/.test(v) && !RESOLVES.test(v) ? v : JSON.stringify(v));
 
 export function template({ title = "Untitled", kind = "document" } = {}) {
   const heading = String(title).replace(/\s+/g, " ").trim();

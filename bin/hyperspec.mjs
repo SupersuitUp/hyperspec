@@ -4,6 +4,8 @@ import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
 import { score, exitCode } from "../src/score.mjs";
 import { template } from "../src/template.mjs";
+import { writingTemplate } from "../src/writing-template.mjs";
+import { PROFILES } from "../src/profiles.mjs";
 import { readRecipe, checkRecipe } from "../src/recipe.mjs";
 import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
@@ -15,6 +17,12 @@ const HELP = `hyperspec <command> [options]
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
+  init <file> --profile writing [--title T] [--form F] [--fiction]
+                               write a writing-profile skeleton: materials, form, spine and
+                               sources scaffolded with placeholders that fail lint, dna, persona,
+                               audience and goal deferred to open decisions naming the question
+                               only the operator can answer; --fiction adds one character
+                               skeleton; exit 2 for a --profile this linter does not know
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json
@@ -47,11 +55,24 @@ const cmd = argv[0];
 
 if (!cmd || cmd === "--help" || cmd === "-h") { console.log(HELP); process.exit(cmd ? 0 : 2); }
 
+// Each profile that wants its own init skeleton adds one entry here; a profile absent from this
+// map still lints (via PROFILES in profiles.mjs) but init falls back to the plain template for it.
+const PROFILE_TEMPLATES = { writing: writingTemplate };
+
 if (cmd === "init") {
   const file = argv[1];
   if (!file || file.startsWith("--")) { console.error("init needs a file path"); process.exit(2); }
   if (existsSync(file)) { console.error(`refusing to overwrite ${file}`); process.exit(2); }
-  writeFileSync(file, template({ title: flag("--title"), kind: flag("--kind") }));
+  const profileName = flag("--profile");
+  if (profileName !== undefined && !(profileName in PROFILES)) {
+    console.error(`unknown profile: ${profileName}; known profiles: ${Object.keys(PROFILES).join(", ") || "(none)"}`);
+    process.exit(2);
+  }
+  const writeTemplate = profileName && PROFILE_TEMPLATES[profileName];
+  const content = writeTemplate
+    ? writeTemplate({ title: flag("--title"), form: flag("--form"), fiction: argv.includes("--fiction") })
+    : template({ title: flag("--title"), kind: flag("--kind") });
+  writeFileSync(file, content);
   console.log(`wrote ${file}; run: hyperspec lint ${file}`);
   process.exit(0);
 }
