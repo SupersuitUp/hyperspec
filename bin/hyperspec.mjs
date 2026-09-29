@@ -176,7 +176,7 @@ if (cmd === "dna") {
     for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
       if (!parsed.values[flagName]) { console.error(`dna init needs ${flagName} <value>`); process.exit(2); }
     }
-    // R1: a placeholder-looking value (todo, tbd, ..., ???, ...) is caught here rather than left
+    // A placeholder-looking value (todo, tbd, ..., ???, ...) is caught here rather than left
     // for the next `dna measure` to catch on scope.md's own fields; str() is the one place that
     // pattern is defined (src/placeholder.mjs), reused rather than re-checked.
     for (const flagName of ["--writer", "--form", "--audience", "--purpose"]) {
@@ -202,9 +202,8 @@ if (cmd === "dna") {
     }
     // scopeMdPath (absolute, resolved from the cwd) is for filesystem operations only. Every
     // message uses scopeMdDisplay, built from scopeDir exactly as given (relative, if that is how
-    // the operator typed it): R3, fix round 1, a path the operator did not resolve themselves
-    // must never appear resolved in output, the same rule every other finding in this linter
-    // already follows.
+    // the operator typed it): a path the operator did not resolve themselves must never appear
+    // resolved in output, the same rule every other finding in this linter already follows.
     const scopeMdPath = join(scopeAbs, "scope.md");
     const scopeMdDisplay = join(scopeDir, "scope.md");
     if (existsSync(scopeMdPath)) { console.error(`refusing to overwrite ${scopeMdDisplay}`); process.exit(2); }

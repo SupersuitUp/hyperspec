@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.5.0 (2026-09-29)
+
+Scoped writer DNA. A writer does not have one voice: the same person writes differently for a
+theology journal and a landing page. So a writer's voice is now kept per scope, a form, an
+audience and a purpose, as a folder of goldens: real passages a person approved, each with a note
+on the move it teaches and where it came from. A golden feeds only work that shares its scope, so
+a passage that is right for one kind of writing never teaches its moves to another. hyperspec
+measures each scope's style from its goldens (sentence and paragraph length, punctuation,
+pronouns, signature words), counts and never judges, and still calls no model.
+
+**No behavior change for existing specs.** Scoped DNA is opt-in through a new optional field,
+`writing.dna.scope_dir`. A spec without it, writing or not, lints exactly as it did in 0.4.0.
+
+- `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` writes a scope
+  folder: `scope.md` (writer, form, audience, purpose, optional notes) and a `goldens/` folder
+  holding a README on the golden file shape. It refuses to overwrite an existing `scope.md`, and
+  exits 2 with a plain message on a missing flag, a flag whose value is a placeholder, or a
+  parent folder that does not exist. Paths print as you gave them.
+- A golden is one file in `goldens/`: frontmatter `why` (the move it teaches), `approved_by` (a
+  person; an approver starting `agent:` is refused, because golden means a human approved it)
+  and `source` are required, `approved_on` is optional, and the body is the passage, verbatim.
+- `hyperspec dna measure <scope-dir> [--json]` checks every golden and writes
+  `<scope-dir>/features.json`: the scope, each golden's path and SHA-256, and the features. If
+  the scope or any golden fails a check it writes nothing and exits 1, so a hollow golden is never
+  measured in. The same goldens always produce the same bytes.
+- The features: word count; sentence length in words (mean, median, 90th percentile); paragraph
+  length in sentences and in words; per-1000-word rates of commas, semicolons, colons, em dashes,
+  en dashes, exclamation marks, question marks, parentheses and quotation marks; contraction,
+  first-person singular, first-person plural and second-person rates; mean word length; and up to
+  15 signature words. Sentences and paragraphs are split the same way `segments init` splits
+  them.
+- With `writing.dna.scope_dir`, `lint` checks that `scope.md` matches the spec's writer, form,
+  audience and purpose (test 1), that every golden the spec lists lives inside the scope's
+  `goldens/` folder, following symlinks to the file's real path (test 5), that every golden
+  in the folder has its `why` (test 6), a person's approval and a source (test 4) and a passage
+  (test 1), and that `features.json` exists and names exactly the goldens there now, unchanged
+  (test 6). A `scope_dir` that is present but a placeholder fails test 1.
+- Every new finding id starts `writing-dna-`, and every message names the scope folder as the
+  spec wrote it and the golden by its path inside the folder, never a folder on your machine.
+  WRITING.md lists every one with its test.
+- `hyperspec init --profile writing` shows `scope_dir: TODO` in the `dna` block, which fails until
+  it names a scope folder or is deleted.
+- Two new exports from `@supersuit/hyperspec/writing`: `readScope`, which reads a scope folder
+  and returns `{ scope, goldens, findings }` without throwing, and `measureFeatures`, which takes
+  an array of passages and returns the features `dna measure` writes.
+- The essay example takes its voice from a scope folder,
+  `examples/writing/dna/essay-new-managers-teach/`, with three goldens and a measured
+  `features.json`. Its two goldens moved there from `examples/writing/essay/goldens/`, and a third
+  was added. The story example keeps its goldens in the spec with no scope folder, and still
+  passes.
+- WRITING.md gains a Scoped DNA section: why a writer's DNA is scoped, the folder shape, the
+  golden file, both commands with their output, what each feature measures and what it is for,
+  staleness, naming a scope in a spec, every finding with its test, and the exports. README and
+  SPEC.md point at it.
+
 ## 0.4.0 (2026-09-29)
 
 Marking materials. Before a writing spec can pass, every material it draws on (a brain dump, a

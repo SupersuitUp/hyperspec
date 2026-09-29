@@ -134,9 +134,9 @@ const UNRESOLVABLE_BECAUSE = {
 // ---------------------------------------------------------------- 2. dna ----------------------
 
 // writing.dna.scope_dir (0.5, optional): the path (relative to the spec, like every other path in
-// this file) to a scoped-DNA folder built by `hyperspec dna init`/`dna measure` (src/dna.mjs, task
-// 1). The KEY being absent means none of the checks below run: 0.4 behavior, unchanged. A key
-// that IS present but placeholder-ish (fix round 1, R2: TODO, tbd, an empty string) fails on its
+// this file) to a scoped-DNA folder built by `hyperspec dna init`/`dna measure` (src/dna.mjs).
+// The KEY being absent means none of the checks below run: 0.4 behavior, unchanged. A key
+// that IS present but placeholder-ish (TODO, tbd, an empty string) fails on its
 // own (test 1, writing-dna-scope-dir, naming the value) before any of this runs, since a real
 // value is what every check below needs. Present with a real value, four things must all hold:
 // scope.md's writer/form/audience/purpose must agree with what the spec itself claims under
@@ -144,7 +144,7 @@ const UNRESOLVABLE_BECAUSE = {
 // never a golden borrowed from another scope (test 5, id writing-dna-golden-leak, no per-golden
 // index: it names the golden and the scope in its message instead, the same convention src/dna.mjs
 // itself uses for a broken golden's own field findings); every golden IN the scope must pass its
-// own field checks, which is exactly what readScope (task 1) already computes, reused here rather
+// own field checks, which is exactly what readScope (src/dna.mjs) already computes, reused here rather
 // than re-derived, with displayDir set to the scope_dir string the spec wrote (never a resolved
 // filesystem path, so a finding here never names this machine's folders); and <scope_dir>/
 // features.json must exist and still match the scope's goldens by sha256 (test 6).
@@ -152,11 +152,11 @@ function isInsideDir(parentAbs, childAbs) {
   return childAbs === parentAbs || childAbs.startsWith(parentAbs + sep);
 }
 
-// Fix round 1, finding 1: a golden reached through a symlink placed inside the scope's own
-// goldens/ folder used to pass this check on its LEXICAL path (the symlink file itself lives
-// under <scope_dir>/goldens/) while its real bytes, wherever the symlink actually points, are
-// invisible to readGoldens (fs.Dirent.isFile() is false for a symlink entry, so it is never
-// measured into features.json). Both sides are resolved to their real, symlink-free path before
+// A golden reached through a symlink placed inside the scope's own goldens/ folder would pass
+// a LEXICAL check (the symlink file itself lives under <scope_dir>/goldens/) while its real
+// bytes, wherever the symlink actually points, are invisible to readGoldens
+// (fs.Dirent.isFile() is false for a symlink entry, so it is never measured into
+// features.json). Both sides are resolved to their real, symlink-free path before
 // the inside-check, so a symlink is judged by where it actually points, not by where its own
 // file happens to sit. A realpath failure (a symlink whose target has since moved or a broken
 // link somewhere in the chain) is refused rather than silently passed: it cannot be proven inside
@@ -194,7 +194,7 @@ function dnaFields(raw, d, here, idPrefix) {
   if (!rulesPath) out.push(f(1, `${idPrefix}-rules`, "fail", "writing.dna has no rules", "Add rules: the path to the always-on writing style."));
   else out.push(...pathFindings(here, rulesPath, `${idPrefix}-rules`, "dna.rules", "Fix the path, or add the file."));
 
-  // R2: scope_dir is optional, so its KEY being absent from writing.dna is never a finding (the
+  // scope_dir is optional, so its KEY being absent from writing.dna is never a finding (the
   // whole scope_dir section below simply does not run). But a key that IS present with a
   // placeholder-ish value (TODO, tbd, an empty string, ...) is a different situation: the operator
   // wrote something and str() silently reads it as "not there", which would otherwise make a

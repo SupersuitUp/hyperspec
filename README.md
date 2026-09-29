@@ -26,13 +26,15 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
 | `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
 | `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence]` | Split a material into segments to label. Refuses to overwrite an existing file. |
+| `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
+| `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
 | `hyperspec recipe approve <recipe> --by <slug>` | Record who approved the output. |
 | `hyperspec reproduce <recipe> [--restore]` | Re-check every hash the recipe recorded. Never runs a model. |
 | `hyperspec regenerate <recipe> --out <path> --clicker <slug> <one change> [--run cmd]` | Make a child recipe from a parent and one named change, rerunning only the stages it reaches. |
 | `hyperspec compare <child-recipe> --doctor cmd` | Grade a child and its parent through one doctor against one spec. |
 
-Every command except `init` and `segments init` takes `--json`. `hyperspec --help` prints every flag.
+Every command except `init`, `segments init` and `dna init` takes `--json`. `hyperspec --help` prints every flag.
 
 ## Exit codes
 
@@ -151,6 +153,28 @@ that the material has not changed since, and that no spine claim cites a private
 segment. The file format, the labels, and every finding are in
 [WRITING.md](WRITING.md#marking-materials). A tool of your own can run the same check with
 `import { readSegments } from "@supersuit/hyperspec/writing"`.
+
+### Scoped DNA
+
+A writer sounds different in a theology essay and on a landing page, so a writer's voice is kept
+per scope (a form, an audience and a purpose), and each scope is a folder of goldens. A golden is a real
+passage a person approved, with a note on the move it teaches and where it came from, and it
+feeds only work that shares its scope.
+
+```bash
+mkdir -p dna
+npx @supersuit/hyperspec dna init dna/essay-new-managers-teach --writer example-author --form essay --audience "new managers" --purpose teach
+npx @supersuit/hyperspec dna measure dna/essay-new-managers-teach
+```
+
+`dna init` writes `scope.md` and a `goldens/` folder holding only a README. Add one file per
+golden, then `dna measure` checks each golden and writes `features.json`: sentence and paragraph length, punctuation,
+pronouns and signature words, measured and never judged. Name the folder in a spec as
+`writing.dna.scope_dir` and `lint` checks that the scope matches the spec, that no golden comes
+from another scope, and that the measurements are current. Without `scope_dir`, a spec lints as
+it did in 0.4. The folder shape, every feature, and every finding are in
+[WRITING.md](WRITING.md#scoped-dna); `readScope` and `measureFeatures` are exported from
+`@supersuit/hyperspec/writing`.
 
 ## The format
 

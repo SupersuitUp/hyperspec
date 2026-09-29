@@ -29,6 +29,10 @@ const fence = (section, lang) => section.match(new RegExp("```" + lang + "\\n([\
 test("the schema block, spliced into the essay example with the page's own sample material and segments file, lints with zero findings", () => {
   const schema = doc.split("\n## The schema\n")[1].match(/```yaml\n([\s\S]*?)```/)[1];
   assert.match(schema, /^        segments: materials\/voice-memo\.md\.segments\.jsonl/m, "the schema's material item names its segments file");
+  // The schema names a scope folder, and its golden lives inside it, so the splice below also
+  // proves the schema's dna block against the shipped scope (match, leak, features current).
+  assert.match(schema, /^    scope_dir: dna\/essay-new-managers-teach /m, "the schema's dna block names the essay's scope folder");
+  assert.match(schema, /^      - path: dna\/essay-new-managers-teach\/goldens\/opening\.md$/m, "the schema's golden lives in that scope");
   const essay = readFileSync(join(ROOT, "examples", "writing", "essay.hyperspec.md"), "utf8");
   // The essay's core frontmatter (decisions through improvement), then the schema block in place of
   // the essay's own profile and writing blocks.
@@ -38,7 +42,6 @@ test("the schema block, spliced into the essay example with the page's own sampl
   const files = [
     ["materials/voice-memo.md", fence(marking(), "text")],
     ["materials/voice-memo.md.segments.jsonl", fence(marking(), "jsonl")],
-    ["goldens/opening.md", "golden\n"],
     ["world/ines.json", "{}\n"],
   ];
   for (const [p, text] of files) {
@@ -122,4 +125,110 @@ test("the test mapping table has one row for each of the nine tests", () => {
   const section = doc.split("\n## The test mapping\n")[1].split("\n## ")[0];
   const rows = [...section.matchAll(/^\| ([1-9]) /gm)].map((m) => Number(m[1]));
   assert.deepEqual(rows, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+});
+
+// ------------------------------------------------------------------ Scoped DNA ----------------
+// The "Scoped DNA" section describes the scope folder, dna init / dna measure, the features and
+// every finding. These tests hold each of those to what the code does and what ships.
+
+const scoped = () => doc.split("\n## Scoped DNA\n")[1].split("\n## ")[0];
+const sub = (heading) => scoped().split(`\n### ${heading}\n`)[1].split("\n### ")[0];
+const SCOPE = join(ROOT, "examples", "writing", "dna", "essay-new-managers-teach");
+
+// The ids src/writing-fields.mjs raises for writing.dna.scope_dir, listed explicitly (they are
+// built from idPrefix, so the structural collector below cannot read them), and each has to
+// appear in that file verbatim, so one renamed or added without this list changing fails.
+const WRITING_FIELDS_DNA_IDS = [
+  ["writing-dna-scope-dir", 1, "`${idPrefix}-scope-dir`"],
+  ["writing-dna-scope-mismatch-<field>", 1, "`${idPrefix}-scope-mismatch-${idSuffix}`"],
+  ["writing-dna-golden-leak", 5, "`${idPrefix}-golden-leak`"],
+  ["writing-dna-features-missing", 6, "`${idPrefix}-features-missing`"],
+  ["writing-dna-features-stale", 6, "`${idPrefix}-features-stale`"],
+];
+
+test("the scoped DNA findings table lists every writing-dna- id src/dna.mjs and the scope_dir lint raise, under its test", () => {
+  const norm = (id) => id.replace(/\$\{[^}]+\}|<[^>]+>/g, "*");
+  const fromSource = new Set();
+  const dnaSrc = readFileSync(join(ROOT, "src", "dna.mjs"), "utf8");
+  const calls = [...dnaSrc.matchAll(/\bf\(/g)].length;
+  const literal = [...dnaSrc.matchAll(/\bf\((\d), [`"]([^`"]+)[`"]/g)];
+  assert.ok(calls > 0);
+  assert.equal(literal.length, calls, "every f() call in src/dna.mjs passes its test and id as literals");
+  for (const m of literal) {
+    assert.match(m[2], /^writing-dna-/, `src/dna.mjs id ${m[2]} starts writing-dna-`);
+    fromSource.add(`${norm(m[2])} ${m[1]}`);
+  }
+  const wfSrc = readFileSync(join(ROOT, "src", "writing-fields.mjs"), "utf8");
+  for (const [id, t, literalInSource] of WRITING_FIELDS_DNA_IDS) {
+    assert.ok(wfSrc.includes(`f(${t}, ${literalInSource}`), `src/writing-fields.mjs raises ${literalInSource} under test ${t}`);
+    fromSource.add(`${norm(id)} ${t}`);
+  }
+  const fromDoc = new Set([...sub("Findings").matchAll(/^\| `([^`]+)` \| ([1-9]) \|/gm)].map((m) => `${norm(m[1])} ${m[2]}`));
+  assert.deepEqual([...fromDoc].sort(), [...fromSource].sort());
+});
+
+test("the scoped DNA features table lists exactly the features measureFeatures returns, in order", async () => {
+  const { measureFeatures } = await import("../src/dna.mjs");
+  const keys = Object.keys(measureFeatures(["One sentence here. Another one."]));
+  const rows = [...sub("What is measured").matchAll(/^\| `([a-z0-9_]+)` \|/gm)].map((m) => m[1]);
+  assert.deepEqual(rows, keys);
+});
+
+test("the page's sample dna measure output is exactly what dna measure prints for the essay's scope", () => {
+  // The bare ``` block (no language), read by walking every fence in order, since a regex for an
+  // empty language would also match the closing fence of the bash block above it.
+  const blocks = [...sub("Measuring a scope").matchAll(/```(\w*)\n([\s\S]*?)```/g)];
+  const sample = blocks.find((m) => m[1] === "")[2];
+  const d = tempDir("hs-writing-doc-dna-");
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "dna", "measure", "dna/essay-new-managers-teach"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(sample, r.stdout);
+  assert.equal(readFileSync(join(d, "dna", "essay-new-managers-teach", "features.json"), "utf8"), readFileSync(join(SCOPE, "features.json"), "utf8"));
+});
+
+test("the page's sample golden is the shipped golden, byte for byte", () => {
+  assert.equal(fence(sub("A golden"), "markdown"), readFileSync(join(SCOPE, "goldens", "opening.md"), "utf8"));
+});
+
+test("the page's dna init command writes the page's sample scope.md frontmatter, and it is the shipped scope's", () => {
+  const section = sub("Starting a scope");
+  const prefix = "npx @supersuit/hyperspec dna init ";
+  const lines = fence(section, "bash").trim().split("\n");
+  assert.deepEqual(lines.slice(0, -1), ["mkdir -p dna"], "the only other line makes the scope's parent folder");
+  const cmd = lines.at(-1);
+  assert.ok(cmd.startsWith(prefix), cmd);
+  // Split the command line the way a shell would for this one: words, and "double quoted" words.
+  const args = [...cmd.slice(prefix.length).matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+  const d = tempDir("hs-writing-doc-dna-init-");
+  mkdirSync(join(d, "dna"));
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "dna", "init", ...args], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const frontmatter = (text) => text.match(/^---\n[\s\S]*?\n---\n/)[0];
+  const sample = fence(sub("The scope folder"), "markdown");
+  assert.equal(frontmatter(readFileSync(join(d, "dna", "essay-new-managers-teach", "scope.md"), "utf8")), sample);
+  assert.equal(frontmatter(readFileSync(join(SCOPE, "scope.md"), "utf8")), sample);
+});
+
+test("the page's scope folder tree names every file the essay's scope ships", () => {
+  const tree = fence(sub("The scope folder"), "text");
+  const names = [...tree.matchAll(/^\s*([A-Za-z0-9_.-]+\/?)/gm)].map((m) => m[1]);
+  const shipped = ["essay-new-managers-teach/", "scope.md", "goldens/", "README.md", "close.md", "opening.md", "status.md", "features.json"];
+  assert.deepEqual(names.slice(1).sort(), shipped.slice(1).sort());
+  assert.ok(tree.startsWith("dna/essay-new-managers-teach/\n"));
+  for (const f of ["scope.md", "features.json", "goldens/README.md", "goldens/close.md", "goldens/opening.md", "goldens/status.md"]) {
+    assert.ok(readFileSync(join(SCOPE, f), "utf8").length > 0, f);
+  }
+});
+
+test("the page's spec sample is the essay example's own dna block, line for line", () => {
+  const sample = fence(sub("Naming the scope in a spec"), "yaml").trimEnd().split("\n");
+  const essay = readFileSync(join(ROOT, "examples", "writing", "essay.hyperspec.md"), "utf8").split("\n");
+  let at = essay.indexOf(sample[0]);
+  assert.ok(at >= 0, sample[0]);
+  for (const line of sample) {
+    const next = essay.indexOf(line, at);
+    assert.ok(next >= at, `the essay carries, in order: ${line}`);
+    at = next + 1;
+  }
 });

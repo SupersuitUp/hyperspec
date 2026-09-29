@@ -97,7 +97,7 @@ examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
-  next_action: collect adopter issues on 0.4, materials marking included, and cut 0.5 from them
+  next_action: collect adopter issues on 0.5, scoped DNA included, and cut 0.6 from them
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes and say so in your SPEC
@@ -109,7 +109,7 @@ improvement:
 
 A person writing for another person leaves most of the specification unsaid, because the other person fills the gaps from shared context. An agent has none of that context, so it fills every gap with the average, and the average is what reads as middling. Hyperspecification is writing down the gaps. It is a level of detail that would feel like overkill between two people and is exactly enough for an agent: every decision the agent would otherwise guess is either decided, delegated with the rule for deciding it, or marked open, so the work stops instead of guessing.
 
-**Version 0.4.0** (2026-09-29)
+**Version 0.5.0** (2026-09-29)
 
 ## What makes a spec a hyperspec
 
@@ -220,7 +220,7 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
 | 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason`. A declared ledger that does not exist yet is a warning |
 
-A profile adds its own conditions to these rows. The writing profile's are in [WRITING.md](WRITING.md#the-test-mapping), including the checks on each material's segments file: every material marked, every segment labeled from the closed set and matching its material word for word, the marking current (tests 1 and 4), and no spine claim citing a private or question segment (test 5).
+A profile adds its own conditions to these rows. The writing profile's are in [WRITING.md](WRITING.md#the-test-mapping), including the checks on each material's segments file: every material marked, every segment labeled from the closed set and matching its material word for word, the marking current (tests 1 and 4), and no spine claim citing a private or question segment (test 5). A writing spec that names a writer-DNA scope folder with `writing.dna.scope_dir` is also checked against it: the scope matches the spec (test 1), every golden has a person's approval and a source (test 4), no golden comes from outside the scope (test 5), and every golden has its why and the scope's measured features are current (test 6). `scope_dir` is optional, and without it nothing changes.
 
 ## Exit codes
 
@@ -245,7 +245,7 @@ Silence is not a verdict. A run that learned nothing has to say so and why, and 
 
 A profile adds the rules for one kind of work on top of the nine tests. A spec opts in with a top-level `profile:` naming it. A profile never adds a tenth test: every finding it raises reports under one of the nine, with an id that starts with the profile's name, and the score stays out of nine. `lint` prints one more line for a profiled spec, how many of the profile's blocks are complete. A `profile` this linter does not know is a warning under test 7, and none of its rules are checked.
 
-One profile ships: `writing`, for essays, chapters, letters, stories and anything else an agent drafts for a person to read. Its blocks, its fields, which test each rule reports under, `hyperspec init --profile writing`, and marking materials with `hyperspec segments init` are in [WRITING.md](WRITING.md).
+One profile ships: `writing`, for essays, chapters, letters, stories and anything else an agent drafts for a person to read. Its blocks, its fields, which test each rule reports under, `hyperspec init --profile writing`, marking materials with `hyperspec segments init`, and scoped writer DNA with `hyperspec dna init` and `hyperspec dna measure` are in [WRITING.md](WRITING.md).
 
 ## Recipes
 

@@ -90,8 +90,8 @@ export function readGoldens(dir, { displayDir } = {}) {
     // reported missing rather than needing a separate "malformed" finding. The one exception is
     // frontmatter that OPENS (a first line of ---) and never closes: parseSkillFile has nowhere to
     // end the block, so body comes back empty and the real passage text is invisible, meaning the
-    // three field checks below and golden-empty would all fire for what is really one defect. R1:
-    // report that once, plainly, instead of a cascade that reads like four unrelated problems.
+    // three field checks below and golden-empty would all fire for what is one defect. So report
+    // that once, plainly, instead of a cascade that reads like four unrelated problems.
     const { data, body, error } = parseSkillFile(buf.toString("utf8"));
     if (error === "unterminated frontmatter") {
       findings.push(f(1, "writing-dna-golden-frontmatter", "fail",
