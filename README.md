@@ -28,6 +28,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence]` | Split a material into segments to label. Refuses to overwrite an existing file. |
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
 | `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
+| `hyperspec check <spec> --draft <file> [--only a,b]` | Run a writing spec's deterministic stations against a draft. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
 | `hyperspec recipe approve <recipe> --by <slug>` | Record who approved the output. |
 | `hyperspec reproduce <recipe> [--restore]` | Re-check every hash the recipe recorded. Never runs a model. |
@@ -41,6 +42,10 @@ Every command except `init`, `segments init` and `dna init` takes `--json`. `hyp
 `hyperspec lint` exits 0 when every test passes and nothing is open, 1 when at least one
 test fails, 3 when every test passes but a decision is still open (blocked), and 2 on a usage
 error or a file that cannot be read, has broken frontmatter, or is not a hyperspec.
+
+`hyperspec check` exits 0 when every station it ran passed, 1 when one failed, and 2 on a usage
+error, a draft that cannot be read, or a spec without `profile: writing`. A spec that is not ready to check against exits with lint's
+own code, 1 or 3, and no station runs.
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2
 usage or unreadable input, 3 pending, when `regenerate` has stages waiting for a runner.
@@ -132,7 +137,7 @@ The skeleton fails until every placeholder is real and its four open questions (
 who speaks, who reads, what changes) are answered. The blocks, every field, and which test
 each rule reports under are in [WRITING.md](WRITING.md). Two complete specs that pass with
 nothing to warn ship in `examples/writing/`: an essay for new managers, and a short story with
-two characters whose voices a judge can tell apart.
+two characters whose voices a judge can tell apart. Each comes with a draft written to it.
 
 ### Marking materials
 
@@ -175,6 +180,25 @@ from another scope, and that the measurements are current. Without `scope_dir`, 
 it did in 0.4. The folder shape, every feature, and every finding are in
 [WRITING.md](WRITING.md#scoped-dna); `readScope` and `measureFeatures` are exported from
 `@supersuit/hyperspec/writing`.
+
+### Checking a draft
+
+Once a draft exists, `check` holds it to its spec with seven stations, none of which calls a
+model or touches the network: `form` (length and required parts), `terms` (every word in the new
+optional `writing.audience.terms` is defined where it first appears), `claims` (the claims
+ledger still matches the draft, and every claim has a source), `quotes` (in nonfiction, every quotation of four
+words or more is word for word in a marked quote), `private` (no run of eight words from a
+private segment), `dna` (the draft's measured style beside its scope's, as warnings) and `links`
+(well-formed, and relative links resolve).
+
+```bash
+npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
+```
+
+It lints the spec first, prints each station's pass, fail or skip, and appends one line to the
+spec's runs ledger with a verdict. Both examples ship a draft that passes. What each station
+checks and cannot check, and every finding, are in
+[WRITING.md](WRITING.md#checking-a-draft).
 
 ## The format
 

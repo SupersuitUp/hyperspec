@@ -97,7 +97,7 @@ examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
-  next_action: collect adopter issues on 0.5, scoped DNA included, and cut 0.6 from them
+  next_action: collect adopter issues on 0.6, the check command included, and cut 0.7 from them
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes and say so in your SPEC
@@ -109,7 +109,7 @@ improvement:
 
 A person writing for another person leaves most of the specification unsaid, because the other person fills the gaps from shared context. An agent has none of that context, so it fills every gap with the average, and the average is what reads as middling. Hyperspecification is writing down the gaps. It is a level of detail that would feel like overkill between two people and is exactly enough for an agent: every decision the agent would otherwise guess is either decided, delegated with the rule for deciding it, or marked open, so the work stops instead of guessing.
 
-**Version 0.5.0** (2026-09-29)
+**Version 0.6.0** (2026-09-29)
 
 ## What makes a spec a hyperspec
 
@@ -220,7 +220,7 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
 | 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason`. A declared ledger that does not exist yet is a warning |
 
-A profile adds its own conditions to these rows. The writing profile's are in [WRITING.md](WRITING.md#the-test-mapping), including the checks on each material's segments file: every material marked, every segment labeled from the closed set and matching its material word for word, the marking current (tests 1 and 4), and no spine claim citing a private or question segment (test 5). A writing spec that names a writer-DNA scope folder with `writing.dna.scope_dir` is also checked against it: the scope matches the spec (test 1), every golden has a person's approval and a source (test 4), no golden comes from outside the scope (test 5), and every golden has its why and the scope's measured features are current (test 6). `scope_dir` is optional, and without it nothing changes.
+A profile adds its own conditions to these rows. The writing profile's are in [WRITING.md](WRITING.md#the-test-mapping), including the checks on each material's segments file: every material marked, every segment labeled from the closed set and matching its material word for word, the marking current (tests 1 and 4), and no spine claim citing a private or question segment (test 5). A writing spec that names a writer-DNA scope folder with `writing.dna.scope_dir` is also checked against it: the scope matches the spec (test 1), every golden has a person's approval and a source (test 4), no golden comes from outside the scope (test 5), and every golden has its why and the scope's measured features are current (test 6). `scope_dir` is optional, and without it nothing changes. The writing profile also has an optional `writing.audience.terms`, the words a piece uses that its reader may not know: when present it must list real terms (test 1), and `hyperspec check` reads it to require each term's definition where the draft first uses it. Without it nothing changes.
 
 ## Exit codes
 
@@ -236,7 +236,7 @@ A profile adds its own conditions to these rows. The writing profile's are in [W
 Every run of a skill that works from a hyperspec writes one line to the ledger named in `improvement.ledger`, one JSON object per line, with a `verdict`:
 
 - **one-shot**: no intervention, nothing to learn.
-- **improved**: the skill, the spec template, or a component library changed, and the line carries `change`, naming what changed.
+- **improved**: the skill, the spec template, or a component library changed, and the line carries `change`, naming what changed. On a `kind: "check"` line, which `hyperspec check` writes, it means the draft now passes every station after the last full check of it failed, and `change` names those stations.
 - **not-improved**: nothing changed, and the line carries `reason`, a reason a later session can argue with, such as "the correction was about this piece only" or "the fix belongs to a shipped skill and was filed as an issue".
 
 Silence is not a verdict. A run that learned nothing has to say so and why, and a ledger line with none of the three verdicts fails the ninth test.

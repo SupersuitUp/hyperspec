@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.6.0 (2026-09-29)
+
+A spec can now check a draft. Until this release hyperspec could tell you whether a writing spec
+was ready; it could not tell you whether the piece written from it met the spec. `hyperspec
+check` runs seven deterministic stations against a draft: the length and required parts, the
+terms the reader needs defined, the claims ledger, quotations, private material, the writer's
+measured style, and links. None of them calls a model or touches the network, so the same draft
+and spec always give the same answer. Each run leaves one line in the spec's runs ledger saying
+whether the draft passed first time, improved, or did not, and why.
+
+**No behavior change for lint.** Every spec without `writing.audience.terms` passes and fails
+exactly as it did in 0.5.0, and no lint finding id changed. That field is the one schema
+addition, and it is optional.
+
+- `hyperspec check <spec> --draft <file> [--json] [--only a,b]` needs a writing spec
+  (`profile: writing`) and lints it first: a spec that fails lint, or is blocked on an open
+  decision, runs no station and exits with lint's code. Then it runs every station in a fixed
+  order, `form, terms, claims, quotes, private, dna, links`, and prints each one's `pass`, `fail`
+  with findings, or `skip` with the reason. Warnings print under their station and never fail it.
+  Exit 0 when every station that ran passed, 1 when one failed, 2 on usage (no spec, no
+  `--draft`, an unreadable draft, a spec without the writing profile, an `--only` that names no
+  known station); under `--json` a usage error is one document, `{ spec, draft, error }`.
+  `--only` runs a subset, still in the fixed order. A finding names the draft line it points at
+  where there is one, quotes at most 80 characters of the draft, and never prints an absolute
+  path. A byte order mark at the start of the draft is ignored. A station that throws becomes one
+  failing finding, `station-<name>-crashed`, and the rest still run.
+- `form`: word count against `writing.form.length` (only `unit: words` is measured; another unit
+  skips the station), and every `required_parts` entry present as an ATX heading of that text
+  (indented up to three spaces, closing `#`s allowed), or as a line starting `part:`, outside
+  code blocks.
+- `terms`: every term in the new optional `writing.audience.terms`, other than those in `knows`,
+  is defined at its first appearance: in that sentence or the next, the term followed within six
+  words by `is`, `means`, `refers to` or a colon, or by a parenthesis. A mechanical proxy for a
+  definition, and documented as one. No `terms` list: skip.
+- `claims`: every claim in the JSONL ledger at `writing.sources.ledger` (`text`, `source`,
+  optional `span`) still appears in the draft word for word, and has a real source; unsourced
+  claims warn instead under `unsourced_claim: warn`, and point at the draft line where the claim
+  appears. A missing ledger fails. The ledger is the list of claims: the station does not decide
+  what counts as one.
+- `quotes`: every double-quoted span of four words or more appears word for word in a `quote` or
+  `story` segment of a marked material, never a private one; when the sentence names a quote
+  segment's speaker, by the full name or by its first word (when that word has two or more
+  letters and is not a common function word such as "the"), the span must come from that
+  speaker. A spec with `fiction: true` skips the station, since a character's dialogue is
+  invented rather than quoted.
+- `private`: no run of eight words from a `private` segment appears in the draft. Segments of four
+  to seven words are checked whole; shorter ones are counted in one warning and never quoted.
+- `dna`: with a current `writing.dna.scope_dir`, the draft is measured the way goldens are and
+  each feature compared with the scope's, from v ÷ 1.5 to the larger of v × 1.5 and v + 5; drift,
+  and an em dash where the scope has none (pointing at the first one), are warnings. No scope
+  folder: skip.
+- `links`: inline, reference and bare links are well-formed http, https or mailto (a bare
+  `https://` with no host fails); relative links resolve to a file beside the draft; a `/` link
+  warns, since there is no site root to resolve it against; a full or collapsed reference needs
+  its definition. A bare `[label]` is a link only when its label is defined, so `[sic]`, `[x]` and
+  `[1]` are text. No network access.
+- The runs ledger: each check appends `{ at, kind: "check", draft, draft_sha256, spec_sha256,
+  stations, verdict }` to `improvement.ledger`, with `draft` relative to the spec's folder. A run
+  with `--only` adds `partial: true`, is `not-improved` with the reason `partial run: <stations>`,
+  and is ignored by later verdicts. A full run is compared with the last full line for the same
+  draft: `one-shot` when there is none and every station passes; `improved` when that line failed
+  and every station passes now, with `change` naming exactly the stations that failed then and
+  pass now; otherwise `not-improved`, with a `reason` that says which case it is, such as "no
+  change since the last passing check" or "spec changed; failing stations: terms". The lines keep
+  lint's test 9 passing.
+- New optional field `writing.audience.terms`: a list of real strings when present (test 1,
+  `writing-audience-terms`, naming a scalar that is not a list, an empty list, and each entry that
+  is not a string, is empty or is a placeholder). Absent, nothing changes.
+- The worked examples each ship a draft that passes every station, with its claims ledger:
+  `examples/writing/essay/draft.md` and `examples/writing/story/draft.md`. Both specs now list
+  `audience.terms`, and their `required_parts` are the drafts' headings. The essay's interview
+  quotes now name their speaker `dana, an engineering manager`, and the essay links the survey
+  summary it cites. A test runs `check` on both. WRITING.md gains "Checking a draft": each station, what it cannot check, a findings table
+  per station held by a test to the ids the stations raise, and the ledger line.
+
 ## 0.5.0 (2026-09-29)
 
 Scoped writer DNA. A writer does not have one voice: the same person writes differently for a

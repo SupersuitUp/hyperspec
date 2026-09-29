@@ -74,7 +74,7 @@ examples:
   - path: story/goldens/dialogue.md
     why: three short lines carry a ritual both characters know, without either of them naming it
 resume:
-  next_action: draft scene-1 from the scene list with Theo's knowledge as of scene-1
+  next_action: hand story/draft.md to the doctor for the rubric checks in r1 and r5, now that hyperspec check passes it
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes
@@ -145,6 +145,10 @@ writing:
       - bakery
       - apprentice
       - sourdough
+    terms:
+      - proof
+      - starter
+      - deck oven
     believes_now: nothing yet about this author or these two people
     wants: a story they can finish in one sitting and keep thinking about
     reads_on: print, in one sitting of about fifteen minutes
@@ -173,8 +177,10 @@ writing:
       max: 4000
       unit: words
     required_parts:
-      - four scenes, in the scene list's order
-      - a last line about bread
+      - "3:40"
+      - "4:30"
+      - "5:50"
+      - "6:55"
     stations:
       - continuity against the scene list
       - knowledge-leak check, per character, per scene
@@ -284,5 +290,14 @@ fiction: true
 
 A worked example of the writing profile for fiction: a short story with two characters, each
 specified well enough that an agent can write their dialogue and a judge can tell them apart.
-Every file this spec names ships beside it. `story/claims.jsonl` does not exist yet, because the
-claims ledger is written during drafting.
+Every file this spec names ships beside it. The draft is `story/draft.md`, and the claims ledger
+written while drafting it is `story/claims.jsonl`: every process detail in the draft, pointed at
+the bakery visit notes. The draft passes every deterministic station:
+
+```bash
+npx @supersuit/hyperspec check story.hyperspec.md --draft story/draft.md
+```
+
+The four required parts are the scene headings, one per scene of the scene list, in its order.
+The story is fiction, so the quotes station skips it: its dialogue is invented, not quoted from
+a material, and is checked against each character's lines by a later release's character stations.

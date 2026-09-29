@@ -204,8 +204,10 @@ function scopeMismatch(out, idPrefix, scopeDirRaw, label, idSuffix, specVal, dis
 // changed by hash; scope fields that differ from scope.md; a dna format this linter does not
 // know; features that differ from a fresh measurement (only named when the goldens themselves
 // are unchanged, since changed goldens explain every number); and, when nothing more specific
-// differs, bytes dna measure would not have written.
-function featuresStaleness(featuresPath, diskScope, diskGoldens) {
+// differs, bytes dna measure would not have written. Exported so the check command's dna station
+// (src/stations/dna.mjs) skips on exactly the staleness lint fails a spec for, never a second
+// definition of it.
+export function featuresStaleness(featuresPath, diskScope, diskGoldens) {
   let text;
   let recorded;
   try {
@@ -365,6 +367,28 @@ function audienceFields(raw, d, here, idPrefix) {
   if (!list(raw.knows).some((x) => str(x))) out.push(f(1, `${idPrefix}-knows`, "fail", "writing.audience has no knows", "List at least one term the reader already has."));
   const reader = str(raw.reader);
   if (!READER_VALUES.includes(reader)) out.push(f(1, `${idPrefix}-reader`, "fail", `writing.audience.reader is "${reader || "(none)"}"`, "Set reader to person or agent."));
+
+  // terms (0.6, optional): the reader-may-not-know terms the check command's `terms` station
+  // checks are defined at first use. The KEY being absent is fine and does not change the
+  // audience block's completeness (the same "absence is 0.4/0.5 behavior" shape scope_dir and
+  // characters use elsewhere in this file): nothing below runs, and the block can still be
+  // complete with no terms: field at all. Present, though, it must be a list of real text: a
+  // scalar is named as not a list, an empty list fails as a whole (the "declared but empty" shape
+  // audience.knows already uses one line up), and each non-string, placeholder or empty entry is
+  // named on its own (mirroring the top-level `rejects` list's own item check in src/rules.mjs).
+  if (raw.terms !== undefined) {
+    if (!Array.isArray(raw.terms)) {
+      out.push(f(1, `${idPrefix}-terms`, "fail", "writing.audience.terms is not a list", "Write terms as a list, one term per line starting \"- \"."));
+    } else if (!raw.terms.length) {
+      out.push(f(1, `${idPrefix}-terms`, "fail", "writing.audience.terms is present but has no real entries", "List at least one term, or remove terms: entirely; it is optional."));
+    } else {
+      raw.terms.forEach((x, i) => {
+        if (x != null && typeof x !== "string") out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${i + 1} is not a plain string`, "Write each term as plain text, e.g. a word or short phrase."));
+        else if (!str(x)) out.push(f(1, `${idPrefix}-terms`, "fail", `writing.audience.terms item ${i + 1} is ${typeof x === "string" && x.trim() ? "a placeholder" : "empty"}`, "Replace it with the real term, or remove the item."));
+      });
+    }
+  }
+
   return out;
 }
 

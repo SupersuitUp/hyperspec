@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tempDir } from "./tmp.mjs";
@@ -235,4 +235,95 @@ test("the page's spec sample is the essay example's own dna block, line for line
     assert.ok(next >= at, `the essay carries, in order: ${line}`);
     at = next + 1;
   }
+});
+
+// ------------------------------------------------------------ Checking a draft -----------------
+// The "Checking a draft" section describes `hyperspec check`: one subsection per station, each with
+// a findings table. These tests hold the tables to the ids the stations raise, the order to the
+// registry, and the samples to what the command prints and writes for the essay example.
+
+const checking = () => doc.split("\n## Checking a draft\n")[1].split("\n## ")[0];
+const checkingSubs = () => checking().split("\n### ").slice(1).map((s) => {
+  const nl = s.indexOf("\n");
+  return { heading: s.slice(0, nl), body: s.slice(nl + 1) };
+});
+const tableRows = (body) => [...body.matchAll(/^\| `([^`]+)` \| ([^|]+) \| ([^|]+) \|$/gm)].map((m) => ({ id: m[1], severity: m[2].trim(), meaning: m[3].trim() }));
+const normId = (id) => id.replace(/\$\{[^}]+\}|<[^>]+>/g, "*");
+
+// Every station finding id raised in src/stations/*.mjs and src/check.mjs, read structurally: an
+// `id: "..."`, an id: `...` template, or a `let id = `...`` (a numbered duplicate suffix assigned
+// later is the same finding, so it is not collected). Each comes with the severity written right
+// after it, or null when the severity is a variable.
+function stationIdsFromSource() {
+  const files = readdirSync(join(ROOT, "src", "stations")).filter((f) => f.endsWith(".mjs") && !["index.mjs", "util.mjs"].includes(f)).map((f) => join("src", "stations", f));
+  files.push(join("src", "check.mjs"));
+  const out = new Map();
+  for (const f of files) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/(?:\bid:\s*|\blet id = )(?:"(station-[^"]+)"|`(station-[^`]+)`)/g)) {
+      const id = normId(m[1] ?? m[2]);
+      const sev = /severity:\s*(?:"(fail|warn)"|(\w+))/.exec(src.slice(m.index, m.index + 1000));
+      out.set(id, sev?.[1] ?? null);
+    }
+  }
+  return out;
+}
+
+test("the Checking a draft findings tables list exactly the ids the stations raise, with their severity", () => {
+  const fromSource = stationIdsFromSource();
+  assert.ok(fromSource.size >= 15, `collected ${fromSource.size} ids`);
+  const rows = checkingSubs().flatMap((s) => tableRows(s.body));
+  const fromDoc = new Map(rows.map((r) => [normId(r.id), r.severity]));
+  assert.equal(fromDoc.size, rows.length, "no id is listed twice");
+  assert.deepEqual([...fromDoc.keys()].sort(), [...fromSource.keys()].sort());
+  for (const [id, sev] of fromSource) {
+    const docSev = fromDoc.get(id);
+    if (sev) assert.equal(docSev, sev, id);
+    else assert.ok(/\bfail\b/.test(docSev) && /\bwarn\b/.test(docSev), `${id}: a severity set at run time is described as both: ${docSev}`);
+  }
+  for (const r of rows) assert.ok(r.meaning.length > 10, `${r.id} has a meaning`);
+});
+
+test("Checking a draft has one subsection per station, in the order check runs them, each holding only its own ids", async () => {
+  const { STATION_NAMES } = await import("../src/stations/index.mjs");
+  const subs = checkingSubs();
+  assert.deepEqual(subs.map((s) => s.heading), [...STATION_NAMES, "Any station", "The runs ledger"]);
+  for (const s of subs.filter((x) => STATION_NAMES.includes(x.heading))) {
+    const rows = tableRows(s.body);
+    assert.ok(rows.length >= 1, `${s.heading} has a findings table`);
+    for (const r of rows) assert.ok(r.id.startsWith(`station-${s.heading}-`), `${r.id} is listed under ${s.heading}`);
+  }
+});
+
+test("the page's sample check output is exactly what check prints for the essay example's draft", () => {
+  // The bare ``` block (no language), found by walking every fence in order, since a regex for an
+  // empty language would also match the closing fence of the bash block above it.
+  const sample = [...checking().matchAll(/```(\w*)\n([\s\S]*?)```/g)].find((m) => m[1] === "")[2];
+  const d = tempDir("hs-writing-doc-check-");
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "check", "essay.hyperspec.md", "--draft", "essay/draft.md"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(sample, r.stdout);
+  assert.match(checking(), /^npx @supersuit\/hyperspec check essay\.hyperspec\.md --draft essay\/draft\.md$/m);
+});
+
+test("the page's sample claims ledger line is a line of the essay's own ledger", () => {
+  const sample = fence(checkingSubs().find((s) => s.heading === "claims").body, "jsonl").trim();
+  const ledger = readFileSync(join(ROOT, "examples", "writing", "essay", "claims.jsonl"), "utf8").split("\n");
+  assert.ok(ledger.includes(sample), sample);
+});
+
+test("the page's sample runs-ledger line has exactly the fields check writes, and every station", async () => {
+  const { STATION_NAMES } = await import("../src/stations/index.mjs");
+  const sample = JSON.parse(fence(checkingSubs().find((s) => s.heading === "The runs ledger").body, "json"));
+  assert.deepEqual(Object.keys(sample), ["at", "kind", "draft", "draft_sha256", "spec_sha256", "stations", "verdict"]);
+  assert.deepEqual(Object.keys(sample.stations), [...STATION_NAMES]);
+  assert.equal(sample.kind, "check");
+  const d = tempDir("hs-writing-doc-ledger-");
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "check", "essay.hyperspec.md", "--draft", sample.draft], { cwd: d, encoding: "utf8" });
+  const written = JSON.parse(readFileSync(join(d, "essay", "runs.jsonl"), "utf8").trim().split("\n").at(-1));
+  assert.deepEqual(Object.keys(written), Object.keys(sample));
+  assert.deepEqual(written.stations, sample.stations);
+  assert.equal(written.verdict, sample.verdict);
 });

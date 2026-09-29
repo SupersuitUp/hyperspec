@@ -251,7 +251,10 @@ function percentileNearestRank(sortedArr, p) {
 // the token by this same rule; it is simply never "between letters", so it never makes the word
 // count as a contraction below.
 const WORD_RE = /[\p{L}\p{N}'\u2019]+/gu;
-function wordsOf(text) {
+// Exported so a later reader of a whole document (the check command's "form" station counting a
+// draft's words against writing.form.length) reuses this exact word definition rather than
+// keeping a second one that could quietly disagree with it.
+export function wordsOf(text) {
   const m = text.match(WORD_RE);
   return m ? m.map((w) => w.toLowerCase()) : [];
 }
