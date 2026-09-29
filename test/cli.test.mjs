@@ -99,6 +99,40 @@ test("init quotes titles with YAML-special characters, and the title reads back 
     assert.equal(s.body.split("\n").filter((l) => l.startsWith("# ")).length, 1, `one heading line for ${JSON.stringify(title)}`);
   }
 });
+// The writing profile: the CLI prints "<name>: k/n blocks complete" right after the score line,
+// and --json carries the same object under files[i].profile.
+const WRITING_VALID = join(ROOT, "test", "fixtures", "writing-valid", "spec.md");
+test("lint on the writing-valid fixture exits 0 and prints writing: 9/9 blocks complete", () => {
+  const r = run("lint", WRITING_VALID);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /spec\.md: pass \(9\/9\)$/m);
+  assert.match(r.stdout, /^ {2}writing: 9\/9 blocks complete$/m);
+});
+test("lint --json on the writing-valid fixture carries files[0].profile", () => {
+  const out = JSON.parse(run("lint", WRITING_VALID, "--json").stdout);
+  assert.deepEqual(out.files[0].profile, { name: "writing", complete: 9, total: 9 });
+});
+test("a spec with profile: writing and no writing: prints the summary line at less than 9/9, and fails (exit 1)", () => {
+  const d = tempDir("hs-cli-writing-");
+  cpSync(dirname(WRITING_VALID), d, { recursive: true });
+  const p = join(d, "spec.md");
+  const t = readFileSync(p, "utf8").replace(/writing:\n([ \t].*\n)+fiction: false\n/, "fiction: false\n");
+  _write(p, t);
+  const r = run("lint", p);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^ {2}writing: 1\/9 blocks complete$/m);
+});
+test("an unknown profile prints its warning but no blocks-complete line", () => {
+  const d = tempDir("hs-cli-writing-");
+  cpSync(dirname(WRITING_VALID), d, { recursive: true });
+  const p = join(d, "spec.md");
+  _write(p, readFileSync(p, "utf8").replace("profile: writing", "profile: screenplay"));
+  const r = run("lint", p);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(!/blocks complete/.test(r.stdout), r.stdout);
+  assert.match(r.stdout, /does not know profile "screenplay"/);
+});
+
 test("a plain title is left unquoted", () => {
   const p = join(tempDir("hs-"), "new.md");
   assert.equal(run("init", p, "--title", "My piece, part 2 (draft)", "--kind", "essay").status, 0);

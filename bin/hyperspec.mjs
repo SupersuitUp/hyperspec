@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, statSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
 import { score, exitCode } from "../src/score.mjs";
 import { template } from "../src/template.mjs";
+import { writingTemplate } from "../src/writing-template.mjs";
+import { PROFILES, knownProfile } from "../src/profiles.mjs";
 import { readRecipe, checkRecipe } from "../src/recipe.mjs";
 import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
@@ -15,6 +18,17 @@ const HELP = `hyperspec <command> [options]
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
   init <file> [--title T] [--kind K]   write a new hyperspec skeleton (refuses to overwrite)
+  init <file> --profile writing [--title T] [--form F] [--fiction]
+                               write a writing-profile skeleton: every required block (materials,
+                               dna, persona, audience, goal, form, spine, sources) shown in full
+                               with placeholder values, dna/persona/audience/goal also carrying an
+                               open decision naming the question only the operator can answer;
+                               --fiction adds one character, same treatment; the skeleton never
+                               passes until its placeholders and open decisions are replaced with
+                               real content; exit 2 for a --profile with no value or one this
+                               linter does not know, --fiction or --form without --profile
+                               writing, --kind with it (use --form), or a folder that does not
+                               exist
 
   recipe check <output-or-recipe> [--json]
                                check a recipe's completeness (a path not ending .recipe.json
@@ -47,11 +61,39 @@ const cmd = argv[0];
 
 if (!cmd || cmd === "--help" || cmd === "-h") { console.log(HELP); process.exit(cmd ? 0 : 2); }
 
+// Each profile that wants its own init skeleton adds one entry here; a profile absent from this
+// map still lints (via PROFILES in profiles.mjs) but init falls back to the plain template for it.
+const PROFILE_TEMPLATES = { writing: writingTemplate };
+
 if (cmd === "init") {
   const file = argv[1];
   if (!file || file.startsWith("--")) { console.error("init needs a file path"); process.exit(2); }
   if (existsSync(file)) { console.error(`refusing to overwrite ${file}`); process.exit(2); }
-  writeFileSync(file, template({ title: flag("--title"), kind: flag("--kind") }));
+  const usage = (msg) => { console.error(msg); process.exit(2); };
+  const given = (name) => argv.includes(name);
+  // A value flag with nothing after it, or another flag after it, has no value.
+  const value = (name) => { const v = flag(name); return v === undefined || v.startsWith("--") ? undefined : v; };
+  const profileName = value("--profile");
+  if (given("--profile") && profileName === undefined) usage("--profile needs a value; known profiles: " + Object.keys(PROFILES).join(", "));
+  if (profileName !== undefined && !knownProfile(profileName)) {
+    usage(`unknown profile: ${profileName}; known profiles: ${Object.keys(PROFILES).join(", ") || "(none)"}`);
+  }
+  const writeTemplate = profileName !== undefined && Object.hasOwn(PROFILE_TEMPLATES, profileName) ? PROFILE_TEMPLATES[profileName] : undefined;
+  // The writing flags mean nothing to the plain template, and --kind means nothing to the writing
+  // one (its kind comes from --form); either would be silently dropped, so both are refused.
+  if (!writeTemplate) {
+    for (const f of ["--fiction", "--form"]) if (given(f)) usage(`${f} only applies with --profile writing`);
+  } else if (given("--kind")) {
+    usage("--kind does not apply with --profile writing; use --form, which sets kind and writing.form.name together");
+  }
+  if (given("--form") && value("--form") === undefined) usage("--form needs a value");
+  const folder = dirname(resolve(file));
+  if (!existsSync(folder) || !statSync(folder).isDirectory()) usage(`the folder ${dirname(file)} does not exist; create it first`);
+  const content = writeTemplate
+    ? writeTemplate({ title: flag("--title"), form: value("--form"), fiction: given("--fiction") })
+    : template({ title: flag("--title"), kind: flag("--kind") });
+  try { writeFileSync(file, content); }
+  catch (e) { usage(`could not write ${file}: ${e.code === "EACCES" ? "permission denied" : e.message}`); }
   console.log(`wrote ${file}; run: hyperspec lint ${file}`);
   process.exit(0);
 }
@@ -79,6 +121,7 @@ if (cmd === "lint") {
   else for (const r of reports) {
     if (r.error) { console.log(`${r.file}: ${r.error}`); continue; }
     console.log(`${r.file}: ${r.status} (${r.passed}/9)${r.open.length ? `, open: ${r.open.join(", ")}` : ""}`);
+    if (r.profile) console.log(`  ${r.profile.name}: ${r.profile.complete}/${r.profile.total} blocks complete`);
     for (const t of r.tests) if (!t.pass) console.log(`  ✗ ${t.n}. ${t.name}`);
     for (const f of r.findings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
   }

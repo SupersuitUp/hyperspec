@@ -39,6 +39,12 @@ decisions:
     source: SPEC.md, section "Recipes"
     author: agent:claude
     chosen_by: agent
+  - id: profiles
+    state: decided
+    value: a profile adds rules for one kind of work under the nine tests; it never adds a tenth test, every finding it raises names one of the nine, and the score stays out of nine
+    source: WRITING.md, section "The writing profile"
+    author: agent:claude
+    chosen_by: agent
 requirements:
   - id: r1
     text: lint exits 0 only when all nine tests pass and nothing is open
@@ -91,7 +97,7 @@ examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
 resume:
-  next_action: collect adopter issues on 0.2, recipes included, and cut 0.3 from them
+  next_action: collect adopter issues on 0.3, the writing profile included, and cut 0.4 from them
 feedback:
   issues: https://github.com/SupersuitUp/hyperspec/issues
   fork: MIT; fork it for your own purposes and say so in your SPEC
@@ -103,7 +109,7 @@ improvement:
 
 A person writing for another person leaves most of the specification unsaid, because the other person fills the gaps from shared context. An agent has none of that context, so it fills every gap with the average, and the average is what reads as middling. Hyperspecification is writing down the gaps. It is a level of detail that would feel like overkill between two people and is exactly enough for an agent: every decision the agent would otherwise guess is either decided, delegated with the rule for deciding it, or marked open, so the work stops instead of guessing.
 
-**Version 0.2.0** (2026-09-28)
+**Version 0.3.0** (2026-09-29)
 
 ## What makes a spec a hyperspec
 
@@ -161,7 +167,7 @@ decisions:
     state: decided            # decided | delegated | open
     value: the operator, reading on a phone
     source: interview A2      # where it came from
-    author: gary-sheng        # a person slug, or agent:<model>
+    author: example-author    # a person slug, or agent:<model>
     chosen_by: human          # human | agent
   - id: length
     state: delegated
@@ -182,7 +188,7 @@ requirements:
     check:
       rubric: ask the simulated reader to define the term; pass only on a correct definition
     source: design doc, audience block
-    author: gary-sheng
+    author: example-author
 rejects:
   - hype words about AI
 examples:
@@ -200,7 +206,7 @@ improvement:
 
 ## The test-to-field map
 
-Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), or `null`, or `~`, counts as missing. A quoted value that happens to start with `#` (`source: "# literal"`) is real text and counts as present.
+Each row lists every condition under which `hyperspec lint` fails that test. A warning never fails a test. A value that is only a YAML comment (`source: # TODO`), `null`, `~`, or a placeholder counts as missing. A placeholder is a whole value, trimmed and in any case, of `todo`, `tbd`, `fixme`, `xxx`, `placeholder`, `<placeholder>`, `n/a`, a run of dashes, a run of question marks, or an ellipsis, optionally followed by a trailing `.`, `:` or `!`. Real text that starts with one of those (`TODO: write the opening`) counts as present, and so do `none` and a quoted value that happens to start with `#` (`source: "# literal"`).
 
 | Test | Fails when |
 |---|---|
@@ -210,7 +216,7 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 | 4 every field says where it came from and who wrote it | a decision or requirement without `source` or `author`; a decision whose `chosen_by` is not human or agent |
 | 5 negative space is specified | `rejects` missing or empty; a `rejects` item that is not a plain string |
 | 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a `path` that is not an http(s) URL and does not exist, is a folder, or is the spec itself, read relative to the spec or as an absolute path |
-| 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning, and so is a `hyperspec` version this linter does not know |
+| 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning, and so are a `hyperspec` version and a `profile` this linter does not know |
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
 | 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason`. A declared ledger that does not exist yet is a warning |
 
@@ -233,6 +239,12 @@ Every run of a skill that works from a hyperspec writes one line to the ledger n
 
 Silence is not a verdict. A run that learned nothing has to say so and why, and a ledger line with none of the three verdicts fails the ninth test.
 
+## Profiles
+
+A profile adds the rules for one kind of work on top of the nine tests. A spec opts in with a top-level `profile:` naming it. A profile never adds a tenth test: every finding it raises reports under one of the nine, with an id that starts with the profile's name, and the score stays out of nine. `lint` prints one more line for a profiled spec, how many of the profile's blocks are complete. A `profile` this linter does not know is a warning under test 7, and none of its rules are checked.
+
+One profile ships: `writing`, for essays, chapters, letters, stories and anything else an agent drafts for a person to read. Its blocks, its fields, which test each rule reports under, and `hyperspec init --profile writing` are in [WRITING.md](WRITING.md).
+
 ## Recipes
 
 A hyperspec says what the work must be. A recipe records what one output was made from, so the output can be checked, made again with one change, and graded against the version before it. hyperspec never calls a model. Every step that needs one is a command the caller supplies: a runner for stages and a doctor for grading.
@@ -246,8 +258,8 @@ A recipe sits beside its output as `<output>.recipe.json`: JSON with a two-space
   "recipe": "0.1",
   "created": "2026-09-28T18:00:00.000Z",
   "output": { "path": "essay.md", "sha256": "<hex>" },
-  "factory": { "name": "compose-a-piece", "version": "0.3.0" },
-  "spec": { "path": "essay.hyperspec.md", "sha256": "<hex>", "authors": { "audience": "gary-sheng", "length": "agent:claude" } },
+  "factory": { "name": "my-factory", "version": "0.3.0" },
+  "spec": { "path": "essay.hyperspec.md", "sha256": "<hex>", "authors": { "audience": "example-author", "length": "agent:claude" } },
   "inputs": [
     { "name": "call", "path": "materials/call.md", "sha256": "<hex>", "order": 1 }
   ],
@@ -261,8 +273,8 @@ A recipe sits beside its output as `<output>.recipe.json`: JSON with a two-space
       "verdict": { "station": "outline-has-claim-chain", "pass": true, "note": "" }
     }
   ],
-  "clicker": "gary-sheng",
-  "approver": "gary-sheng",
+  "clicker": "example-author",
+  "approver": "example-author",
   "parent": null,
   "change": null
 }

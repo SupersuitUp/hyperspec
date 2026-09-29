@@ -19,7 +19,7 @@ test("README shows both commands and the exit codes", () => {
 });
 
 test("no em dash in the docs", () => {
-  for (const f of ["README.md", "SPEC.md", "CHANGELOG.md"]) assert.ok(!read(f).includes("—"), f);
+  for (const f of ["README.md", "SPEC.md", "CHANGELOG.md", "WRITING.md"]) assert.ok(!read(f).includes("—"), f);
 });
 
 test("the README's sample output is exactly what lint prints for a passing spec.md", async () => {
