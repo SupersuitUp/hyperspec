@@ -20,9 +20,17 @@
 // the reader is assumed to already have it. A term that never appears in the draft at all is not
 // flagged either (nothing to define); writing.audience.terms with no real entries, or missing
 // entirely, skips the whole station.
+//
+// Fenced code blocks and inline code spans are masked out (src/stations/util.mjs's maskCode)
+// before any of the above runs: a term's only appearance inside example syntax like
+// `` `ledger: check` `` is not a prose use, and the mechanical colon/`is` rule below would
+// otherwise read that code span's own punctuation as a definition it never gave. Masking
+// preserves every character offset, so every 1-based line number reported below is still a line
+// of the ORIGINAL draft, never the masked copy.
 
 import { str } from "../placeholder.mjs";
 import { splitSegments } from "../segments.mjs";
+import { lineAt, maskCode } from "./util.mjs";
 
 export const name = "terms";
 
@@ -77,17 +85,6 @@ function definesTerm(sentenceText, term) {
   return false;
 }
 
-// The 1-based line containing character offset `pos` of `text`. Counts "\n" characters directly
-// in `text` itself rather than walking draft.lines: draft.lines' own CRLF handling ("\r" left
-// attached to the previous line's entry, or stripped, depending on how src/check.mjs built it) is
-// none of this station's business, and counting "\n" occurrences gives the right line number
-// either way, since every line, CRLF or not, still carries exactly one "\n".
-function lineAt(text, pos) {
-  let line = 1;
-  for (let i = 0; i < pos && i < text.length; i++) if (text[i] === "\n") line++;
-  return line;
-}
-
 export function run(spec, draft) {
   const audience = spec?.data?.writing?.audience ?? {};
   const terms = Array.isArray(audience.terms) ? audience.terms.map(str).filter(Boolean) : [];
@@ -97,15 +94,16 @@ export function run(spec, draft) {
 
   const knows = new Set((Array.isArray(audience.knows) ? audience.knows : []).map((x) => str(x).toLowerCase()).filter(Boolean));
 
-  const sentences = splitSegments(draft.text, { by: "sentence" });
+  const scanText = maskCode(draft.text);
+  const sentences = splitSegments(scanText, { by: "sentence" });
   const findings = [];
   const usedIds = new Set();
 
   for (const term of terms) {
     if (knows.has(term.toLowerCase())) continue;
 
-    const first = termRegex(term, "iu").exec(draft.text);
-    if (!first) continue; // the term never appears in the draft; nothing to define
+    const first = termRegex(term, "iu").exec(scanText);
+    if (!first) continue; // the term never appears outside code; nothing to define
 
     const pos = first.index;
     const idx = sentences.findIndex((s) => pos >= s.start && pos < s.end);

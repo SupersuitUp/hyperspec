@@ -144,3 +144,37 @@ test("two undefined terms each get their own finding", () => {
   const ids = result.findings.map((x) => x.id).sort();
   assert.deepEqual(ids, ["station-terms-undefined-golden", "station-terms-undefined-hyperspec"]);
 });
+
+// ---- fix round 1: code masking (R2's own known-item case) -------------------------------------
+
+test("a term whose ONLY appearance is inside an inline code span never appears (skipped, no finding)", () => {
+  // Before code masking, this mechanically satisfied the colon rule (the review's own example):
+  // `ledger: check` reads as "ledger" immediately followed by a colon. Masked, "ledger" never
+  // appears in prose at all, so there is nothing to define.
+  const draft = draftOf("Run `ledger: check` before anything else.");
+  const result = run(specWith({ terms: ["ledger"] }), draft);
+  assert.equal(result.status, "pass");
+  assert.deepEqual(result.findings, []);
+});
+
+test("a term appearing in a fenced code block is masked the same way", () => {
+  const draft = draftOf("Before.\n```\nledger: check\n```\nAfter, with nothing else about it.");
+  const result = run(specWith({ terms: ["ledger"] }), draft);
+  assert.equal(result.status, "pass");
+  assert.deepEqual(result.findings, []);
+});
+
+test("a term's REAL first appearance is in prose even when it also shows up in a code span first", () => {
+  // The code span comes first in the text but is masked out, so the actual first appearance the
+  // station reasons about is the prose one, which does define it.
+  const draft = draftOf("See `hyperspec` for the syntax. A hyperspec is a contract a linter can check.");
+  const result = run(specWith({ terms: ["hyperspec"] }), draft);
+  assert.equal(result.status, "pass", JSON.stringify(result.findings));
+});
+
+test("a term whose only prose appearance is undefined still fails, even with an unrelated code span nearby", () => {
+  const draft = draftOf("See `example syntax` here. This draft simply mentions a hyperspec without further explanation.");
+  const result = run(specWith({ terms: ["hyperspec"] }), draft);
+  assert.equal(result.status, "fail");
+  assert.equal(result.findings[0].id, "station-terms-undefined-hyperspec");
+});

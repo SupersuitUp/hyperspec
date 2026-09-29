@@ -319,6 +319,17 @@ cannot pass a presence check. A placeholder is a whole value, trimmed and in any
 marks, or an ellipsis, optionally followed by a trailing `.`, `:` or `!`. Real text that starts
 with one of those, such as `TODO: write the opening`, counts as present, and so does `none`.
 
+`audience.terms` is checked by the `terms` station in `hyperspec check`, and that check is a
+**mechanical proxy, not an understanding of meaning**: it looks for a definition-SHAPED phrase
+near the term's first appearance (the word `is`, `means`, `refers to`, a colon within a few words,
+or an immediate parenthetical), not for whether that phrase actually defines the term. A sentence
+like "A hyperspec is mentioned here" reads as a definition of "hyperspec" by this rule, because
+`is` immediately follows the word, even though nothing about the term is explained. This is
+deliberate and known, not a bug to fix later in this station: reading for meaning is a judgment
+call, and hyperspec's deterministic stations do not make judgment calls. A later release adds a
+simulated-reader station that reads for meaning instead of shape; `terms` stays the fast,
+mechanical first pass.
+
 ## The test mapping
 
 Each row lists what the writing profile adds to that test. The core conditions in

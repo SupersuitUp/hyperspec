@@ -20,6 +20,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { str } from "../placeholder.mjs";
+import { truncate } from "./util.mjs";
 
 export const name = "claims";
 
@@ -33,11 +34,6 @@ function normalize(text) {
     .replace(/[“”„‟]/g, '"')
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function truncate(text, max) {
-  const t = text.trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 export function run(spec, draft) {
@@ -56,7 +52,11 @@ export function run(spec, draft) {
   const ledgerAbs = resolve(spec?.dir || ".", ledgerPath);
   let raw;
   try {
-    raw = readFileSync(ledgerAbs, "utf8");
+    // A leading UTF-8 BOM (written by default by several Windows/Excel-adjacent editors) is not
+    // valid JSON leading whitespace, so it must come off before line 1 is parsed, or a genuinely
+    // well-formed first line reports as broken JSON for a reason that has nothing to do with its
+    // content.
+    raw = readFileSync(ledgerAbs, "utf8").replace(/^﻿/, "");
   } catch {
     return {
       station: name,

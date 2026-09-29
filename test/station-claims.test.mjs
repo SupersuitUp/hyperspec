@@ -172,3 +172,14 @@ test("CRLF draft: a claim not present in a CRLF draft is still reported stale", 
   assert.equal(result.status, "fail");
   assert.equal(result.findings[0].id, "station-claims-stale");
 });
+
+test("fix round 1: a leading UTF-8 BOM on the ledger does not break parsing its first line", () => {
+  const dir = tempDir("hs-claims-");
+  const bom = "﻿";
+  writeFileSync(join(dir, "claims.jsonl"), bom + JSON.stringify({ text: "a hyperspec is a contract", source: "spec.md" }) + "\n");
+  const spec = specWith(dir, { ledger: "claims.jsonl" });
+  const draft = draftOf("Somewhere: a hyperspec is a contract, stated plainly.");
+  const result = run(spec, draft);
+  assert.equal(result.status, "pass", JSON.stringify(result.findings));
+  assert.deepEqual(result.findings, []);
+});
