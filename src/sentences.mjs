@@ -65,7 +65,7 @@ export function sentenceUnits(text) {
   splitSegments(text).forEach((para, p) => {
     let run = null;
     const flush = () => { if (run) out.push(...sentencesOf(text, scan, run.start, run.end).map((u) => ({ ...u, para: p, heading: false }))); run = null; };
-    // Only a paragraph's first line can be a heading (ruling R22): a later line that starts with
+    // Only a paragraph's first line can be a heading: a later line that starts with
     // "#" is a hard wrap inside the text and is split into sentences like the rest of it.
     lines(text, para.start, para.end).forEach((line, k) => {
       if (k === 0 && HEADING.test(text.slice(line.start, line.end))) { out.push({ start: line.start, end: line.end, para: p, heading: true }); return; }

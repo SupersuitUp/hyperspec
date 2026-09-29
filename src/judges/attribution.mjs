@@ -10,10 +10,10 @@
 // paired within one paragraph with code masked first: the quotes station's own quotedSpans
 // (src/stations/quotes.mjs). A span with no letter or digit is not a line. A quote split by a
 // speech tag ("Twenty minutes," Ines said, "then we fold it.") is one line: the first part ends in
-// a comma, and the narration between the parts is a speech tag ending in a comma (ruling R15).
+// a comma, and the narration between the parts is a speech tag ending in a comma.
 // Lines keep draft order and are numbered L1..Ln over the lines that are attributed.
 //
-// The true speaker (ruling R11) comes ONLY from a speech tag: narration in the same paragraph that
+// The true speaker comes ONLY from a speech tag: narration in the same paragraph that
 // sits right against the quote, directly after its closing mark (`"...," Ines said`, `"...," said
 // Ines`) or directly before its opening mark, ending in a comma or colon (`Ines said, "..."`). A
 // tag is a subject next to a verb from SPEECH_VERBS; the inverted form, verb before name ("said
@@ -27,10 +27,10 @@
 // Anything else leaves the line out, counted in the packet (excluded) and listed in the key with its
 // reason. The key must never be wrong, so every doubt excludes: no tag, a tag whose subject cannot
 // be resolved to a character with a speech block, and any line whose tags yield two different
-// candidate speakers, by any of the rules above (ruling R16).
+// candidate speakers, by any of the rules above.
 //
 // A line of three or more words that contains, or is contained in, any character's golden or
-// rejected line (compared as lower-cased words) is left out too (ruling R13): shown beside the
+// rejected line (compared as lower-cased words) is left out too: shown beside the
 // speech lines, it would give its speaker away.
 
 import { str } from "../placeholder.mjs";
@@ -50,7 +50,7 @@ export const SPEECH_VERBS = Object.freeze([
   "whispered", "whispers", "shouted", "shouts", "answered", "answers", "added", "adds", "went on", "goes on",
 ]);
 
-// The speech verbs that also make an inverted tag, verb before name ("said Ines"), ruling R16. The
+// The speech verbs that also make an inverted tag, verb before name ("said Ines"). The
 // rest (told, asked, called, answered, added) take a person as their object as often as they tag
 // speech ("Ines told Theo"), so for them only the name-then-verb form counts: an inversion there
 // would credit the person spoken to.
@@ -310,7 +310,7 @@ export function validate(verdict, pkt, t) {
 
 const pctFloor = (num, den) => Number((BigInt(num) * 100n) / BigInt(den));
 
-// Accuracy against the rebuilt key, per speaker (ruling R12): each speaker's share of their own
+// Accuracy against the rebuilt key, per speaker: each speaker's share of their own
 // lines named correctly, averaged over the speakers with lines. Pass when that mean is 80 percent or
 // more, compared exactly. Every misattributed line is a warning at its draft line; a mean under 80
 // percent is the failure. summary reports every speaker's accuracy as a fraction and a percentage,

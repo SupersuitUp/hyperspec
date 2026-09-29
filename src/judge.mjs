@@ -107,7 +107,7 @@ function toolsFor(stationName, draft) {
 
 // The message for files whose bytes no longer match the hashes a packet recorded. Nothing on disk
 // can tell a file changed since prepare from a packet whose hash (or path) was edited, so it claims
-// neither (rulings R10, R21). `names` lists the files, e.g. ["the spec", "the draft"]. Shared with
+// neither. `names` lists the files, e.g. ["the spec", "the draft"]. Shared with
 // `learn record`.
 export function hashMismatchMessage(names) {
   const one = names.length === 1;
@@ -265,11 +265,11 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
       return { ...base, ok: false, invalid: true, findings: [t.finding(`judge-${judge.name}-crashed`, withoutAbsolutePaths(e instanceof Error ? e.message : String(e)), "Fix the station or file an issue; it should never throw.")], code: 1 };
     }
   }
-  // Ruling R9: a station that reads files besides the spec and the draft (lineup reads the DNA
+  // A station that reads files besides the spec and the draft (lineup reads the DNA
   // goldens) can go out of date with both hashes unchanged. When the file is a well-formed packet
   // that differs from the rebuilt one only in its inputs, that is reported as stale, naming those
   // files; the packet could also have been hand-edited there (its inputs, or a hash forged to match
-  // an edited draft), and the message says so without claiming either hash is honest (ruling R10),
+  // an edited draft), and the message says so without claiming either hash is honest,
   // since nothing on disk can tell these apart. Anything else is an altered packet.
   //
   // A station can also stop applying because of those files (persona's claims ledger deleted,
@@ -315,9 +315,9 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
   // accuracy); printed after the status and carried in --json, never in the ledger line.
   const { status, findings, summary } = derived;
 
-  // ---- ledger: the same truth rules as check (ruling R1): compared with the most recent earlier
+  // ---- ledger: the same truth rules as check: compared with the most recent earlier
   // judge line for the same station and draft path, through ledgerVerdict; two judge-only rules on
-  // top (R3, R5) are marked below.
+  // top are marked below.
   let ledgerPath = null;
   let ledgerWarning = null;
   let verdict = null;

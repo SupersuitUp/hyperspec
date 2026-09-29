@@ -3,13 +3,13 @@
 // shuffled and labelled; a judge who can pick the draft's passage out has found that the draft does
 // not yet sound like the writer. The station passes when the judge picks a golden.
 //
-// Every candidate is built the same way, so none can be told apart by its formatting (ruling R7):
+// Every candidate is built the same way, so none can be told apart by its formatting:
 // ONE prose paragraph (proseParagraphs below), reflowed to a single line. The target length is the
 // median, in characters, of every prose paragraph of every golden in the scope. Each of the scope's
 // first three goldens with a prose paragraph (by file name, the order src/dna.mjs's reader returns
 // them in) contributes its paragraph closest to that target; the draft contributes its paragraph
 // closest to the same target, skipping any that is already a golden paragraph word for word
-// (ruling R8), since a lineup of two identical passages tests nothing. Ties go to the earliest.
+//, since a lineup of two identical passages tests nothing. Ties go to the earliest.
 //
 // The shuffle is seeded from the draft's sha256, so the same draft always gets the same labels and
 // a revised draft gets a fresh draw. The draft's label is the hidden answer: it goes only in the
@@ -189,7 +189,7 @@ export function sourceSkip(spec, draft) {
 }
 
 // Where the lineup's inputs come from beyond the spec and the draft: record names them when the
-// packet's inputs no longer match while neither hash changed (ruling R9).
+// packet's inputs no longer match while neither hash changed.
 export function inputSources(spec) {
   const dir = str(spec.data?.writing?.dna?.scope_dir);
   return dir ? `the DNA scope's goldens (${dir}/goldens)` : null;

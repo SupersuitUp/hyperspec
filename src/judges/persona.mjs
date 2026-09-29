@@ -9,7 +9,7 @@
 // draft, so the station names it in inputSources: a ledger changed after prepare makes the packet
 // stale, not altered. With no ledger declared (writing.sources deferred) the claims are null, the
 // instructions say facts cannot be checked against sources, and a break of kind unsourced_fact is
-// an invalid verdict (ruling R14): an empty list would read as "no fact is sourced". A ledger
+// an invalid verdict: an empty list would read as "no fact is sourced". A ledger
 // declared but unreadable skips the station, for the same reason.
 
 import { str } from "../placeholder.mjs";

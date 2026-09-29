@@ -58,7 +58,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // ---- the diff ----------------------------------------------------------------------------------
 
-// The most cells the LCS table may have (rulings R20): past it, prepare refuses with a usage error
+// The most cells the LCS table may have: past it, prepare refuses with a usage error
 // rather than allocate gigabytes. The common start and end of the two drafts are trimmed first, so
 // only the span that actually differs counts.
 export const MAX_DIFF_CELLS = 10_000_000;
@@ -75,8 +75,8 @@ export class DiffTooLarge extends Error {
 
 // A boundary between two units: a blank line between paragraphs, or the end of a heading that
 // opens its paragraph. Boundaries are tokens in the diff, equal to one another, so the LCS anchors
-// on them and no hunk crosses one (ruling R17). Only a paragraph's first line is ever a heading
-// (src/sentences.mjs, ruling R22), so a hard wrap that starts a line with "# " is text, not a
+// on them and no hunk crosses one. Only a paragraph's first line is ever a heading
+// (src/sentences.mjs), so a hard wrap that starts a line with "# " is text, not a
 // boundary, and a reflow cannot make one.
 const BOUNDARY = Symbol("boundary");
 
@@ -102,7 +102,7 @@ function tokens(units) {
 // boundaries is one hunk. A hunk's texts are the drafts' own text from its first unit to its last,
 // as written (null on the side that has none), and `sentences` is the larger of its two unit
 // counts. A run whose two sides read the same once whitespace is normalized is a reflow, not an
-// edit (ruling R18): it gets no hunk and no id. Throws DiffTooLarge past MAX_DIFF_CELLS.
+// edit: it gets no hunk and no id. Throws DiffTooLarge past MAX_DIFF_CELLS.
 export function diffSentences(firstText, approvedText) {
   const a = sentenceUnits(firstText);
   const b = sentenceUnits(approvedText);
@@ -304,7 +304,7 @@ function validate(verdict, packet) {
 }
 
 // { block: { edits, sentences } } for the blocks named (sentences: the sum of each hunk's sentence
-// count), most sentences first, then most edits, then LEARN_BLOCKS order (ruling R17: a rewritten
+// count), most sentences first, then most edits, then LEARN_BLOCKS order (a rewritten
 // paragraph is one edit of many sentences, and weighs as the sentences it rewrote).
 function tallyOf(edits, hunks) {
   const size = new Map(hunks.map((h) => [h.id, h.sentences]));
@@ -352,7 +352,7 @@ export function recordLearn(packetPathArg, verdictPathArg) {
   const refuse = (f, extra = {}) => ({ ...base, ok: false, invalid: true, ...extra, findings: [f], code: 1 });
 
   // A verdict on bytes other than the ones the packet was built from classifies edits that no
-  // longer exist: say which file no longer matches, claiming neither cause (ruling R21).
+  // longer exist: say which file no longer matches, claiming neither cause.
   const specSha = sha256(readFileSync(resolve(packet.spec)));
   const changed = [
     specSha !== packet.spec_sha256 && "the spec",
@@ -388,7 +388,7 @@ export function recordLearn(packetPathArg, verdictPathArg) {
   const top = Object.entries(tally).find(([b]) => b !== "none");
   const suggestion = top ? { block: top[0], edits: top[1].edits, sentences: top[1].sentences, move: LEARN_MOVES[top[0]] } : null;
   // "none" means no block of the spec could have prevented the edit (the packet's instructions),
-  // so a verdict of nothing but none leaves the spec nothing to learn (ruling R19).
+  // so a verdict of nothing but none leaves the spec nothing to learn.
   const NOTHING_TO_LEARN = "no block could have prevented any edit, so the spec has nothing to learn from this pair";
   const next = suggestion
     ? `${suggestion.block}, ${suggestion.sentences} of ${plural(sentences, "sentence")} (${suggestion.edits} of ${plural(edits, "edit")}): ${suggestion.move}`
