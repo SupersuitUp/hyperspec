@@ -17,8 +17,26 @@ decisions:
     chosen_by: human
   - id: exit-codes
     state: decided
-    value: "0 every test passes and nothing is open; 1 at least one test fails; 3 every test passes but a decision is open; 2 usage or IO error"
-    source: SPEC.md, section "Exit codes", and README.md, section "Exit codes"
+    value: "0 every test passes and nothing is open; 1 at least one test fails; 3 every test passes but a decision is open; 2 usage or IO error. The recipe commands use the same numbers, with 3 meaning a regeneration waits on a runner"
+    source: SPEC.md, sections "Exit codes" and "Recipe exit codes", and README.md, section "Exit codes"
+    author: agent:claude
+    chosen_by: agent
+  - id: recipe-verbs
+    state: decided
+    value: a recipe runs again three ways, reproduce (re-check every recorded hash), regenerate (one named change, rerunning only the stages it reaches) and compare (both outputs graded by one doctor against one spec)
+    source: SPEC.md, section "Recipes"
+    author: gary-sheng
+    chosen_by: human
+  - id: recipe-store
+    state: decided
+    value: a recipe records every input, the spec and every stage output by SHA-256 hash, and each distinct content is kept once in a store at .hyperspec/blobs/<first two hex characters>/<hash>
+    source: SPEC.md, section "Recipes", "The blob store"
+    author: agent:claude
+    chosen_by: agent
+  - id: no-model-calls
+    state: decided
+    value: hyperspec never calls a model; a runner command the caller supplies reruns stages, and a doctor command the caller supplies grades outputs
+    source: SPEC.md, section "Recipes"
     author: agent:claude
     chosen_by: agent
 requirements:
@@ -36,9 +54,39 @@ requirements:
       station: "test/rules.test.mjs, \"every finding names its test\""
     source: CHANGELOG.md, 0.1.0, "every finding names its test, a severity, a message and a fix"
     author: agent:claude
+  - id: r3
+    text: reproduce runs no model and no command; it only re-hashes what the recipe recorded
+    fails_when: reproduce reports success for a recipe whose recorded blob does not hash to its recorded value
+    check:
+      station: test/reproduce.test.mjs
+    source: SPEC.md, section "Recipes", "reproduce"
+    author: agent:claude
+  - id: r4
+    text: regenerate reuses every stage whose key is unchanged and records the parent and the change
+    fails_when: a stage whose recomputed key equals its parent's recorded key is rerun, or a child recipe has no parent or no change
+    check:
+      station: test/regenerate.test.mjs
+    source: SPEC.md, section "Recipes", "regenerate"
+    author: agent:claude
+  - id: r5
+    text: compare flags a child that scores lower than its parent under the same doctor and spec
+    fails_when: compare exits 0 when the child scores lower than its parent
+    check:
+      station: test/cli-recipe.test.mjs
+    source: SPEC.md, section "Recipes", "compare"
+    author: agent:claude
+  - id: r6
+    text: the README's recipe walkthrough runs exactly as written against the shipped example
+    fails_when: a command in the README walkthrough exits non-zero, or prints something other than the output the README shows
+    check:
+      station: test/example-recipe.test.mjs
+    source: README.md, section "Recipes"
+    author: agent:claude
 rejects:
   - prose advice where a field could be checked
   - a second YAML parser
+  - a recipe that points at a path whose bytes can change
+  - reproducing an output by running a model again and hoping it says the same words
 examples:
   - path: examples/minimal.hyperspec.md
     why: the smallest spec that passes all nine tests
@@ -101,7 +149,7 @@ Every run leaves a verdict: it went through clean, or it did not and the spec or
 
 ## The format (what `lint` reads)
 
-A hyperspec is a markdown file with a YAML frontmatter block. This is the shape:
+A hyperspec is a markdown file with a YAML frontmatter block. `hyperspec` names the version of this format the spec was written against; this linter knows `"0.1"`. This is the shape:
 
 ```yaml
 ---
@@ -156,15 +204,15 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 
 | Test | Fails when |
 |---|---|
-| 1 every decision is accounted for | no `decisions`; a decision with no or duplicate `id`; `state` not decided, delegated or open; decided without `value`; delegated without `rule`; open without `question` |
+| 1 every decision is accounted for | no `decisions`; a decision with no or duplicate `id`; an `id` used by both a decision and a requirement, or by two requirements, since the two lists share one set of ids; `state` not decided, delegated or open; decided without `value`; delegated without `rule`; open without `question` |
 | 2 every requirement can fail | no `requirements`; a requirement without `text` or without `fails_when`. A vague word in `fails_when` is a warning |
 | 3 every requirement names its check | a requirement whose `check` has neither `station` nor `rubric` |
 | 4 every field says where it came from and who wrote it | a decision or requirement without `source` or `author`; a decision whose `chosen_by` is not human or agent |
 | 5 negative space is specified | `rejects` missing or empty; a `rejects` item that is not a plain string |
-| 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a `path` that is not an http(s) URL and does not exist, read relative to the spec or as an absolute path |
-| 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning |
+| 6 examples outrank adjectives | `examples` missing or empty; an example without `path` or `why`; a `path` that is not an http(s) URL and does not exist, is a folder, or is the spec itself, read relative to the spec or as an absolute path |
+| 7 a stranger can resume it | `resume.next_action` missing; a `next_action` that is only a no-action word (`continue`, `follow up`, `tbd`, `todo`, `keep going`, `pick it back up`, `n/a`, `none`); a `next_action` that says `as discussed` or `as mentioned earlier` or `above`. Those pointers in the body are a warning, and so is a `hyperspec` version this linter does not know |
 | 8 its adopters can push back on it | `feedback.issues` or `feedback.fork` missing |
-| 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason` |
+| 9 it improves itself | `improvement.ledger` missing; a ledger path that exists and is not a readable file; if the ledger file exists, a line that is not a JSON object, a `verdict` outside one-shot, improved or not-improved, `improved` without `change`, `not-improved` without `reason`. A declared ledger that does not exist yet is a warning |
 
 ## Exit codes
 
@@ -185,6 +233,127 @@ Every run of a skill that works from a hyperspec writes one line to the ledger n
 
 Silence is not a verdict. A run that learned nothing has to say so and why, and a ledger line with none of the three verdicts fails the ninth test.
 
+## Recipes
+
+A hyperspec says what the work must be. A recipe records what one output was made from, so the output can be checked, made again with one change, and graded against the version before it. hyperspec never calls a model. Every step that needs one is a command the caller supplies: a runner for stages and a doctor for grading.
+
+### The recipe file
+
+A recipe sits beside its output as `<output>.recipe.json`: JSON with a two-space indent and a trailing newline. Every path inside it is relative to the recipe file's own directory.
+
+```json
+{
+  "recipe": "0.1",
+  "created": "2026-09-28T18:00:00.000Z",
+  "output": { "path": "essay.md", "sha256": "<hex>" },
+  "factory": { "name": "compose-a-piece", "version": "0.3.0" },
+  "spec": { "path": "essay.hyperspec.md", "sha256": "<hex>", "authors": { "audience": "gary-sheng", "length": "agent:claude" } },
+  "inputs": [
+    { "name": "call", "path": "materials/call.md", "sha256": "<hex>", "order": 1 }
+  ],
+  "stages": [
+    {
+      "id": "outline",
+      "reads": ["input:call", "spec"],
+      "model": { "name": "some-model", "temperature": 0.7 },
+      "key": "<hex>",
+      "output": { "sha256": "<hex>" },
+      "verdict": { "station": "outline-has-claim-chain", "pass": true, "note": "" }
+    }
+  ],
+  "clicker": "gary-sheng",
+  "approver": "gary-sheng",
+  "parent": null,
+  "change": null
+}
+```
+
+- `recipe` is the version of this schema, `"0.1"`.
+- `output` is the final output's path and hash. It equals the last stage's output.
+- `factory` names what made the output, and at which version.
+- `spec` is the hyperspec the output was made from: its path, the hash of its bytes, and `authors`, which maps every decision and requirement id to that entry's `author`. Decisions and requirements share one set of ids, so the writer refuses a spec that uses an id twice, and `lint` fails it under test 1.
+- `inputs` lists every input by name, path and hash, with `order` counting from 1 in the order each was taken in.
+- `stages` lists every step in the order it ran. `model` holds the settings the stage ran with, and is left out when it had none. `verdict` is what the stage's station reported.
+- `reads` names what a stage read: `input:<name>`, `stage:<id>` for an earlier stage, or `spec`. An empty `reads` means the stage read everything: every input in order, every earlier stage, then the spec. Such a stage reruns on every regeneration, and `recipe check` warns about it.
+- `clicker` is who pressed go. `approver` is who approved the output, and stays `null` until someone does.
+- `parent` and `change` are both `null` on a first recipe. On a regenerated one, `parent` is `{ "path", "sha256" }`, the parent recipe's path and the hash of its bytes, and `change` is one line naming what changed.
+
+### The stage key
+
+```
+key = sha256(canonical({ reads, spec, factory, model }))
+```
+
+- `reads` is the list of `[ref, hash]` pairs in declared order, or in the everything order above for an empty `reads`. `input:<name>` resolves to that input's hash, `stage:<id>` to that stage's output hash, `spec` to the spec's hash.
+- `spec` is the spec's hash, `factory` is the factory version, and `model` is the stage's model settings or `null`.
+- Canonical JSON sorts keys at every depth, drops keys whose value is undefined, keeps array order, and carries no whitespace. Every hash is SHA-256, lowercase hex, over exact bytes.
+
+Two stages with the same key read the same bytes under the same spec, factory version and settings. A matching key is the only thing that lets `regenerate` reuse a stage.
+
+### The blob store
+
+Every input, the spec, and every stage output is kept once, by content, at `<root>/.hyperspec/blobs/<first two hex characters>/<hash>`, holding the exact bytes. A blob is written once, through a temporary file and a rename, and never overwritten. `<root>` is the `--store` flag, else the `HYPERSPEC_STORE` environment variable, else the nearest folder above the recipe holding `.hyperspec/` or `.git`, else the recipe's own folder.
+
+This is what makes a recipe reproducible: a file edited next month does not change the bytes an old recipe points at.
+
+### Writing a recipe
+
+A factory records its recipe as it runs, through `@supersuit/hyperspec/recipe`:
+
+- `startRecipe({ output, factory, spec, clicker, store })` loads the spec, stores its bytes, and fills `spec.authors`. Paths resolve against the working directory.
+- `input(name, path)` stores the file's bytes and records it. A repeated name is refused.
+- `stage({ id, reads, model, output, verdict })` stores the output and computes the key. An unknown read, a read of a later stage, and a repeated id are refused.
+- `finish({ approver })` refuses a recipe with no stages. Otherwise it writes the output file from the last stage's blob, or checks that an output already on disk matches it, writes the recipe, and returns the completeness findings.
+- `approve(recipePath, by)` sets the approver and returns the findings again.
+
+`hyperspec recipe check <output-or-recipe>` runs the completeness check. It fails a recipe missing the factory version, the spec hash, `spec.authors`, the clicker or the approver; an input with no hash; no stages; a stage with no verdict, a verdict whose `pass` is not true or false, or a stage still pending; a stored key that differs from the key recomputed from the recipe; a last stage whose output is not `output.sha256`; and a `parent` without a `change`, or the reverse. It warns on a stage that declares no reads. `hyperspec recipe approve <recipe> --by <slug>` records the approver.
+
+### reproduce
+
+`hyperspec reproduce <recipe> [--restore] [--store <dir>]` checks every hash the recipe recorded. It runs no model and no command. In order, it checks each input's blob, the spec's blob, each stage's output blob and the stage's key recomputed from the recipe, the final output's blob, and the output file on disk when there is one. It reports every step and names the first that fails. A pending stage fails.
+
+`--restore` rewrites the output file from its blob, and only when that blob checks out. A recipe whose output path points outside its own folder is refused, and nothing is written there.
+
+### regenerate
+
+`hyperspec regenerate <recipe> --out <path> --clicker <slug>` takes exactly one change:
+
+- `--add-input <name>=<path>` adds an input, and each `--reads <stage-id>` adds it to that stage's reads. `--reads` may be given more than once. A stage whose `reads` is empty already reads every input.
+- `--swap-input <name>=<path>` replaces an input. A file with the same bytes is refused, since swapping it would change nothing.
+- `--factory-version <version>` names a factory version other than the parent's.
+
+The child is the parent with that change applied. Each stage, in order, is reused only when three things hold: the key recomputed from the child's hashes equals the key the parent recorded; the parent's recorded key matches the key recomputed from the parent's own record; and the stage's output blob checks out. Any other stage reruns. With `--run <command>`, each stage is decided once everything it reads has run, so a stage whose upstream reran and came out byte for byte the same is still reused. Without `--run`, nothing runs: a stage that must rerun is written as pending, and every stage that reads it is pending too, with no key.
+
+Nothing is written until the outcome is known. Then the new blobs, the child's output file, and `<out>.recipe.json` are written; while any stage is pending there is no output yet, so only the blobs and the recipe are. The output is written through a temporary file and read back against its hash. The child names its parent and the change, one line such as `added input call-2 (materials/call-2.md)`, `swapped input call to materials/call-v2.md`, or `factory 0.3.0 to 0.4.0`, which `--change <text>` replaces. Its approver is `null`. The parent recipe, its output and its blobs are only read. `--out` must not exist and must not be the parent's output, its folder must exist, and it is checked again just before anything is written.
+
+**The runner contract.** hyperspec runs `/bin/sh -c <command>` once for each stage that must rerun.
+
+- stdin is `{ "stage": "<id>", "reads": [{ "ref": "<ref>", "sha256": "<hex>", "path": "<file>" }], "model": <settings or null> }`. Each `path` is a temporary file holding that read's exact bytes, removed after the stage runs.
+- stdout, byte for byte, is the stage's output.
+- The last stderr line that begins `VERDICT ` carries the verdict as a JSON object whose `pass` is true or false. `station` defaults to `runner` and `note` to an empty string. With no such line, the verdict is `{ "station": "runner", "pass": true, "note": "no verdict reported" }`.
+- A runner that exits non-zero, or a `VERDICT` line that is not such an object, stops the regeneration and names the stage, and nothing is written.
+- A verdict whose `pass` is false still produces a child, written in full, and the command exits 1 naming the stage.
+
+### compare
+
+`hyperspec compare <child-recipe> --doctor <command> [--parent <recipe>] [--spec <file>]` grades the child's output and its parent's output with the same doctor command against the same spec. The parent defaults to the one the child names, and the spec to the child's spec. It warns when the parent recipe's bytes have changed since the child was made, and its `--json` result says whether the spec being graded against differs from the one the parent was made from.
+
+**The doctor contract.** hyperspec runs `/bin/sh -c <command>` once per output, with the same command both times. stdin is `{ "output": "<file>", "spec": "<file>" }`, both absolute paths. The last non-empty stdout line is a JSON object with a finite numeric `score` and an optional `notes`. Nothing from a recipe is placed into the command itself.
+
+A child that scores lower than its parent has regressed. `compare` exits 1 and names the suspect, the child's `change`. When the spec declares `improvement.ledger`, `compare` appends one line to it, in the ledger's own vocabulary so the line passes the ninth test: `improved` with `change` when the child scores higher, and otherwise `not-improved` with a `reason` naming both scores, which begins `regression: ` when the child scored lower. The line also carries `kind: "compare"`, both recipe paths, both scores, and `regressed`. A ledger path outside the spec's folder is not written, and a warning says so.
+
+### Recipe exit codes
+
+The recipe commands use the same numbers as `lint`. Every one takes `--json`, which prints the result as one JSON document and keeps the same exit code.
+
+| Command | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| `recipe check` | complete, warnings allowed | no recipe beside the path, or a check failed | a recipe that cannot be read or is not JSON | |
+| `recipe approve` | approver recorded, remaining findings printed | | `--by` missing, or a recipe that cannot be read | |
+| `reproduce` | every hash checks out | a check failed | a usage error, or a recipe that cannot be read | |
+| `regenerate` | child written, every verdict passed | a runner failed or a blob it needs is missing, and nothing was written; or the child was written with a failing verdict | a usage error, such as no change or more than one, a missing `--out` or `--clicker`, an `--out` that exists, an unknown stage in `--reads`, a parent or input that cannot be read | child written with stages waiting for a runner |
+| `compare` | the child did not regress | the child regressed | a usage error, a recipe or spec that cannot be read, a child that names no parent when none is given, a missing output file, or a doctor that failed | |
+
 ## Why now
 
-A human reader treats a thousand-line spec as a burden, so specs were written short and the gaps were filled from shared context. A model reads all of it at almost no cost and uses every line. Detail that would have been waste between two people is now the cheapest input there is. That is the whole reason hyperspecification exists now and could not have before: the reader changed, so the economics of writing everything down changed with it.
+A human reader treats a thousand-line spec as a burden, so specs were written short and the gaps were filled from shared context. A model reads all of it at almost no cost and uses every line. Detail that would have been waste between two people is now the cheapest input there is. That is why hyperspecification exists now and could not have before: the reader changed, so the economics of writing everything down changed with it.
