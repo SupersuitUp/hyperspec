@@ -11,7 +11,7 @@
 // same nine tests; they do not change the shape here.
 
 import { resolve } from "node:path";
-import { BLOCK_FIELD_RULES, characterFields } from "./writing-fields.mjs";
+import { BLOCK_FIELD_RULES, characterFields, quotesFields, panelFields } from "./writing-fields.mjs";
 import { str } from "./placeholder.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
@@ -107,6 +107,10 @@ export function lintWriting(spec) {
   if ("progress" in writing) {
     out.push(f(7, "writing-progress", "fail", "writing.progress is stored state; progress is derived from disk, never saved", "Remove writing.progress; derive progress by reading the drafted work itself, not by saving a record of it."));
   }
+
+  // Two optional keys that are not blocks: the quotes station's example phrasings, and the panel.
+  if ("quotes" in writing) out.push(...quotesFields(writing.quotes));
+  if ("panel" in writing) out.push(...panelFields(writing.panel));
 
   for (const block of BLOCKS) {
     const raw = writing[block];

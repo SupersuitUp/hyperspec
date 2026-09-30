@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "../src/stations/quotes.mjs";
 import { workspace, markMaterial, draftOf, crlf, cli } from "./station-fixture.mjs";
@@ -263,4 +263,65 @@ test("fiction: true skips the station with its reason and checks nothing", () =>
   assert.deepEqual(r.findings, []);
   spec.data.fiction = "false";
   assert.equal(run(spec, draftOf('She said "this line is in no material anywhere at all" and left.\n')).status, "fail", "fiction: false still checks");
+});
+
+// ---- example phrasings (hyperspec 0.9): writing.quotes.examples -------------------------------------
+// A primer shows the reader what to type or say, and those quoted phrasings are examples, not
+// quotations. `examples: true` passes a span whose sentence names no known speaker; a list passes
+// exactly the listed phrasings. A quotation that names its speaker is held to the materials either way.
+
+const withExamples = (examples) => {
+  const ws = setup();
+  ws.spec.data.writing.quotes = { examples };
+  return ws.spec;
+};
+
+test("examples: true passes an unmatched span that names no speaker", () => {
+  const r = run(withExamples("true"), draftOf('Type "write the update for Dana" into the chat, and watch what comes back.\n'));
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+});
+
+test("GUARD: examples: true still fails an unmatched quote that names its speaker", () => {
+  const r = run(withExamples("true"), draftOf('Wilson said "I never write any weekly update at all" last month.\n'));
+  assert.equal(r.status, "fail");
+  assert.deepEqual(r.findings.map((f) => f.id), ["station-quotes-unmatched"]);
+});
+
+test("GUARD: examples: true still fails a misattributed quote", () => {
+  const r = run(withExamples("true"), draftOf('Wilson said "A spec that a linter can check is a different object" once.\n'));
+  assert.deepEqual(r.findings.map((f) => f.id), ["station-quotes-misattributed"]);
+});
+
+test("a list of examples passes the listed phrasings, compared as a span is, and nothing else", () => {
+  const spec = withExamples(["write the update for Dana", "prepare for my next meeting"]);
+  assert.equal(run(spec, draftOf('Type “write the update for Dana,” then "prepare for my next meeting."\n')).status, "pass");
+  const r = run(spec, draftOf('Type "write the update for Dana" and then "draft an email to my landlord" too.\n'));
+  assert.deepEqual(r.findings.map((f) => f.id), ["station-quotes-unmatched"]);
+  assert.match(r.findings[0].message, /draft an email to my landlord/);
+});
+
+test("examples: false, or no quotes key, checks every span as before", () => {
+  const text = draftOf('Type "write the update for Dana" into the chat.\n');
+  assert.equal(run(withExamples("false"), text).status, "fail");
+  assert.equal(run(setup().spec, text).status, "fail");
+});
+
+test("lint: writing.quotes must be a map, and examples true, false or a list of real phrasings", () => {
+  const cases = [
+    ["  quotes: yes\n", "writing-quotes"],
+    ["  quotes:\n    examples: sometimes\n", "writing-quotes-examples"],
+    ["  quotes:\n    examples:\n      - TODO\n", "writing-quotes-examples"],
+  ];
+  for (const [yaml, id] of cases) {
+    const ws = setup();
+    writeFileSync(ws.specPath, readFileSync(ws.specPath, "utf8").replace("\nwriting:\n", `\nwriting:\n${yaml}`));
+    const r = cli("lint", ws.specPath, "--json");
+    assert.equal(r.status, 1, `${id}: ${r.stdout}`);
+    const found = JSON.parse(r.stdout).files[0].findings.map((f) => `${f.id} ${f.test}`);
+    assert.ok(found.includes(`${id} 1`), `${id}: ${found.join(", ")}`);
+  }
+  const ws = setup();
+  writeFileSync(ws.specPath, readFileSync(ws.specPath, "utf8").replace("\nwriting:\n", "\nwriting:\n  quotes:\n    examples: true\n"));
+  const ok = cli("lint", ws.specPath);
+  assert.equal(ok.status, 0, ok.stdout);
 });

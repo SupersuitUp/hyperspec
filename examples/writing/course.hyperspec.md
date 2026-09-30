@@ -160,6 +160,7 @@ writing:
       terms_section: New terms
       outline: course/outline.md
       teaser: Next,
+      quiz: Check yourself
     check:
       station: structure and length, then the sequence station
     source: form decision

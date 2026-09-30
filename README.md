@@ -31,6 +31,10 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec check <spec> [--draft <file>] [--only a,b]` | Run a writing spec's deterministic stations against a draft, or, for a sequential work, against its files in reading order. |
 | `hyperspec judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force]` | Write one packet per judgment station, for an outside judge to fill. |
 | `hyperspec judge record <packet> --verdict <file>` | Check a judge's verdict against its packet, derive the station's status, and record it. |
+| `hyperspec triage status <spec> [--draft <file>]` | Count every finding's answer, list the passages two or more readers share, and hold every answer to the draft. |
+| `hyperspec triage answer <spec> <finding> taken\|kept\|already-true\|open [--evidence S] [--reason S] [--draft <file>]` | Answer one finding: evidence from the draft for taken and already-true, a reason for kept. |
+| `hyperspec triage import <spec> <review> [--source S] [--draft <file>]` | Bring an outside review in as findings to answer. |
+| `hyperspec triage reply <spec> [--source S] [--draft <file>]` | Print a plain-text reply to the reviewer from the answers. Never sends anything. |
 | `hyperspec learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force]` | Write the edits between a first draft and the approved one, for a judge to classify by spec block. |
 | `hyperspec learn record <packet> --verdict <file>` | Count the classified edits by block and name one next move. |
 | `hyperspec recipe check <output-or-recipe>` | Check that a recipe records everything the standard asks for. |
@@ -56,6 +60,12 @@ refused (invalid, or its packet stale or edited), and `hyperspec learn record` 0
 and 1 when it refused. `judge prepare` and `learn prepare` exit 0 when they wrote their packets and
 with lint's own code when the spec is not ready, and `judge prepare` exits 1 when a station could
 not build its packet. All four exit 2 on a usage error.
+
+`hyperspec triage status` exits 0 when every finding is answered and every answer holds against
+the draft, and 1 when not; `triage answer` 0 when it wrote the answer and 1 when it refused it;
+`triage import` 0 when it imported and 1 when the review holds nothing to answer; `triage reply` 0
+when the reply is ready to send and 1 when a finding is still unanswered. All four exit 2 on a
+usage error.
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2
 usage or unreadable input, 3 pending, when `regenerate` has stages waiting for a runner.
@@ -194,13 +204,15 @@ it did in 0.4. The folder shape, every feature, and every finding are in
 
 ### Checking a draft
 
-Once a draft exists, `check` holds it to its spec with eight stations, none of which calls a
+Once a draft exists, `check` holds it to its spec with nine stations, none of which calls a
 model or touches the network: `form` (length and required parts), `terms` (every word in the new
 optional `writing.audience.terms` is defined where it first appears), `claims` (the claims
 ledger still matches the draft, and every claim has a source), `quotes` (in nonfiction, every quotation of four
-words or more is word for word in a marked quote), `private` (no run of eight words from a
+words or more is word for word in a marked quote; `writing.quotes.examples` marks example
+phrasings such as "write the update for Dana" as examples rather than quotations), `private` (no run of eight words from a
 private segment), `dna` (the draft's measured style beside its scope's, as warnings), `links`
-(well-formed, and relative links resolve) and `sequence` (for a work read in order; see below).
+(well-formed, and relative links resolve), `sequence` (for a work read in order; see below) and
+`triage` (every reader's finding answered, and every answer held to the draft; see below).
 
 ```bash
 npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
@@ -219,7 +231,10 @@ it across the whole work: every lesson carries its sections ("After this lesson 
 terms", "Try this" by default), every term is defined in exactly one lesson, no lesson uses a term
 before the lesson that defines it (code, the part's closing teaser and words the reader already
 knows are exempt), each lesson defines the terms the outline promises, and a pointer to a later
-lesson is a warning. List the work's files and `check` needs no `--draft`:
+lesson is a warning. Name the quiz heading as `quiz:` and every quiz is held to it too: every
+defined term tested by some question, no question using a term from a lesson after the one it is
+tagged with, and every answer one of its question's options. List the work's files and `check`
+needs no `--draft`:
 
 ```yaml
     sequence:
@@ -262,6 +277,32 @@ each, and `learn record` counts them by block and names one next move, such as "
 style rule". It never edits the spec. Both examples ship their packets and hand-filled sample
 verdicts. The packet shapes, every station's rules and findings, and the learn tally are in
 [WRITING.md](WRITING.md#judging-a-draft).
+
+### A reader panel, and answering what it found
+
+A draft gets pressure-tested before it ships: several readers read it, each through their own
+lens, and say what works, what to improve, what is missing and what to remove. The `panel` judge
+makes that part of the run. It writes one packet per reader, the ones `writing.panel` lists or by
+default a skeptic, a newcomer and an expert, and always the audience's own reader as `buyer`,
+since a panel that never includes the person the piece is for tests everything but that. Every
+item a reader lists quotes the draft word for word, so a review of a stale copy is refused.
+
+Each thing a reader would change becomes a finding in `triage.jsonl`, beside the runs ledger, and
+so does each point of an outside review brought in with `triage import`. Every finding gets one
+answer: `taken` (with the passage of the draft that now does it), `kept` (with the reason),
+`already-true` (with the passage that already did it) or `open` (a decision for you). `check` fails
+while a finding is unanswered or an answer's passage is no longer in the draft, and warns on an
+open one. `triage reply` turns the answers into a plain-text reply to the reviewer, for you to send.
+
+```bash
+npx @supersuit/hyperspec judge record story/judge/panel-skeptic.packet.json --verdict story/sample-verdicts/panel-skeptic.verdict.json
+npx @supersuit/hyperspec triage status story.hyperspec.md --draft story/draft.md
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-skeptic-aeb09835 open --draft story/draft.md --reason "the author's call"
+npx @supersuit/hyperspec triage reply story.hyperspec.md --draft story/draft.md
+```
+
+The triage file, every answer's rule, how a review is read, and every finding are in
+[WRITING.md](WRITING.md#triage-1).
 
 ## The format
 

@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "Flour is weighed at Ines's, never scooped.", "note": "True to how a working bakery runs; the detail earns a baker's trust early." }
+  ],
+  "improve": [],
+  "missing": [
+    { "evidence": "The starter is a wide glass jar with a cloth over the top", "note": "A baker would expect to see the starter fed at least once; the story leans on it and never shows how it is kept alive." }
+  ],
+  "remove": []
+}

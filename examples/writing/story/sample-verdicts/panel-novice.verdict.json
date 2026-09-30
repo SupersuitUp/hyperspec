@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "The deck oven is three stone shelves stacked one over another inside a steel wall", "note": "The oven is shown in the sentence that names it, so a reader who has never seen one can picture it." }
+  ],
+  "improve": [
+    { "evidence": "The clock over the proving cabinet said 3:41", "note": "A proving cabinet is never explained, and a reader outside baking cannot tell what it is for until the proof is described much later." }
+  ],
+  "missing": [],
+  "remove": []
+}

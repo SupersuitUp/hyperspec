@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "I did not look at the coat. I looked at the dough.", "note": "The letter is carried by what he does not do, so nothing about his leaving has to be told." }
+  ],
+  "improve": [
+    { "evidence": "somebody had drawn a ring round Friday in red pen", "note": "The red ring is planted hard; a doubting reader sees the sale coming a scene before Ines says it." }
+  ],
+  "missing": [],
+  "remove": []
+}

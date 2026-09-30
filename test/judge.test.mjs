@@ -23,10 +23,14 @@ test("prepare writes one packet per applicable station, plus lineup's key, and p
     "<out>/lineup.key.json",
     "<out>/reader.packet.json",
     "<out>/persona.packet.json",
+    "<out>/panel-skeptic.packet.json",
+    "<out>/panel-novice.packet.json",
+    "<out>/panel-expert.packet.json",
+    "<out>/panel-buyer.packet.json",
     "attribution: skip (the spec is not fiction; attribution applies only with fiction: true)",
     "knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)",
   ]);
-  assert.deepEqual(readdirSync(w.out).sort(), ["doctor.packet.json", "lineup.key.json", "lineup.packet.json", "persona.packet.json", "reader.packet.json"]);
+  assert.deepEqual(readdirSync(w.out).sort(), ["doctor.packet.json", "lineup.key.json", "lineup.packet.json", "panel-buyer.packet.json", "panel-expert.packet.json", "panel-novice.packet.json", "panel-skeptic.packet.json", "persona.packet.json", "reader.packet.json"]);
 });
 
 test("a story gets the fiction stations too: attribution with its key, and knowledge", () => {
@@ -40,6 +44,10 @@ test("a story gets the fiction stations too: attribution with its key, and knowl
     "<out>/attribution.packet.json",
     "<out>/attribution.key.json",
     "<out>/knowledge.packet.json",
+    "<out>/panel-skeptic.packet.json",
+    "<out>/panel-novice.packet.json",
+    "<out>/panel-expert.packet.json",
+    "<out>/panel-buyer.packet.json",
     "lineup: skip (writing.dna.scope_dir is not set)",
   ]);
 });

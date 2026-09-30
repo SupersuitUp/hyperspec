@@ -9,7 +9,11 @@
 // packet whose inputs went out of date stale rather than edited; such a station also carries
 // sourceSkip(spec, draft), the skip reason when it skips because of those files (else null), so a
 // packet whose station stopped applying for that reason is stale too, and any other skip is not. The packet and key a station receives are
-// always the ones record rebuilt from the spec and draft on disk, never read from a file; see
+// always the ones record rebuilt from the spec and draft on disk, never read from a file. A
+// station that writes one packet per variant (the panel: one per reader) also carries variants(spec),
+// the list of { id, ... } it writes packets for, and variantOf(packet), the id a packet names;
+// packet() then receives the variant as a third argument, the file is <station>-<id>.packet.json,
+// and derive may return triage, the findings `hyperspec triage` answers. See
 // src/judge.mjs for the framework that calls them. Adding a judge is one file plus one line here.
 
 import * as doctor from "./doctor.mjs";
@@ -18,6 +22,7 @@ import * as reader from "./reader.mjs";
 import * as persona from "./persona.mjs";
 import * as attribution from "./attribution.mjs";
 import * as knowledge from "./knowledge.mjs";
+import * as panel from "./panel.mjs";
 
 export const JUDGES = Object.freeze([
   { name: doctor.name, instructions: doctor.DOCTOR_INSTRUCTIONS, skipReason: doctor.skipReason, packet: doctor.packet, validate: doctor.validate, derive: doctor.derive },
@@ -26,6 +31,7 @@ export const JUDGES = Object.freeze([
   { name: persona.name, instructions: persona.PERSONA_INSTRUCTIONS, skipReason: persona.skipReason, packet: persona.packet, validate: persona.validate, derive: persona.derive, inputSources: persona.inputSources, sourceSkip: persona.sourceSkip },
   { name: attribution.name, instructions: attribution.ATTRIBUTION_INSTRUCTIONS, skipReason: attribution.skipReason, packet: attribution.packet, validate: attribution.validate, derive: attribution.derive },
   { name: knowledge.name, instructions: knowledge.KNOWLEDGE_INSTRUCTIONS, skipReason: knowledge.skipReason, packet: knowledge.packet, validate: knowledge.validate, derive: knowledge.derive },
+  { name: panel.name, instructions: panel.PANEL_INSTRUCTIONS, skipReason: panel.skipReason, packet: panel.packet, validate: panel.validate, derive: panel.derive, variants: panel.variants, variantOf: panel.variantOf },
 ]);
 
 export const JUDGE_NAMES = Object.freeze(JUDGES.map((j) => j.name));

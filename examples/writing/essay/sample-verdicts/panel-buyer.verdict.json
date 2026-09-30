@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "So write the three questions on a card.", "note": "It ends on the one thing to do before the meeting, which is what this reader came for." }
+  ],
+  "improve": [],
+  "missing": [
+    { "evidence": "After the third question, stop talking.", "note": "What to do if the report has nothing to say: the silence that does not end is what a first-time manager is most afraid of." }
+  ],
+  "remove": []
+}

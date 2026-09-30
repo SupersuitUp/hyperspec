@@ -19,6 +19,8 @@ import { str } from "../src/placeholder.mjs";
 import { runCheck } from "../src/check.mjs";
 import { prepareJudges, recordJudgment } from "../src/judge.mjs";
 import { prepareLearn, recordLearn, tallyLine } from "../src/learn.mjs";
+import { triageContext, triageState, answerFinding, importReview, replyText } from "../src/triage.mjs";
+import { sourceAt } from "../src/sequence-draft.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -51,7 +53,10 @@ const HELP = `hyperspec <command> [options]
                                persona (against the claims ledger), and for fiction attribution (a
                                blind speaker test on the dialogue lines whose speaker the draft
                                names; the answers go to attribution.key.json, likewise rebuilt)
-                               and knowledge (each character's knowledge timeline);
+                               and knowledge (each character's knowledge timeline), and panel
+                               (one panel-<reader>.packet.json per reader: writing.panel's, or a
+                               skeptic, a novice and an expert, and always the audience's reader
+                               as buyer);
                                the same spec and draft give byte-identical packets; refuses to
                                overwrite an existing packet without --force
                                exit 0 written, 1 a station could not build its packet (the rest
@@ -65,7 +70,28 @@ const HELP = `hyperspec <command> [options]
                                verdict appends nothing; run it from the folder prepare ran in, since
                                the packet keeps the spec and draft paths as they were given
                                exit 0 the station passed, 1 it failed or the verdict is invalid
-                               or stale, 2 usage
+                               or stale, 2 usage; a panel verdict's improve, missing and remove
+                               items go to triage.jsonl, beside the runs ledger
+  triage status <spec> [--draft <file>] [--json]
+                               count the answers in the spec's triage.jsonl, list the passages two
+                               or more readers share, and hold every answer to the draft (as
+                               check's triage station does); without --draft a spec that lists
+                               writing.form.sequence.files reads them, as check does
+                               exit 0 it would pass, 1 it would fail, 2 usage
+  triage answer <spec> <finding> taken|kept|already-true|open [--evidence S] [--reason S]
+                [--draft <file>] [--json]
+                               answer one finding: taken and already-true need --evidence, a
+                               passage of the draft word for word; kept needs --reason
+                               exit 0 written, 1 refused (nothing written), 2 usage
+  triage import <spec> <review> [--source S] [--draft <file>] [--json]
+                               bring an outside review (markdown or plain text) in as findings;
+                               a heading names the reader, Good/Improve/Missing/Remove labels set
+                               the kind, each list item is a finding, praise is counted only
+                               exit 0 imported, 1 the review holds nothing to answer, 2 usage
+  triage reply <spec> [--source S] [--draft <file>] [--json]
+                               print a plain-text reply to the reviewer from the answers; it
+                               never sends anything
+                               exit 0 ready to send, 1 a finding is still unanswered, 2 usage
   learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force] [--json]
                                needs a writing spec that passes lint (exits with lint's own code
                                otherwise); diffs the first draft a factory produced against the
@@ -519,6 +545,110 @@ if (cmd === "learn") {
 
   console.error(`unknown learn subcommand: ${sub ?? "(none)"}\n\n${HELP}`);
   process.exit(2);
+}
+
+if (cmd === "triage") {
+  const sub = argv[1];
+  const flags = {
+    status: { valueFlags: ["--draft"], boolFlags: ["--json"] },
+    answer: { valueFlags: ["--draft", "--evidence", "--reason"], boolFlags: ["--json"] },
+    import: { valueFlags: ["--draft", "--source"], boolFlags: ["--json"] },
+    reply: { valueFlags: ["--draft", "--source"], boolFlags: ["--json"] },
+  }[sub];
+  if (!flags) { console.error(`unknown triage subcommand: ${sub ?? "(none)"}\n\n${HELP}`); process.exit(2); }
+  const parsed = parseArgs(argv.slice(2), flags);
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [specPath, ...rest] = parsed.positionals;
+  const json = parsed.values["--json"];
+  const usage = (error) => {
+    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error }, null, 2));
+    else console.error(error);
+    process.exit(2);
+  };
+  const ctx = triageContext(specPath, parsed.values["--draft"], `triage ${sub}`);
+  if (ctx.usage) usage(ctx.error);
+  const { spec, draft } = ctx;
+  // A finding's line, named the way check names it: the file and its own line for a sequence.
+  const where = (f) => {
+    if (typeof f.line !== "number") return "";
+    const src = sourceAt(draft, f.line);
+    return src ? ` (${src.file} line ${f.line - src.startLine + 1})` : ` (line ${f.line})`;
+  };
+  const printFinding = (f) => console.log(`  ${f.severity === "fail" ? "fail" : "warn"} [${f.id}] ${f.message}${where(f)}\n    fix: ${f.fix}`);
+
+  if (sub === "status") {
+    const state = triageState(spec, draft);
+    if (state.skip) {
+      if (json) console.log(JSON.stringify({ spec: specPath, status: "skip", reason: state.skip }, null, 2));
+      else console.log(`triage: skip (${state.skip})`);
+      process.exit(0);
+    }
+    const status = state.findings.some((f) => f.severity === "fail") ? "fail" : "pass";
+    if (json) console.log(JSON.stringify({ spec: specPath, path: state.decl, status, counts: state.counts, shared: state.shared, findings: state.findings, items: state.items }, null, 2));
+    else {
+      const c = state.counts;
+      console.log(`${state.decl}: ${state.items.length} finding${state.items.length === 1 ? "" : "s"}; ${c.taken} taken, ${c.kept} kept, ${c["already-true"]} already true, ${c.open} open, ${c.unanswered} not answered`);
+      if (state.shared.length) {
+        console.log("shared by two or more readers:");
+        for (const g of state.shared) {
+          const line = where({ line: g.line }).replace(/^ \((.*)\)$/, "$1");
+          console.log(`  ${line}: "${g.passage}"`);
+          for (const f of g.findings) console.log(`    ${f.reader} (${f.kind}): ${f.text}`);
+        }
+      }
+      console.log(`triage: ${status}`);
+      for (const f of state.findings) printFinding(f);
+    }
+    process.exit(status === "pass" ? 0 : 1);
+  }
+
+  if (sub === "answer") {
+    const [findingId, disposition] = rest;
+    if (!findingId) usage("triage answer needs a finding id");
+    if (!disposition) usage("triage answer needs a disposition: taken, kept, already-true or open");
+    const result = answerFinding(spec, draft, findingId, disposition, { evidence: parsed.values["--evidence"], reason: parsed.values["--reason"] });
+    if (result.usage) usage(result.error);
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else if (result.invalid) {
+      console.log(`${findingId}: answer refused, nothing written`);
+      for (const f of result.findings) printFinding(f);
+    } else console.log(`${findingId}: ${disposition} (${result.path})`);
+    process.exit(result.code);
+  }
+
+  if (sub === "import") {
+    const [reviewPath] = rest;
+    if (!reviewPath) usage("triage import needs a review file");
+    let text;
+    try { text = readFileSync(resolve(reviewPath), "utf8"); } catch { usage(`cannot read review: ${reviewPath}`); }
+    const source = parsed.values["--source"] ?? reviewPath;
+    const result = importReview(spec, draft, text, source);
+    if (result.usage) usage(result.error);
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else if (result.invalid) {
+      console.log(`${reviewPath}: nothing imported`);
+      for (const f of result.findings) printFinding(f);
+    } else {
+      console.log(`${source}: ${result.added} finding${result.added === 1 ? "" : "s"} added to triage (${result.path})${result.already ? `, ${result.already} already there` : ""}${result.praise ? `; ${result.praise} item${result.praise === 1 ? "" : "s"} of praise, not triaged` : ""}`);
+      for (const f of result.warnings) printFinding(f);
+    }
+    process.exit(result.code);
+  }
+
+  if (sub === "reply") {
+    const state = triageState(spec, draft);
+    if (state.skip) usage(`nothing to reply to: ${state.skip}`);
+    const source = parsed.values["--source"];
+    const reply = replyText(state.items, source);
+    if (!reply.count) usage(`no finding in ${state.decl} comes from ${source}`);
+    const failing = state.findings.filter((f) => f.severity === "fail");
+    if (json) console.log(JSON.stringify({ spec: specPath, source: source ?? null, text: reply.text, unanswered: reply.unanswered, ready: !failing.length }, null, 2));
+    else {
+      process.stdout.write(reply.text);
+      if (failing.length) console.error(`not ready to send: triage fails (${failing.length} finding${failing.length === 1 ? "" : "s"}); run hyperspec triage status`);
+    }
+    process.exit(failing.length ? 1 : 0);
+  }
 }
 
 // A spec that does not lint clean: print what lint would, say nothing was written, and exit with

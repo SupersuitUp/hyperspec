@@ -33,6 +33,14 @@
 // story segment is enough. Sentences come from splitSegments(text, { by: "sentence" }), and every
 // sentence the span overlaps is read, so a curly quote the splitter cuts in two still keeps its
 // attribution.
+//
+// Example phrasings (hyperspec 0.9). A primer shows the reader what to type or say: "write the
+// update for Dana" is an example, not a quotation, and no material holds it. writing.quotes.examples
+// says which quoted spans are examples. `true` makes every span whose sentence names no known
+// speaker an example: it passes unmatched, and a quotation that names its speaker is still held to
+// the materials. A list names the example phrasings themselves, compared the way a span is matched,
+// so every other span is still checked. The list is the stricter choice: under `true`, an invented
+// quotation that names no one passes too.
 
 import { splitSegments } from "../segments.mjs";
 import { STOPWORDS, wordsOf } from "../dna.mjs";
@@ -73,6 +81,18 @@ export function quotedSpans(text) {
     }
   }
   return spans;
+}
+
+// The spec's example setting: { all: true } for `examples: true`, { phrases } (a Set of match keys)
+// for a list, or null when the spec declares none, or `false`.
+export function examplesOf(spec) {
+  const raw = spec?.data?.writing?.quotes?.examples;
+  if (str(raw) === "true") return { all: true };
+  if (Array.isArray(raw)) {
+    const phrases = new Set(raw.map(str).filter(Boolean).map(matchKey).filter(Boolean));
+    return phrases.size ? { phrases } : null;
+  }
+  return null;
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -133,13 +153,19 @@ export function run(spec, draft, ctx) {
     .filter((sp) => sp.re);
 
   const sentences = splitSegments(text, { by: "sentence" });
+  const examples = examplesOf(spec);
   const findings = [];
   for (const span of spans) {
     const key = matchKey(span.inner);
     if (!key) continue;
+    if (examples?.phrases?.has(key)) continue;
     const shown = truncate(span.inner.replace(/\s+/g, " "), 80);
     const line = lineAt(draft.text, span.start);
     const hits = sources.filter((s) => s.norm.includes(key));
+    const around = attributionContext(text, sentences, span);
+    const named = speakers.filter((sp) => sp.re.test(around)).map((sp) => sp.key);
+    // examples: true reads a span that names no known speaker as an example phrasing.
+    if (examples?.all && !named.length) continue;
     if (!hits.length) {
       findings.push({
         station: name,
@@ -151,8 +177,6 @@ export function run(spec, draft, ctx) {
       });
       continue;
     }
-    const around = attributionContext(text, sentences, span);
-    const named = speakers.filter((sp) => sp.re.test(around)).map((sp) => sp.key);
     if (named.length && !hits.some((h) => h.label === "quote" && named.includes(h.speaker))) {
       const who = named.map((k) => shownSpeaker.get(k) ?? k).join(", ");
       findings.push({

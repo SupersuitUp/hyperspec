@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.9.0 (2026-09-29)
+
+The pressure test a draft gets before it ships is now part of the run, and so is answering it.
+Several readers reading a draft through their own lenses, and someone deciding what to do about
+each thing they said, was done by hand twice, once for a letter and once for a book outline, and
+both times the review read a stale, truncated copy and none of its readers was the person the
+piece was for. The `panel` judge fixes both by construction, and `hyperspec triage` holds every
+finding, the panel's or an outside review's, to an answer that `check` keeps true against the draft.
+
+- The `panel` judgment station, the seventh, run last. One packet per reader,
+  `panel-<reader>.packet.json`: the readers the new optional `writing.panel` lists (`id`, `who`,
+  `knows`, `lens`), or by default a `skeptic`, a `novice` and an `expert`, and always the audience's
+  own reader, added last as `buyer`. It applies when the reader station does (a written audience
+  with a rubric). The verdict is `{ good, improve, missing, remove }`, every item `{ evidence, note }`
+  under the evidence rule, so a review of any copy but the current draft is refused. The panel
+  never fails a draft: improve, missing and remove items are warnings (`judge-panel-improve`,
+  `-missing`, `-remove`) and go to the triage file. A panel ledger line carries `reader`, and each
+  reader's history is its own. Lint refuses a panel that is not a list of readers, a reader with no
+  id, who or lens, an id that is not a slug, used twice or `buyer`, and a hollow `knows`
+  (`writing-panel`, `-reader`, `-id`, `-id-duplicate`, `-buyer`, `-who`, `-lens`, `-knows`, test 1).
+- `triage.jsonl`, beside the runs ledger: one finding per line, `{ finding_id, source, reader, kind,
+  text, evidence, draft_sha256, disposition, answer }`, each once (the id hashes what it says).
+- The `triage` station, run last in `check`: fails on an unanswered finding
+  (`station-triage-untriaged`), a `taken` or `already-true` answer whose evidence is missing or not
+  in the draft (`-evidence-missing`, `-evidence-not-found`), a `kept` answer with no reason
+  (`-reason-missing`), a disposition outside the four (`-disposition`) or a line that is not a
+  finding (`-unreadable`); warns on an `open` finding (`-open`) and on a kept or open answer about a
+  passage that has left the draft (`-stale`). With no triage file it skips.
+- `hyperspec triage status` (the counts, the station's rules, and the synthesis: every passage two
+  or more readers raised findings about), `triage answer` (refuses with `triage-evidence-missing`,
+  `-too-short`, `-not-found` or `triage-reason-missing`, writing nothing), `triage import` (an
+  outside review in markdown or plain text as findings: headings name readers, Good, Improve,
+  Missing and Remove labels set the kind, praise is counted and not triaged, and a quote the draft
+  does not hold warns, `triage-import-quote-not-found`; `triage-import-empty` when there is nothing
+  to answer) and `triage reply` (a plain-text reply to the reviewer; it never sends, and exits 1
+  while a finding is unanswered).
+- The quotes station reads the new optional `writing.quotes.examples`: `true` reads a quoted span
+  whose sentence names no known speaker as an example phrasing, not a quotation; a list exempts
+  exactly those phrasings. A quotation that names its speaker is checked either way. Lint refuses
+  any other value (`writing-quotes`, `writing-quotes-examples`, test 1).
+- The sequence station gains the quiz rules, on when the new `writing.form.sequence.quiz` names the
+  quiz heading: every defined term tested by some question (a simple plural counts), no question
+  using a term defined after the unit it is tagged with, every question tagged, every answer one of
+  its options (`station-sequence-quiz-missing`, `-untagged`, `-answer`, `-used-before-defined`,
+  `-untested`). Promoted from the checker the first book written this way used, with its question
+  shape. A hollow `quiz` fails lint (`writing-form-sequence-quiz`, test 1).
+- The evidence rule moved to `src/evidence.mjs`, shared by `judge record` and `triage`; `judge.mjs`
+  re-exports what it exported.
+- The worked examples: the essay and the story ship four panel packets each, with a hand-filled
+  sample verdict per reader; the course carries a quiz at the end of each part and `quiz: Check
+  yourself`.
+
+**Behavior change:** `check` runs nine stations, so `--json` and the ledger's `stations` carry
+`triage` (as `skip` for every spec without a triage file). `judge prepare` writes the four panel
+packets for every spec whose audience has a rubric, where 0.8 wrote none; `--only` still limits it.
+No other finding id changed.
+
 ## 0.8.0 (2026-09-29)
 
 A work read in order can now be checked as one. Every station so far held ONE piece to its spec; a

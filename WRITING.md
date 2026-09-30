@@ -249,6 +249,7 @@ writing:
       files:                         # optional: its files in reading order; a * in a file name matches
         - course/part-*.md
       outline: course/outline.md     # optional: the outline that promises each unit's terms
+      quiz: Check yourself           # optional: the quiz heading; turns on the quiz rules
     check:
       station: structure and length check
     source: form decision
@@ -280,6 +281,14 @@ writing:
       station: every factual claim points at a source span
     source: sourcing pass
     author: agent:claude
+  quotes:                            # optional; not a block, so no check, source or author
+    examples: true                   # true | false | a list of phrasings; see quotes under Checking a draft
+  panel:                             # optional: the panel's readers; the audience's reader joins as buyer
+    - id: skeptic                    # a lower-case slug, unique, never buyer
+      who: a manager who has run one-on-ones for years and doubts that a list is the problem
+      knows:                         # optional
+        - one-on-one
+      lens: what the essay asserts without showing
   characters:                        # required when fiction: true; ids unique
     - id: ines
       entity: world/ines.json        # optional; if given, the file must exist
@@ -341,7 +350,7 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections` or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections` or `knows` that is not a list of real entries, or `quiz` empty or a placeholder; `quotes` is present and is not a map, or its `examples` is not `true`, `false` or a list of real phrasings; `panel` is present and is not a list of readers, or a reader has no `id`, `who` or `lens`, an `id` that is not a lower-case slug, an `id` used twice or `buyer`, or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
@@ -814,7 +823,7 @@ npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
 
 It lints the spec first. A spec that fails lint, or is blocked on an open decision, runs no
 station and exits with lint's own code, because a draft cannot be checked against a spec that is
-not ready. Then it runs eight stations in a fixed order and prints one line for each: `pass`,
+not ready. Then it runs nine stations in a fixed order and prints one line for each: `pass`,
 `fail` with its findings, or `skip` with the reason. A warning prints under its station and never
 fails it. This is the essay example's draft:
 
@@ -829,6 +838,7 @@ dna: pass
     fix: Bring first_person_singular_rate back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.
 links: pass
 sequence: skip (the spec declares no writing.form.sequence)
+triage: skip (no triage file at essay/triage.jsonl yet; a recorded panel verdict or a triage import starts one)
 verdict: one-shot
 ```
 
@@ -925,6 +935,22 @@ the station: a character's dialogue is invented rather than quoted from a materi
 `attribution` judge tests it against each character's own lines instead (see
 [Judging a draft](#judging-a-draft)).
 
+A primer shows its reader what to type or say, and "write the update for Dana" in quotation marks
+is an example of a request, not a quotation of anyone. No material holds it, so the station would
+fail it. `writing.quotes.examples` says which quoted spans are examples:
+
+```yaml
+  quotes:
+    examples: true
+```
+
+With `true`, a span whose sentence names no speaker is read as an example and passes unmatched. A
+quotation that names its speaker is still held to the materials, so `Dana said "..."` must still be
+in one of Dana's quote segments. With a list, only the phrasings listed pass, each compared the
+way a span is matched, and every other span is checked as before. The list is the stricter
+choice: under `true`, a made-up quotation that names no one passes too. `false`, or no `quotes`
+key, checks every span.
+
 | Id | Severity | Meaning |
 |---|---|---|
 | `station-quotes-unmatched` | fail | a quoted span is in no quote or story segment |
@@ -985,8 +1011,9 @@ the network, so it cannot tell you a URL is live.
 
 Runs when the spec declares `form.sequence`, and holds a work read in order to what its reader
 depends on: every lesson carries its sections, every term is defined once, no lesson uses a term
-before the lesson that defines it, and each lesson defines what the outline promises. How a unit is
-read, and each guard, are under [Sequential works](#sequential-works). With no `form.sequence` the
+before the lesson that defines it, each lesson defines what the outline promises, and, when the
+spec names a quiz heading, the quizzes test every term in order. How a unit and a quiz are read,
+and each guard, are under [Sequential works](#sequential-works). With no `form.sequence` the
 station skips. It reads words, never meaning: a term used in another sense still counts as a use.
 
 | Id | Severity | Meaning |
@@ -999,6 +1026,33 @@ station skips. It reads words, never meaning: a term used in another sense still
 | `station-sequence-outline-unreadable` | fail | `outline` is set and the file cannot be read |
 | `station-sequence-outline-unkept` | fail | the outline promises a term in a unit that does not define it |
 | `station-sequence-forward-pointer` | warn | a unit mentions a later unit by number, once per pair |
+| `station-sequence-quiz-missing` | fail | `quiz` is set and the draft has no quiz heading |
+| `station-sequence-quiz-untagged` | fail | a numbered line in a quiz names no unit it tests |
+| `station-sequence-quiz-answer` | fail | a question has no answer on its quiz's answers line, or its answer is not one of its options |
+| `station-sequence-quiz-used-before-defined` | fail | a question uses a term a later unit than its tagged one defines; points at the question |
+| `station-sequence-quiz-untested` | fail | no question uses a defined term, or its simple plural; points at the defining unit |
+
+### triage
+
+Runs when the spec's triage file exists (`triage.jsonl`, beside the runs ledger), and holds every
+finding in it to its answer: a finding nobody answered fails, a `taken` or `already-true` answer
+fails unless the passage it quotes is in the draft as it is now, and a `kept` answer fails without
+its reason. An `open` finding is a warning, since it is a decision for the operator and the draft
+can ship while it waits. So is a `kept` or `open` answer about a passage that has since left the
+draft. How findings arrive and how they are answered are under [Triage](#triage-1). With no triage
+file the station skips. It checks that an answer's evidence is in the draft, never whether the
+passage does what the finding asked.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-triage-unreadable` | fail | a line of the triage file is not a finding: not JSON, or no `finding_id` or `text` |
+| `station-triage-untriaged` | fail | a finding has no disposition; names it, at its evidence's line |
+| `station-triage-disposition` | fail | a finding's disposition is not `taken`, `kept`, `already-true` or `open` |
+| `station-triage-evidence-missing` | fail | a `taken` or `already-true` answer quotes no passage of at least three words |
+| `station-triage-evidence-not-found` | fail | a `taken` or `already-true` answer quotes a passage that is not in the draft |
+| `station-triage-reason-missing` | fail | a `kept` answer gives no reason |
+| `station-triage-open` | warn | a finding is open, a decision still to make |
+| `station-triage-stale` | warn | a `kept` or `open` answer is about a passage that is no longer in the draft |
 
 ### Any station
 
@@ -1012,7 +1066,7 @@ Each `check` appends one line to the spec's `improvement.ledger`, the same file 
 reads:
 
 ```json
-{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass","sequence":"skip"},"verdict":"one-shot"}
+{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass","sequence":"skip","triage":"skip"},"verdict":"one-shot"}
 ```
 
 `draft` is the draft's path relative to the spec's folder, however you spelled it, so one draft
@@ -1064,6 +1118,7 @@ four that have defaults written out:
       terms_section: New terms
       outline: course/outline.md
       teaser: Next,
+      quiz: Check yourself
 ```
 
 | Key | Default | What it is |
@@ -1075,6 +1130,7 @@ four that have defaults written out:
 | `outline` | none | an outline whose numbered items promise each unit's terms as `*Terms: a, b.*` |
 | `knows` | none | words a unit may use before a unit defines them, beside `audience.knows` |
 | `teaser` | `Next,` | a closing line starting `**<teaser>` names what is coming; it and everything after it in the unit are exempt from the order guard and the pointer warning |
+| `quiz` | none | the heading each quiz starts with; set, it turns on the quiz rules (see How a quiz is read) |
 
 ### How a unit is read
 
@@ -1094,6 +1150,33 @@ use "context", and "skills" does not use "skill". Code is not prose: fenced bloc
 never count as a use, so `@supersuit/superskill` does not use "supersuit". A unit's own terms
 section is not a use either. Listing a word in `knows` or `audience.knows` is a decision that the
 reader already has it, and it is the only way a unit may use a word before the unit that defines it.
+
+### How a quiz is read
+
+With `quiz` set, the station also holds the work's quizzes to the promise a quiz makes: it tests
+what the lessons taught, and only what the reader has been taught by the lesson it names. A quiz
+starts at a heading that begins with `quiz`, in any case, and runs to the next heading of its level
+or above or the end of its file, so a quiz between two lessons belongs to neither. These are the
+first two questions of the course example's first quiz, under its heading `## Check yourself: Part 1`:
+
+```markdown
+1. *(Lesson 1)* Five hundred grams of flour and four hundred of water: what is the hydration?
+   - a) Forty percent
+   - b) Eighty percent
+2. *(Lesson 1)* When is flour and water a dough?
+   - a) When no dry flour is left
+   - b) When it has doubled
+```
+
+A question is a numbered line tagged `*(<unit> N)*`, the unit it tests. It runs to the next
+numbered line, and its options are the indented `- a) ` lines inside it. A quiz ends with one
+`**Answers:**` line of number and letter pairs, `**Answers:** 1 b · 2 a`, in any separator. Every
+term a unit defines must be used by some question, where a simple plural counts ("doughs" tests
+"dough"); no question, options included, may use a term a later unit defines than the one it is
+tagged with, except a word in `knows`; every numbered line in a quiz must carry a tag; and every
+question's answer must name one of its options. Code in a question is not a use, as in a lesson.
+The rules and the question shape are those of the checker the first book written this way used,
+promoted here so every sequential work gets them.
 
 ### Checking a sequence
 
@@ -1117,6 +1200,7 @@ sequence: pass
     fix: Keep it a pointer ("more in Lesson 4"): Lesson 1 must make sense to a reader who has not read Lesson 4.
   warn [station-sequence-forward-pointer] Lesson 3 points forward to Lesson 4 (course/part-2.md line 24)
     fix: Keep it a pointer ("more in Lesson 4"): Lesson 3 must make sense to a reader who has not read Lesson 4.
+triage: skip (no triage file at course/triage.jsonl yet; a recorded panel verdict or a triage import starts one)
 verdict: one-shot
 ```
 
@@ -1131,7 +1215,8 @@ complaint. A pointer to a later unit is a warning, never a failure: "more in Les
 long as the lesson makes sense without it.
 
 It cannot tell whether a definition is good, whether a term is used in the sense it was defined in,
-or whether a quiz tests what the lessons taught. The judges still take one `--draft` file.
+or whether a question that uses a term tests understanding of it rather than only naming it. The
+judges still take one `--draft` file.
 
 ## Judging a draft
 
@@ -1156,6 +1241,10 @@ essay/judge/lineup.packet.json
 essay/judge/lineup.key.json
 essay/judge/reader.packet.json
 essay/judge/persona.packet.json
+essay/judge/panel-skeptic.packet.json
+essay/judge/panel-novice.packet.json
+essay/judge/panel-expert.packet.json
+essay/judge/panel-buyer.packet.json
 attribution: skip (the spec is not fiction; attribution applies only with fiction: true)
 knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)
 ```
@@ -1163,8 +1252,9 @@ knowledge: skip (the spec is not fiction; knowledge applies only with fiction: t
 Like `check`, it lints the spec first: a spec that fails lint, or is blocked on an open
 decision, gets no packet, and `prepare` exits with lint's own code. Then it writes one
 `<station>.packet.json` for each station that applies, in a fixed order (`doctor, lineup,
-reader, persona, attribution, knowledge`), and prints a `skip` line with the reason for each
-that does not. `--only doctor,reader` prepares just those. The `--out` folder must already
+reader, persona, attribution, knowledge, panel`), and prints a `skip` line with the reason for each
+that does not. The panel writes one packet per reader, `panel-<reader>.packet.json`. `--only
+doctor,reader` prepares just those. The `--out` folder must already
 exist. `prepare` refuses to overwrite any file it would write, naming every one, and then writes
 nothing; `--force` replaces them. The worked examples ship the packets this writes, so add
 `--force` to write them again there. The same spec and draft, with the same goldens and claims
@@ -1219,7 +1309,8 @@ it cannot find the spec and exits 2.
 ### The evidence rule
 
 Every verdict field that cites the draft (the doctor's `evidence`, the reader's `lost_at` and
-`stopped_at`, the persona's `breaks`, the knowledge `leaks`) is a span copied from the draft. A
+`stopped_at`, the persona's `breaks`, the knowledge `leaks`, every panel item) is a span copied
+from the draft. A
 span counts only when:
 
 - it has at least three words, where a word is a run of letters and digits (so "It's" is two);
@@ -1452,6 +1543,59 @@ them by order. Write `by` as something a reader of the draft can find.
 | `judge-knowledge-leak` | fail | a character knows something too early, at its evidence's line |
 | `judge-knowledge-character-unknown` | invalid | a leak names a character with no timeline in the packet |
 
+### panel
+
+The draft read by several readers at once, each through their own lens: the pressure test a
+draft gets by hand before it ships, made part of the run. Every other station asks one question
+with a right answer; the panel asks each reader what works, what to improve, what is missing and
+what to remove, and each thing they would change is a finding somebody has to answer (see
+[Triage](#triage-1)). Applies when `writing.audience` is written and its check has a rubric, the
+reader station's own condition, because one of the readers is always the audience's own.
+
+The readers are the ones `writing.panel` lists, each with an `id`, `who`, what they already `knows`
+and the `lens` they read for:
+
+```yaml
+  panel:
+    - id: skeptic
+      who: a manager who has run one-on-ones for years and doubts that a list is the problem
+      lens: what the essay asserts without showing
+```
+
+With no `panel` declared, three readers read it: a `skeptic`, who doubts the central claim and
+reads for what is asserted without support; a `novice`, new to the subject, reading for every
+term, step or assumption left unexplained; and an `expert` in the subject, reading for what is
+wrong, out of date or oversimplified. Declared or not, the audience's own reader joins last as
+`buyer`, built from `audience.who`, `audience.knows` and `audience.wants`: a panel that never
+includes the person the piece is for tests everything except whether it works for them.
+
+There is one packet per reader. Inputs: `reader` (`id`, `who`, `knows`, `lens`) and the `draft`;
+the rubric is the audience block's. The verdict is `{ good, improve, missing, remove }`, four
+lists, any of them empty, where every item is `{ evidence, note }`: a span copied from the draft,
+and what and why in a sentence. A missing item quotes the passage nearest where the missing thing
+belongs. The panel never fails a draft. Each improve, missing and remove item is a warning at its
+evidence's line, and goes to the spec's triage file as a finding to answer; what works is counted
+and never triaged, since there is nothing to answer. The summary line counts all four and the
+findings added:
+
+```
+panel: pass
+  skeptic: 1 good, 1 to improve, 0 missing, 0 to remove; 1 added to triage (story/triage.jsonl)
+  warn [judge-panel-improve] skeptic would improve this: The red ring is planted hard; a doubting reader sees the sale coming a scene before Ines says it. (line 63)
+    fix: Answer it in the triage file: take it, keep the passage with a reason, show it is already true, or leave it open for a decision.
+verdict: one-shot
+```
+
+Each reader has its own history in the runs ledger: a panel judge line carries `reader` after
+`station`, and is compared only with that reader's earlier lines. Recording the same verdict twice
+adds nothing to triage, since a finding's id is a hash of what it says.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-panel-improve` | warn | the reader would change this passage, and why |
+| `judge-panel-missing` | warn | the reader needs something the draft does not give, near this passage |
+| `judge-panel-remove` | warn | the reader would cut this passage, and why |
+
 ### Any judgment station
 
 | Id | Kind | Meaning |
@@ -1522,9 +1666,180 @@ copy on every release.
 | story | persona | fail | three process details (the deck oven's heat-up time, the rolls' bake time, how the starter is fed) are in no claim, and the rubric allows none outside the ledger |
 | story | attribution | pass | all 19 lines named right by voice alone |
 | story | knowledge | pass | neither character knows anything early |
+| essay | panel-skeptic | pass | the claim rests on a count; "three is enough" is asserted, and who answered the survey is never said |
+| essay | panel-novice | pass | the one term a newcomer lacks is defined where it appears; the running agenda needs a first step |
+| essay | panel-expert | pass | the follow-through is right; say what to do when the silence runs on, and cut the opening disaster story |
+| essay | panel-buyer | pass | it ends on the card; it misses what to do when the report says nothing, at the same passage as the expert |
+| story | panel-skeptic | pass | the letter is carried by what Theo does not do; the red ring round Friday gives the sale away |
+| story | panel-novice | pass | the deck oven is shown where it is named; the proving cabinet is not |
+| story | panel-expert | pass | the flour is weighed, as in a real bakery; the starter is never shown being fed |
+| story | panel-buyer | pass | the first line of Ines's speech holds the reader; the red ring again, and a radio that goes nowhere |
 
 Both examples pass every station of `check`. Each failure here is something no deterministic
 station can see.
+
+## Triage
+
+A panel verdict, or an outside review, is a list of findings, and a finding is only useful once
+someone has decided what to do about it. Triage is where that happens: every finding lands in one
+file, each gets one of four answers, `check` holds every answer to the draft as it is now, and a
+reply to the reviewer is written from the answers. Four answers, because a finding ends in one of
+four places:
+
+| Disposition | Means | Needs |
+|---|---|---|
+| `taken` | the draft now does what the finding asked | `--evidence`: the passage of the current draft that does it |
+| `kept` | the passage stays as it is, on purpose | `--reason`: why |
+| `already-true` | the draft already did it | `--evidence`: the passage that does it |
+| `open` | a decision for the operator | `--reason`, optionally: what is to decide |
+
+Evidence follows [the evidence rule](#the-evidence-rule) a judge's quotes follow, against the
+draft as it is when the answer is given. Nothing in triage reads meaning: it holds an answer's
+evidence to the draft word for word, and the person answering decides whether the passage does
+what the finding asked.
+
+### The triage file
+
+Findings live in `triage.jsonl` beside the spec's runs ledger (`improvement.ledger`), so the
+story example's is `story/triage.jsonl`. Recording a panel verdict adds the reader's improve,
+missing and remove items to it, and `triage import` adds an outside review's. Each line is one
+finding:
+
+```json
+{"finding_id":"panel-skeptic-aeb09835","source":"panel","reader":"skeptic","kind":"improve","text":"The red ring is planted hard; a doubting reader sees the sale coming a scene before Ines says it.","evidence":"somebody had drawn a ring round Friday in red pen","draft_sha256":"fdf8dd1ee311a376e45cca31b50f0b01f1157a889cb332620cbd178e9c510306","disposition":null,"answer":null}
+```
+
+`finding_id` is `panel-<reader>-` or `import-` and eight characters of a hash of what the finding
+says, so the same finding recorded twice is one finding. `source` is `panel` or where an imported
+review came from, `reader` the panel reader or the review's heading, `kind` one of `improve`,
+`missing` and `remove`, or `note` for an imported point under no such label. `evidence` is the
+passage the finding is about, and `draft_sha256` the draft it was raised against. `disposition` and
+`answer` are null until the finding is answered; then `answer` holds `evidence` or `reason` as
+given, the draft's `draft_sha256` and the time, `at`.
+
+### Answering a finding
+
+Record the four panel samples of the story (see [panel](#panel)), then answer each finding:
+
+```bash
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-novice-47ce4719 already-true --draft story/draft.md --evidence "Ines will not put it in the proving cabinet. She says the cabinet is for the white."
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-buyer-23aee52f kept --draft story/draft.md --reason "the radio nobody turns on is the silence the bench scene depends on"
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-expert-ef15b7b2 kept --draft story/draft.md --reason "the starter is the one thing Theo is never allowed to touch, so he never sees it fed"
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-skeptic-aeb09835 open --draft story/draft.md --reason "how early to plant the sale is the author's call"
+npx @supersuit/hyperspec triage answer story.hyperspec.md panel-buyer-57810b16 open --draft story/draft.md --reason "the same call as the skeptic's"
+npx @supersuit/hyperspec triage status story.hyperspec.md --draft story/draft.md
+```
+
+Each answer prints `<finding>: <disposition> (story/triage.jsonl)`. `status` counts the answers,
+lists the passages two or more readers raised findings about, and runs the triage station's rules:
+
+```
+story/triage.jsonl: 5 findings; 0 taken, 2 kept, 1 already true, 2 open, 0 not answered
+shared by two or more readers:
+  line 63: "somebody had drawn a ring round Friday in red pen"
+    skeptic (improve): The red ring is planted hard; a doubting reader sees the sale coming a scene before Ines says it.
+    buyer (improve): I guessed Friday before the reveal, which took some of the weight out of the oven scene.
+triage: pass
+  warn [station-triage-open] panel-skeptic-aeb09835 (skeptic, improve) is open: "The red ring is planted hard; a doubting reader sees the sale coming a scene be…" (how early to plant the sale is the author's call) (line 63)
+    fix: A decision for the operator; answer it once it is made.
+  warn [station-triage-open] panel-buyer-57810b16 (buyer, improve) is open: "I guessed Friday before the reveal, which took some of the weight out of the ov…" (the same call as the skeptic's) (line 63)
+    fix: A decision for the operator; answer it once it is made.
+```
+
+The shared passages are the synthesis of a panel: where two or more readers point at overlapping
+passages of the draft, the passage is worth reading first. It groups by where, never by meaning,
+so two readers who say the same thing about different passages are not grouped.
+
+`answer` refuses, and writes nothing, when a `taken` or `already-true` answer's evidence is missing,
+under three words or not in the draft, or a `kept` answer has no reason. It may be given again: the
+last answer stands. Like `check`, every triage command takes `--draft`, or reads the files of a
+spec that lists `writing.form.sequence.files`, and names a finding's line by the file that holds
+it.
+
+### Importing an outside review
+
+A review written anywhere else, as markdown or plain text, comes in as findings with `triage
+import`, so it gets the same answers and the same check as the panel. This is a short review of the
+story:
+
+```markdown
+#### The magazine's editor
+
+**Good:** the opening puts the reader in the kitchen at once.
+
+**Improve:**
+
+- The oven noise comes twice; the second, "It made the noise while I was weighing the second batch", could go.
+
+**Missing:**
+
+- Theo never says what he wants: "I did not look at the coat. I looked at the dough." carries it, but only just.
+
+#### A first-time reader
+
+- Remove: the line about "the bakery closing on a Tuesday" felt out of place.
+```
+
+```bash
+npx @supersuit/hyperspec triage import story.hyperspec.md story/review.md --draft story/draft.md --source "the editor's review"
+```
+
+```
+the editor's review: 3 findings added to triage (story/triage.jsonl); 1 item of praise, not triaged
+  warn [triage-import-quote-not-found] a finding quotes text that is not in the current draft: "the bakery closing on a Tuesday" (the line about "the bakery closing on a Tuesday" felt out o…)
+    fix: The review may have read another copy of the draft. Check the finding against the draft as it is now before answering it.
+```
+
+A heading names the reader of the points under it. A label (`Good`, `Improve`, `Improvement`,
+`Missing` or `Remove`, as a heading, a bold line, or a word and a colon starting a line or a list
+item) sets the kind of what follows. Each list item, with its indented lines, is one finding, and
+so is a paragraph under a label; an introduction under no label is not. What is good is counted
+and left out, since there is nothing to answer. A finding's evidence is the first quoted span, in
+double quotation marks or a `>` quotation block, of three words or more that is in the draft. A
+finding that quotes only text the draft does not hold is imported with no evidence and a warning:
+a review of a stale or partial copy is the usual cause, and the finding is still answered.
+`--source` names the review, by default its file's path, so a reply can be written to it alone.
+
+### Replying to the reviewer
+
+```bash
+npx @supersuit/hyperspec triage answer story.hyperspec.md import-6c60f92a kept --draft story/draft.md --reason "the second time is when Theo starts to listen to it"
+npx @supersuit/hyperspec triage answer story.hyperspec.md import-919ea916 already-true --draft story/draft.md --evidence "I did not look at the coat. I looked at the dough."
+npx @supersuit/hyperspec triage answer story.hyperspec.md import-ad3d7fe9 kept --draft story/draft.md --reason "no line about a Tuesday closing is in the draft; the review read another copy"
+npx @supersuit/hyperspec triage reply story.hyperspec.md --draft story/draft.md --source "the editor's review"
+```
+
+```
+Thank you for the review. Here is what happened to each point.
+
+Kept as it is:
+- The magazine's editor: The oven noise comes twice; the second, "It made the noise while I was weighing the second batch", could go. Why: the second time is when Theo starts to listen to it
+- A first-time reader: the line about "the bakery closing on a Tuesday" felt out of place. Why: no line about a Tuesday closing is in the draft; the review read another copy
+
+Already in the draft:
+- The magazine's editor: Theo never says what he wants: "I did not look at the coat. I looked at the dough." carries it, but only just. It is here: "I did not look at the coat. I looked at the dough."
+```
+
+`reply` prints plain text, one line per finding, under Taken, Kept as it is, Already in the draft
+and Still open, leaving out an empty heading, and anything not answered yet under a last heading
+of its own. It never sends anything: it is a draft for the operator to read and send, or not. It
+exits 1, with a line on stderr, when the triage station would fail, so a reply with a gap in it is
+not sent by accident. `--source` limits it to one review; without it every finding is included.
+
+Exit codes: `status` **0** when the triage station would pass, **1** when it would fail; `answer`
+**0** written, **1** refused; `import` **0** imported, **1** the review holds no finding; `reply`
+**0** ready, **1** not; all four **2** on usage: no spec, a spec without `profile: writing`, no
+draft, no triage file for `answer` and `reply`, an unknown finding or disposition, or a review that
+cannot be read. `--json` prints the whole result.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `triage-evidence-missing` | invalid | a `taken` or `already-true` answer has no `--evidence` |
+| `triage-evidence-too-short` | invalid | the answer's evidence has fewer than three words |
+| `triage-evidence-not-found` | invalid | the answer's evidence is not in the draft |
+| `triage-reason-missing` | invalid | a `kept` answer has no `--reason` |
+| `triage-import-quote-not-found` | warn | an imported finding quotes text, and none of it is in the draft |
+| `triage-import-empty` | invalid | the review holds no finding to answer |
 
 ## Learning from edits
 
@@ -1716,8 +2031,9 @@ names:
   Each character has speech rules, a knowledge timeline by scene, and golden and rejected lines
   in a voice you can tell apart from the other's.
 - `course.hyperspec.md`: a four-lesson course in two part files, declared a sequence (see
-  [Sequential works](#sequential-works)), with an outline promising each lesson's terms. `check`
-  reads the parts with no `--draft` and passes them, with two forward-pointer warnings.
+  [Sequential works](#sequential-works)), with an outline promising each lesson's terms and a
+  quiz closing each part. `check` reads the parts with no `--draft` and passes them, with two
+  forward-pointer warnings.
 
 Every material in all three is marked. Between them the essay and the story use all seven labels, each with
 the field it needs, and every spine claim cites the segments that support it. Each segments file
@@ -1733,17 +2049,19 @@ lints all three specs and checks their drafts on every release, so they cannot d
 
 Each also ships the packets `judge prepare` writes for its draft, in `essay/judge/` and
 `story/judge/`, and one sample verdict per packet in `essay/sample-verdicts/` and
-`story/sample-verdicts/`, filled in by hand and marked as samples; what each found is under
-[The worked examples](#the-worked-examples). The essay adds a learn pair in `essay/learn/`: a
+`story/sample-verdicts/`, filled in by hand and marked as samples, four panel readers' among
+them; what each found is under [The worked examples](#the-worked-examples), and the story's panel
+findings are triaged under [Triage](#triage-1). The essay adds a learn pair in `essay/learn/`: a
 first draft, the packet `learn prepare` writes comparing it with `essay/draft.md`, and a sample
 learn verdict (see [Learning from edits](#learning-from-edits)). A test checks that every packet
 is what `prepare` writes now and records every sample.
 
 ## What later versions add
 
-This release is the schema, its lint, marked materials, scoped DNA, `check` with eight
-deterministic stations (sequential works among them), six judgment stations written as packets for
-an outside judge, and learn.
+This release is the schema, its lint, marked materials, scoped DNA, `check` with nine
+deterministic stations (sequential works and their quizzes among them, and triage last), seven
+judgment stations written as packets for an outside judge (the panel among them), triage, and
+learn.
 Next: lineups over several passages of one draft, so that one lucky pick carries less weight, and
 a learn step that reads the runs ledger across drafts for the stations that keep failing and the
 changes that made them pass, beside what one pair of drafts shows.

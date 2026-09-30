@@ -258,6 +258,10 @@ function stationIdsFromSource() {
   const files = readdirSync(join(ROOT, "src", "stations")).filter((f) => f.endsWith(".mjs") && !["index.mjs", "util.mjs"].includes(f)).map((f) => join("src", "stations", f));
   files.push(join("src", "check.mjs"));
   const out = new Map();
+  // The triage station's rules live in src/triage.mjs, shared with `triage status`, and raise each
+  // id through a finding(id, severity, ...) helper.
+  const triageSrc = readFileSync(join(ROOT, "src", "triage.mjs"), "utf8");
+  for (const m of triageSrc.matchAll(/\bfinding\("(station-[^"]+)", "(fail|warn)"/g)) out.set(m[1], m[2]);
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), "utf8");
     for (const m of src.matchAll(/(?:\bid:\s*|\blet id = )(?:"(station-[^"]+)"|`(station-[^`]+)`)/g)) {
@@ -324,7 +328,7 @@ test("the Sequential works declaration is the course example's own sequence bloc
 test("the Sequential works key table lists every key the station reads, with the station's defaults", async () => {
   const { DEFAULTS } = await import("../src/stations/sequence.mjs");
   const rows = [...seqSub("Declaring a sequence").matchAll(/^\| `([a-z_]+)` \| ([^|]+) \|/gm)].map((m) => [m[1], m[2].trim()]);
-  assert.deepEqual(rows.map((r) => r[0]), ["unit", "files", "sections", "terms_section", "outline", "knows", "teaser"]);
+  assert.deepEqual(rows.map((r) => r[0]), ["unit", "files", "sections", "terms_section", "outline", "knows", "teaser", "quiz"]);
   // files is read where the draft is assembled; every other key by the station itself.
   const src = readFileSync(join(ROOT, "src", "stations", "sequence.mjs"), "utf8");
   const draftSrc = readFileSync(join(ROOT, "src", "sequence-draft.mjs"), "utf8");
@@ -486,7 +490,7 @@ test("the page's judge ledger line has exactly the fields record writes", () => 
 
 test("the page's worked-examples table gives every sample verdict the status record derives", () => {
   const body = subsOf("Judging a draft").find((s) => s.heading === "The worked examples").body;
-  const rows = [...body.matchAll(/^\| (essay|story) \| ([a-z]+) \| (pass|fail) \|/gm)].map((m) => ({ example: m[1], station: m[2], status: m[3] }));
+  const rows = [...body.matchAll(/^\| (essay|story) \| ([a-z-]+) \| (pass|fail) \|/gm)].map((m) => ({ example: m[1], station: m[2], status: m[3] }));
   const packets = ["essay", "story"].flatMap((e) => readdirSync(join(ROOT, "examples", "writing", e, "judge")).map((f) => `${e}/${f.replace(".packet.json", "")}`));
   assert.deepEqual(rows.map((r) => `${r.example}/${r.station}`).sort(), packets.sort());
   const d = exampleCopy("hs-doc-judge-table-");
@@ -525,4 +529,65 @@ test("the page's learn findings table lists exactly the ids learn raises, with t
   assert.ok(fromSource.size >= 10, `collected ${fromSource.size} ids`);
   const rows = subsOf("Learning from edits").flatMap((s) => tableRows(s.body)).filter((r) => r.id.startsWith("learn-"));
   assert.deepEqual(new Map(rows.map((r) => [r.id, r.severity])), fromSource);
+});
+
+// ------------------------------------------------------------ The panel and triage ---------------
+// The panel subsection shows one record; the Triage section walks the story's panel findings and an
+// outside review through answer, status, import and reply. Every command and output on the page is
+// run, in order, on a fresh copy of the examples, so the page cannot show what the tool does not do.
+
+// A bash line split the way a shell splits this page's lines: on spaces, with double quotes
+// grouping (the page uses no other quoting).
+const argv = (line) => [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+const runQuoted = (d, line) => {
+  const prefix = "npx @supersuit/hyperspec ";
+  assert.ok(line.startsWith(prefix), line);
+  return spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...argv(line.slice(prefix.length))], { cwd: d, encoding: "utf8" });
+};
+
+test("the panel subsection's record sample is exactly what record prints for the story's skeptic, and its readers are the defaults", async () => {
+  const { DEFAULT_PANEL } = await import("../src/judges/panel.mjs");
+  const body = subsOf("Judging a draft").find((s) => s.heading === "panel").body;
+  const d = exampleCopy("hs-doc-panel-");
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", "story/judge/panel-skeptic.packet.json", "--verdict", "story/sample-verdicts/panel-skeptic.verdict.json"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(bareBlocks(body)[0], r.stdout);
+  for (const p of DEFAULT_PANEL) assert.match(body, new RegExp(`an? \`${p.id}\``), p.id);
+});
+
+test("the Triage section's commands print exactly the page's samples, in order, on the story", () => {
+  const triage = section("Triage");
+  const subs = subsOf("Triage");
+  assert.deepEqual(subs.map((s) => s.heading), ["The triage file", "Answering a finding", "Importing an outside review", "Replying to the reviewer"]);
+  const d = exampleCopy("hs-doc-triage-");
+  // The four panel samples, recorded, then each subsection's commands, and its last command's
+  // output held to the sample under it.
+  for (const r of ["skeptic", "novice", "expert", "buyer"]) {
+    const res = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "judge", "record", `story/judge/panel-${r}.packet.json`, "--verdict", `story/sample-verdicts/panel-${r}.verdict.json`], { cwd: d, encoding: "utf8" });
+    assert.equal(res.status, 0, res.stdout + res.stderr);
+  }
+  const fileLine = fence(subs[0].body, "json").trim();
+  assert.ok(readFileSync(join(d, "story", "triage.jsonl"), "utf8").split("\n").includes(fileLine), "the page's triage line is one the story's panel writes");
+  writeFileSync(join(d, "story", "review.md"), fence(subs[2].body, "markdown"));
+  for (const s of subs.slice(1)) {
+    const lines = bashLines(s.body);
+    let last;
+    for (const line of lines) {
+      last = runQuoted(d, line);
+      if (line !== lines.at(-1)) assert.equal(last.status, 0, `${line}\n${last.stdout}${last.stderr}`);
+      if (/ triage answer /.test(line)) assert.match(last.stdout, /^[a-z0-9-]+: (taken|kept|already-true|open) \(story\/triage\.jsonl\)\n$/);
+    }
+    assert.equal(last.status, 0, last.stdout + last.stderr);
+    assert.equal(bareBlocks(s.body)[0], last.stdout, s.heading);
+  }
+  assert.match(triage, /^\| `taken` \|/m);
+});
+
+test("the Triage findings table lists exactly the ids the triage commands raise, with their kind", () => {
+  const src = readFileSync(join(ROOT, "src", "triage.mjs"), "utf8");
+  const fromSource = new Map([...src.matchAll(/"(triage-[a-z-]+)"/g)].map((m) => [m[1], m[1] === "triage-import-quote-not-found" ? "warn" : "invalid"]));
+  assert.ok(fromSource.size >= 6, `collected ${fromSource.size} ids`);
+  const rows = subsOf("Triage").flatMap((s) => tableRows(s.body)).filter((r) => r.id.startsWith("triage-"));
+  assert.deepEqual(new Map(rows.map((r) => [r.id, r.severity])), fromSource);
+  assert.match(src, /severity: "warn", message: `a finding quotes text/, "the quote warning is raised as a warning");
 });

@@ -24,7 +24,7 @@ const EXAMPLES = [
     ledger: "essay/runs.jsonl",
     // The essay names a scope folder, so dna measures it; it tells the author's own story in the
     // first person against goldens written in the second, and dna reports that drift as a warning.
-    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "pass", private: "pass", dna: "pass", links: "pass", sequence: "skip" },
+    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "pass", private: "pass", dna: "pass", links: "pass", sequence: "skip", triage: "skip" },
   },
   {
     spec: "story.hyperspec.md",
@@ -32,7 +32,7 @@ const EXAMPLES = [
     ledger: "story/runs.jsonl",
     // The story keeps its goldens inline, with no scope folder, so there is nothing to measure
     // against; it is fiction, so its invented dialogue is not held to the marked quotes.
-    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "skip", private: "pass", dna: "skip", links: "pass", sequence: "skip" },
+    stations: { form: "pass", terms: "pass", claims: "pass", quotes: "skip", private: "pass", dna: "skip", links: "pass", sequence: "skip", triage: "skip" },
   },
 ];
 

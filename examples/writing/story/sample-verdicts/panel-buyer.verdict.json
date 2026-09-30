@@ -1,0 +1,13 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "\"Flour first. Then you can talk.\"", "note": "One line tells me who she is and how the two of them work, so I keep reading." }
+  ],
+  "improve": [
+    { "evidence": "somebody had drawn a ring round Friday in red pen", "note": "I guessed Friday before the reveal, which took some of the weight out of the oven scene." }
+  ],
+  "missing": [],
+  "remove": [
+    { "evidence": "There is a radio on the shelf above the sink and nobody has turned it on since I have worked there.", "note": "A detail that goes nowhere; in a story I read in one sitting, every object should earn its place." }
+  ]
+}

@@ -38,3 +38,20 @@ Heat the oven as hot as it goes, with a heavy pot inside. Put the loaf in the po
 Let it cool for an hour before you cut it. Then read the crumb. Big uneven holes mean a well proofed, high hydration dough. A tight, even crumb with a dense band at the bottom means the proof was too short.
 
 **Try this:** cut the two loaves from Lesson 3 and compare their crumb.
+
+## Check yourself: Part 2
+
+1. *(Lesson 3)* Why give a dough a bench rest?
+   - a) So it relaxes enough to be shaped again
+   - b) So it cools down
+2. *(Lesson 3)* What lets a shaped loaf stand instead of spreading?
+   - a) More water
+   - b) Surface tension
+3. *(Lesson 4)* When does oven spring happen?
+   - a) In the first ten minutes of heat
+   - b) While the loaf cools
+4. *(Lesson 4)* A tight, even crumb with a dense band at the bottom means what?
+   - a) The oven was too hot
+   - b) The proof was too short
+
+**Answers:** 1 a · 2 b · 3 a · 4 b

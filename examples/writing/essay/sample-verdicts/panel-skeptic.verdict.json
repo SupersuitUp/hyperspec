@@ -1,0 +1,13 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "29 of 41 people said their most useful one-on-one in the last quarter was one where they brought the first topic.", "note": "The central claim rests on a count from the author's own team, not on an adjective." }
+  ],
+  "improve": [
+    { "evidence": "Three is enough to hand the meeting over.", "note": "Asserted rather than shown: nothing says why three works better than two, beyond a fourth starting to look like the manager's list." }
+  ],
+  "missing": [
+    { "evidence": "My team ran a", "note": "Who answered the survey and how it was asked is never said, so a reader cannot tell how far 41 people on one team carry." }
+  ],
+  "remove": []
+}

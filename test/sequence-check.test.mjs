@@ -29,7 +29,7 @@ test("the course example checks with no --draft: its parts, joined in order, pas
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const out = JSON.parse(r.stdout);
   assert.deepEqual(out.stations.map((s) => s.station), [...STATION_NAMES]);
-  assert.deepEqual(Object.fromEntries(out.stations.map((s) => [s.station, s.status])), { form: "pass", terms: "skip", claims: "pass", quotes: "pass", private: "pass", dna: "skip", links: "pass", sequence: "pass" });
+  assert.deepEqual(Object.fromEntries(out.stations.map((s) => [s.station, s.status])), { form: "pass", terms: "skip", claims: "pass", quotes: "pass", private: "pass", dna: "skip", links: "pass", sequence: "pass", triage: "skip" });
   assert.deepEqual(out.files, ["course/part-1.md", "course/part-2.md"]);
   assert.equal(out.draftPath, "course/part-*.md");
   assert.deepEqual(seqOf(out).findings.map((f) => [f.id, f.severity, f.file, f.line]), [
@@ -64,7 +64,7 @@ test("a part's frontmatter is not prose: a term in its title is not a use", () =
 
 test("a new part matching the files pattern is read in number order, part-2 before part-10", () => {
   const d = copy();
-  writeFileSync(join(d, "course", "part-10.md"), "## Lesson 5: Scoring\n\n**After this lesson you can:** score a loaf.\n\n**New terms:**\n- **Lame:** a razor for scoring.\n\nScore the loaf before the oven spring.\n\n**Try this:** score one loaf.\n");
+  writeFileSync(join(d, "course", "part-10.md"), "## Lesson 5: Scoring\n\n**After this lesson you can:** score a loaf.\n\n**New terms:**\n- **Lame:** a razor for scoring.\n\nScore the loaf before the oven spring.\n\n**Try this:** score one loaf.\n\n## Check yourself: Part 10\n\n1. *(Lesson 5)* What is a lame for?\n   - a) Scoring\n   - b) Mixing\n\n**Answers:** 1 a\n");
   const r = hyperspec(["check", "course.hyperspec.md", "--only", "sequence", "--json"], d);
   assert.equal(r.status, 0, r.stdout);
   assert.deepEqual(JSON.parse(r.stdout).files, ["course/part-1.md", "course/part-2.md", "course/part-10.md"]);
@@ -74,7 +74,7 @@ test("a relative link resolves beside the part that holds it", () => {
   const d = copy();
   mkdirSync(join(d, "course", "extra"));
   writeFileSync(join(d, "course", "extra", "notes.md"), "notes\n");
-  writeFileSync(join(d, "course", "extra", "part-9.md"), "## Lesson 9: Notes\n\n**After this lesson you can:** x.\n\n**New terms:**\n- **Note:** y.\n\nSee [the notes](notes.md).\n\n**Try this:** z.\n");
+  writeFileSync(join(d, "course", "extra", "part-9.md"), "## Lesson 9: Notes\n\n**After this lesson you can:** x.\n\n**New terms:**\n- **Note:** y.\n\nSee [the notes](notes.md).\n\n**Try this:** z.\n\n## Check yourself\n\n1. *(Lesson 9)* What is a note?\n   - a) y\n   - b) z\n\n**Answers:** 1 a\n");
   edit(d, "course.hyperspec.md", (t) => t.replace("        - course/part-*.md\n", "        - course/part-*.md\n        - course/extra/part-9.md\n"));
   const r = hyperspec(["check", "course.hyperspec.md", "--only", "links,sequence", "--json"], d);
   assert.equal(r.status, 0, r.stdout);
@@ -100,11 +100,12 @@ test("a spec that lists no sequence files still needs --draft: exit 2", () => {
 test("lint: every sequence key present has to be usable", () => {
   const d = copy();
   const cases = [
-    [(t) => t.replace(/    sequence:\n[\s\S]*?      teaser: Next,\n/, "    sequence: yes\n"), "writing-form-sequence", 1],
+    [(t) => t.replace(/    sequence:\n[\s\S]*?      quiz: Check yourself\n/, "    sequence: yes\n"), "writing-form-sequence", 1],
     [(t) => t.replace("        - course/part-*.md\n", "        - course/chapter-*.md\n"), "writing-form-sequence-files-missing", 6],
     [(t) => t.replace("      outline: course/outline.md\n", "      outline: course/nowhere.md\n"), "writing-form-sequence-outline-missing", 6],
     [(t) => t.replace(/      sections:\n(        - .*\n)+/, "      sections: []\n"), "writing-form-sequence-sections", 1],
     [(t) => t.replace("      unit: Lesson\n", "      unit: TODO\n"), "writing-form-sequence-unit", 1],
+    [(t) => t.replace("      quiz: Check yourself\n", "      quiz: TODO\n"), "writing-form-sequence-quiz", 1],
   ];
   const original = readFileSync(join(d, "course.hyperspec.md"), "utf8");
   for (const [change, id, testNo] of cases) {

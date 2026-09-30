@@ -1,0 +1,13 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "Pick one thing you can act on this week, say what you will do, and do it before you meet again.", "note": "The follow-through is what experienced managers say makes the meeting worth having, and it is concrete." }
+  ],
+  "improve": [
+    { "evidence": "After the third question, stop talking.", "note": "Right for most reports, but a new or quiet report may say nothing at all; say what to do when the silence runs on." }
+  ],
+  "missing": [],
+  "remove": [
+    { "evidence": "My first one-on-one as a manager was a disaster", "note": "An experienced reader has heard this story many times, and the survey already makes the case it makes." }
+  ]
+}

@@ -42,6 +42,23 @@ Add a spoon of starter to the dough from Lesson 1 and leave it somewhere warm. T
 
 **Try this:** start a starter today, and mark the jar with tape at its height after each feed.
 
+## Check yourself: Part 1
+
+1. *(Lesson 1)* Five hundred grams of flour and four hundred of water: what is the hydration?
+   - a) Forty percent
+   - b) Eighty percent
+2. *(Lesson 1)* When is flour and water a dough?
+   - a) When no dry flour is left
+   - b) When it has doubled
+3. *(Lesson 2)* What does a starter need every day?
+   - a) A pinch of salt
+   - b) A feed of flour and water
+4. *(Lesson 2)* How do you tell a proof is done?
+   - a) A finger dent fills back slowly
+   - b) The top has cracked
+
+**Answers:** 1 b · 2 a · 3 b · 4 a
+
 ---
 
 **Next, Part 2: The bake.** Shaping a loaf that holds itself up, and what happens to the crumb in the oven.

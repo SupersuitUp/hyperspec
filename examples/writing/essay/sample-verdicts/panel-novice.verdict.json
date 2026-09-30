@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "good": [
+    { "evidence": "a status meeting, which is a meeting spent reading out loud what the tracker already says", "note": "The one term a newcomer would not know is defined in the sentence that names it." }
+  ],
+  "improve": [
+    { "evidence": "The simplest way to do it is a running agenda", "note": "It says what a running agenda is, but not who creates the document or where it lives, which is the first thing a new manager would have to do." }
+  ],
+  "missing": [],
+  "remove": []
+}

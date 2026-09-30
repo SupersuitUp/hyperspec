@@ -457,7 +457,7 @@ function formFields(raw, d, here, idPrefix) {
 function sequenceFields(seq, here, idPrefix) {
   if (!isObj(seq)) return [f(1, idPrefix, "fail", "writing.form.sequence is not a map", "Write sequence: as a map of the keys WRITING.md lists, one per line.")];
   const out = [];
-  for (const key of ["unit", "terms_section", "teaser"]) {
+  for (const key of ["unit", "terms_section", "teaser", "quiz"]) {
     if (key in seq && !str(seq[key])) out.push(f(1, `${idPrefix}-${key.replace("_", "-")}`, "fail", `writing.form.sequence.${key} is empty or a placeholder`, `Give ${key} a real value, or delete it for the default.`));
   }
   const strings = (key, fix) => {
@@ -629,6 +629,53 @@ function characterFields(c, here, idPrefix) {
   const entity = str(c?.entity);
   if (entity) out.push(...pathFindings(here, entity, `${idPrefix}-entity`, `character "${tag}" entity`, "Fix the path, or remove entity."));
 
+  return out;
+}
+
+// ---------------------------------------------------------------- quotes and panel -------------
+// Two optional keys under writing: that are not blocks (no check, source or author of their own):
+// writing.quotes, which tells the quotes station which quoted spans are example phrasings, and
+// writing.panel, the readers the panel judge adds beside the audience's own reader. Each present
+// key has to be usable, the way a present sequence key does, because a hollow value would switch
+// something off without saying so.
+
+export function quotesFields(raw) {
+  if (!isObj(raw)) return [f(1, "writing-quotes", "fail", "writing.quotes is not a map", "Write quotes: as a map, with examples: under it.")];
+  if (!("examples" in raw)) return [];
+  const ex = raw.examples;
+  if (Array.isArray(ex)) {
+    if (!ex.length || ex.some((x) => typeof x !== "string" || !str(x))) {
+      return [f(1, "writing-quotes-examples", "fail", "writing.quotes.examples is a list, and not a list of real phrasings", "List each example phrasing as it appears between the quotation marks, or set examples: true.")];
+    }
+    return [];
+  }
+  if (str(ex) === "true" || str(ex) === "false") return [];
+  return [f(1, "writing-quotes-examples", "fail", `writing.quotes.examples is "${str(ex) || "(none)"}", not true, false or a list of phrasings`, "Set examples: true, false, or a list of the example phrasings.")];
+}
+
+// A panel reader's id names its packet file (panel-<id>.packet.json), so it is a slug.
+const READER_ID = /^[a-z0-9][a-z0-9-]*$/;
+
+export function panelFields(raw) {
+  if (!Array.isArray(raw)) return [f(1, "writing-panel", "fail", "writing.panel is not a list", "Write panel: as a list of readers, each with id, who and lens, or delete it for the default panel.")];
+  if (!raw.length) return [f(1, "writing-panel", "fail", "writing.panel is present and names no reader", "List at least one reader, or delete panel: for the default panel.")];
+  const out = [];
+  const seen = new Set();
+  raw.forEach((r, i) => {
+    const tag = str(r?.id) || `#${i + 1}`;
+    if (!isObj(r)) { out.push(f(1, "writing-panel-reader", "fail", `writing.panel reader ${tag} is not a map`, "Write each reader as id, who, lens and optionally knows, one per line.")); return; }
+    const id = str(r.id);
+    if (!id) out.push(f(1, "writing-panel-id", "fail", `writing.panel reader ${tag} has no id`, "Give the reader a short id, such as skeptic."));
+    else if (!READER_ID.test(id)) out.push(f(1, "writing-panel-id", "fail", `writing.panel reader id "${id}" is not lower case letters, digits and hyphens`, "Use an id such as skeptic or domain-expert: it names the reader's packet file."));
+    else if (id === "buyer") out.push(f(1, "writing-panel-buyer", "fail", "writing.panel names a reader \"buyer\"; the buyer is always added, from writing.audience", "Rename this reader; the audience's own reader joins every panel as buyer."));
+    else if (seen.has(id)) out.push(f(1, "writing-panel-id-duplicate", "fail", `writing.panel reader id "${id}" is used twice`, "Ids must be unique across writing.panel; rename one."));
+    if (id) seen.add(id);
+    if (!str(r.who)) out.push(f(1, "writing-panel-who", "fail", `writing.panel reader ${tag} has no who`, "Say who this reader is, in a line."));
+    if (!str(r.lens)) out.push(f(1, "writing-panel-lens", "fail", `writing.panel reader ${tag} has no lens`, "Say what this reader reads for, in a line."));
+    if ("knows" in r && (!Array.isArray(r.knows) || r.knows.some((x) => typeof x !== "string" || !str(x)))) {
+      out.push(f(1, "writing-panel-knows", "fail", `writing.panel reader ${tag} has knows that is not a list of real entries`, "List what the reader already knows, one entry per line, or delete knows:."));
+    }
+  });
   return out;
 }
 

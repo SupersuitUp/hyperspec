@@ -21,10 +21,15 @@ const cli = (args, cwd) => spawnSync(process.execPath, [BIN, ...args], { cwd, en
 
 // What each sample verdict records. A station missing here fails the test below that pairs every
 // committed packet with a sample, so a new packet cannot ship without its expected status.
+// The panel writes one packet per reader, panel-<reader>, and every one of them passes: the panel
+// never fails a draft, it hands its findings to triage.
+const PANEL = { "panel-skeptic": "pass", "panel-novice": "pass", "panel-expert": "pass", "panel-buyer": "pass" };
 const EXAMPLES = {
-  essay: { spec: "essay.hyperspec.md", draft: "essay/draft.md", status: { doctor: "pass", lineup: "fail", reader: "pass", persona: "pass" } },
-  story: { spec: "story.hyperspec.md", draft: "story/draft.md", status: { doctor: "pass", reader: "pass", persona: "fail", attribution: "pass", knowledge: "pass" } },
+  essay: { spec: "essay.hyperspec.md", draft: "essay/draft.md", status: { doctor: "pass", lineup: "fail", reader: "pass", persona: "pass", ...PANEL } },
+  story: { spec: "story.hyperspec.md", draft: "story/draft.md", status: { doctor: "pass", reader: "pass", persona: "fail", attribution: "pass", knowledge: "pass", ...PANEL } },
 };
+// The station (and reader) a packet name stands for, as the ledger writes them.
+const ledgerName = (l) => (l.reader ? `${l.station}-${l.reader}` : l.station);
 
 const copy = (prefix) => {
   const d = tempDir(prefix);
@@ -48,7 +53,7 @@ for (const [name, ex] of Object.entries(EXAMPLES)) {
     // prepare also writes answer keys; they are never committed beside the packets.
     const written = files(out);
     assert.deepEqual(written.filter((f) => !f.endsWith(".key.json")), committed);
-    for (const s of JUDGE_NAMES) if (!ex.status[s]) assert.ok(r.stdout.includes(`${s}: skip (`), `${name}: ${s} skips`);
+    for (const s of JUDGE_NAMES) if (!Object.keys(ex.status).some((k) => k === s || k.startsWith(`${s}-`))) assert.ok(r.stdout.includes(`${s}: skip (`), `${name}: ${s} skips`);
   });
 
   test(`${name}: every sample verdict is marked as a sample and pairs with a committed packet`, () => {
@@ -70,7 +75,7 @@ for (const [name, ex] of Object.entries(EXAMPLES)) {
       assert.equal(r.status, status === "pass" ? 0 : 1, station);
     }
     const lines = ledger(d, name);
-    assert.deepEqual(lines.map((l) => [l.kind, l.station, l.status]), Object.entries(ex.status).map(([s, st]) => ["judge", s, st]));
+    assert.deepEqual(lines.map((l) => [l.kind, ledgerName(l), l.status]), Object.entries(ex.status).map(([s, st]) => ["judge", s, st]));
     // The spec still lints 9/9 with the judge lines in its ledger.
     const lint = cli(["lint", ex.spec], d);
     assert.equal(lint.status, 0, lint.stdout + lint.stderr);
