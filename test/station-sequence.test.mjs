@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { run, parseUnits, newTerms, outlineTerms } from "../src/stations/sequence.mjs";
+import { run, parseUnits, newTerms, outlineTerms, longerTerms, maskLonger } from "../src/stations/sequence.mjs";
 import { tempDir } from "./tmp.mjs";
 
 // The sequence station holds a work read in order (a course, a primer, a textbook) to the
@@ -140,4 +140,36 @@ test("outlineTerms reads an item's promise even when it sits on a later line of 
 test("an outline that cannot be read fails rather than passing unchecked", () => {
   const r = check(book(lesson(1, ["Widget"], "a")), { outline: "nowhere.md" }, { dir: tempDir("hs-seq-noout-") });
   assert.deepEqual(ids(r), ["station-sequence-outline-unreadable"]);
+});
+
+// A word inside a longer defined term is not a use of the shorter term (0.9.1). A book defined
+// "Thinking level" in Lesson 2 and "Level" in Lesson 22, and failed every "thinking level" in
+// Lessons 2 to 21 as a use of "level" before Lesson 22.
+test("GUARD: a longer defined term is not a use of the shorter term inside it, plural included", () => {
+  const text = book(
+    lesson(1, ["Thinking level"], "Set the thinking level. Two thinking levels.\nA thinking\nlevel split across lines."),
+    lesson(2, ["Level"], "A level."),
+  );
+  const r = check(text);
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+  assert.deepEqual(r.findings, []);
+});
+
+test("GUARD: the shorter term on its own still counts, beside the longer term", () => {
+  const text = book(lesson(1, ["Thinking level"], "Set the thinking level.\nPick a level."), lesson(2, ["Level"], "A level."));
+  const r = check(text);
+  assert.deepEqual(ids(r), ["station-sequence-used-before-defined"]);
+  assert.match(r.findings[0].message, /Lesson 1 uses "level" before Lesson 2 defines it/);
+  assert.equal(r.findings[0].line, text.split("\n").findIndex((l) => l.includes("Pick a level")) + 1);
+});
+
+test("longerTerms maps each term to the defined terms that contain it; maskLonger keeps line breaks", () => {
+  const m = longerTerms(["level", "thinking level", "levels of care", "top-level", "deep thinking level"]);
+  assert.deepEqual(m.get("level"), ["deep thinking level", "thinking level"]);
+  assert.deepEqual(m.get("thinking level"), ["deep thinking level"]);
+  assert.deepEqual(m.get("top-level"), []);
+  const masked = maskLonger("a thinking level, two Thinking Levels\nthinking\nlevel; level", ["thinking level"]);
+  assert.equal(masked.split("\n").length, 3);
+  assert.doesNotMatch(masked, /thinking/i);
+  assert.match(masked, /; level$/);
 });

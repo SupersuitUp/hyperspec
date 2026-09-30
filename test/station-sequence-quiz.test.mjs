@@ -97,3 +97,25 @@ test("parseQuizzes reads every quiz across files, and a quiz ends at its file's 
   assert.deepEqual(q.questions.map((x) => [x.n, x.unit, x.answer, x.options]), [[1, 1, "a", ["a", "b"]], [1, 2, "b", ["a", "b"]]]);
   assert.deepEqual(run(specWith(QUIZ), draft).findings.filter((f) => f.severity === "fail"), []);
 });
+
+// A word inside a longer defined term is not a use of the shorter term (0.9.1), in a question as in
+// a lesson: "thinking level" neither uses "level" early nor tests it.
+const levels = (q) => [lesson(1, ["Thinking level"], "Set the thinking level."), lesson(2, ["Level"], "A level.", q)].join("\n---\n\n");
+
+test("GUARD: a question tagged before the shorter term's lesson may use the longer term", () => {
+  const r = check(levels(quiz([[1, "What does the thinking level set?"], [2, "What is a level?"]], "1 a · 2 b")));
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+  assert.deepEqual(r.findings, []);
+});
+
+test("GUARD: a bare shorter term in an early question still fails", () => {
+  const r = check(levels(quiz([[1, "Which level is the thinking level?"], [2, "What is a level?"]], "1 a · 2 b")));
+  assert.deepEqual(ids(r), ["station-sequence-quiz-used-before-defined"]);
+  assert.match(r.findings[0].message, /question 1, tagged Lesson 1, uses "level", which Lesson 2 defines later/);
+});
+
+test("GUARD: the longer term, or its plural, does not test the shorter term", () => {
+  const r = check(levels(quiz([[1, "What does the thinking level set?"], [2, "Name two thinking levels."]], "1 a · 2 b")));
+  assert.deepEqual(ids(r), ["station-sequence-quiz-untested"]);
+  assert.match(r.findings[0].message, /no quiz question tests "level"/);
+});

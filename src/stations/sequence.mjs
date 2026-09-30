@@ -27,7 +27,11 @@
 //              way used, so the rules and the question shape are that checker's.
 //
 // A use is a whole-word, case-insensitive match, where a hyphen is part of a word: "context-aware"
-// does not use "context", and "skills" does not use "skill". The station reads the outline from
+// does not use "context", and "skills" does not use "skill". A word inside a longer defined term is
+// not a use of the shorter one (hyperspec 0.9.1): with "level" and "thinking level" both defined,
+// "thinking level" and "thinking levels" use only "thinking level", and "level" on its own still
+// uses "level". Every guard that looks for a use (order, quiz order, quiz coverage) masks the
+// longer terms first. The station reads the outline from
 // disk, resolved against the spec's folder, the way claims reads its ledger. It never reads a
 // part's text for meaning: a term used in a sense other than its definition still counts as a use.
 
@@ -202,6 +206,25 @@ function firstUse(unit, prose, term) {
 // Whether `text` (code already masked) uses `term`, by the same whole-word rule as firstUse.
 const usesTerm = (text, term) => new RegExp(`(^|[^a-z0-9-])${escapeRe(term)}([^a-z0-9-]|$)`, "i").test(text);
 
+// For each defined term, the other defined terms that contain it as a whole-word phrase, longest
+// first: { level: ["thinking level"] }. A term no other term contains maps to [].
+export function longerTerms(terms) {
+  const all = [...terms];
+  return new Map(all.map((t) => [t, all.filter((u) => u !== t && usesTerm(u, t)).sort((a, b) => b.length - a.length)]));
+}
+
+// `text` with every whole-word occurrence of each `longer` term, a trailing plural "s" included,
+// blanked to spaces. Line breaks survive, so a line number still maps to the same line, and a term
+// broken across two lines is blanked on both.
+export function maskLonger(text, longer) {
+  let out = text;
+  for (const t of longer) {
+    const re = new RegExp(`(?<![a-z0-9-])${escapeRe(t).replace(/ /g, "\\s+")}s?(?![a-z0-9-])`, "gi");
+    out = out.replace(re, (m) => m.replace(/[^\n]/g, " "));
+  }
+  return out;
+}
+
 // Every quiz in the draft, read the way the first book written to this shape wrote it:
 //
 //   ## Check yourself: Part 1
@@ -308,12 +331,17 @@ export function run(spec, draft) {
   }
 
   // order: no unit before the defining one uses the term.
+  // A longer defined term that contains the term is masked first: "thinking level" is not a use of
+  // "level".
   const prose = new Map(units.map((u) => [u, proseOf(u, seq, { withTerms: false })]));
+  const longer = longerTerms(definedAt.keys());
   for (const [t, at] of definedAt) {
     if (seq.knows.has(t)) continue;
+    const sups = longer.get(t);
     for (const u of units) {
       if (u === at) break;
-      const line = firstUse(u, prose.get(u), t);
+      const lines = sups.length ? maskLonger(prose.get(u).join("\n"), sups).split("\n") : prose.get(u);
+      const line = firstUse(u, lines, t);
       if (line) findings.push(finding({ id: "station-sequence-used-before-defined", severity: "fail", message: `${U} ${u.n} uses "${t}" before ${U} ${at.n} defines it`, fix: `Rewrite ${U} ${u.n} without "${t}", define it earlier, or add it to writing.form.sequence.knows if the reader already has the word.`, line: line }));
     }
   }
@@ -362,6 +390,12 @@ function quizFindings(draft, seq, definedAt) {
   const U = seq.unit;
   const out = [];
   const { quizzes, questions, untagged } = parseQuizzes(draft, seq);
+  // Every question's text with each term's longer defined terms masked, as the order guard reads
+  // prose: "thinking level" in a question neither uses nor tests "level".
+  const longer = longerTerms(definedAt.keys());
+  const masked = (q, t) => (longer.get(t).length ? maskLonger(q.text, longer.get(t)) : q.text);
+  const uses = (q, t) => usesTerm(masked(q, t), t);
+  const tests = (q, t) => { const text = masked(q, t); return usesTerm(text, t) || usesTerm(text, `${t}s`); };
   if (!quizzes) {
     return [finding({ id: "station-sequence-quiz-missing", severity: "fail", message: `no "${seq.quiz}" heading in the draft, and writing.form.sequence.quiz names one`, fix: `Add a "## ${seq.quiz}" section of questions, or delete quiz: from the spec.` })];
   }
@@ -375,12 +409,12 @@ function quizFindings(draft, seq, definedAt) {
     }
     for (const [t, at] of definedAt) {
       if (seq.knows.has(t) || at.n <= q.unit) continue;
-      if (usesTerm(q.text, t)) out.push(finding({ id: "station-sequence-quiz-used-before-defined", severity: "fail", message: `question ${q.n}, tagged ${U} ${q.unit}, uses "${t}", which ${U} ${at.n} defines later`, fix: `Rewrite the question without "${t}", or tag it with ${U} ${at.n} or later.`, line: q.line }));
+      if (uses(q, t)) out.push(finding({ id: "station-sequence-quiz-used-before-defined", severity: "fail", message: `question ${q.n}, tagged ${U} ${q.unit}, uses "${t}", which ${U} ${at.n} defines later`, fix: `Rewrite the question without "${t}", or tag it with ${U} ${at.n} or later.`, line: q.line }));
     }
   }
   // coverage: a simple plural counts, so "skills" tests "skill".
   for (const [t, at] of definedAt) {
-    if (!questions.some((q) => usesTerm(q.text, t) || usesTerm(q.text, `${t}s`))) {
+    if (!questions.some((q) => tests(q, t))) {
       out.push(finding({ id: "station-sequence-quiz-untested", severity: "fail", message: `no quiz question tests "${t}", which ${U} ${at.n} defines`, fix: `Add a question that uses "${t}", tagged ${U} ${at.n} or later.`, line: at.line }));
     }
   }
