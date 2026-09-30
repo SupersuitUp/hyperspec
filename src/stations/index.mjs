@@ -3,7 +3,7 @@
 // src/check.mjs calls; adding a station is adding one file plus one line here, which is the whole
 // point of the registry existing rather than check.mjs importing each station by name itself.
 //
-// The order: form, terms, claims, quotes, private, dna, links. quotes and private share ctx (util.mjs's
+// The order: form, terms, claims, quotes, private, dna, links, sequence. quotes and private share ctx (util.mjs's
 // markedSegments caches the spec's marked materials there), so a check run reads them once.
 
 import * as form from "./form.mjs";
@@ -13,6 +13,7 @@ import * as quotes from "./quotes.mjs";
 import * as privateStation from "./private.mjs";
 import * as dna from "./dna.mjs";
 import * as links from "./links.mjs";
+import * as sequence from "./sequence.mjs";
 
 export const STATIONS = Object.freeze([
   { name: form.name, run: form.run },
@@ -22,6 +23,7 @@ export const STATIONS = Object.freeze([
   { name: privateStation.name, run: privateStation.run },
   { name: dna.name, run: dna.run },
   { name: links.name, run: links.run },
+  { name: sequence.name, run: sequence.run },
 ]);
 
 export const STATION_NAMES = Object.freeze(STATIONS.map((s) => s.name));

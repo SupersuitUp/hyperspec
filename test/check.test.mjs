@@ -330,7 +330,7 @@ test("--json prints one document with specPath, draftPath, stations and verdict,
   const out = JSON.parse(r.stdout);
   assert.equal(out.specPath, spec);
   assert.equal(out.draftPath, draft);
-  assert.equal(out.stations.length, 7);
+  assert.equal(out.stations.length, 8);
   assert.equal(out.stations[0].station, "form");
   assert.equal(out.stations[0].status, "pass");
   assert.equal(out.verdict, "one-shot");

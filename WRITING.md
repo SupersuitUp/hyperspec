@@ -245,6 +245,10 @@ writing:
       - a close
     stations:                        # may be empty
       - the three questions render as a numbered list
+    sequence:                        # optional: a work read in order; see Sequential works
+      files:                         # optional: its files in reading order; a * in a file name matches
+        - course/part-*.md
+      outline: course/outline.md     # optional: the outline that promises each unit's terms
     check:
       station: structure and length check
     source: form decision
@@ -337,12 +341,12 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections` or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
 | 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment; with `dna.scope_dir`, a golden the spec lists is not one of the scope's goldens (it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file), or the scope's `goldens/` folder resolves outside the scope |
-| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden or character `entity` path does not exist or is not a file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
+| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden, character `entity` or `form.sequence.outline` path does not exist or is not a file; a `form.sequence.files` entry matches no file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
 | 9 it improves itself | nothing further; the core rule applies |
@@ -810,7 +814,7 @@ npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
 
 It lints the spec first. A spec that fails lint, or is blocked on an open decision, runs no
 station and exits with lint's own code, because a draft cannot be checked against a spec that is
-not ready. Then it runs seven stations in a fixed order and prints one line for each: `pass`,
+not ready. Then it runs eight stations in a fixed order and prints one line for each: `pass`,
 `fail` with its findings, or `skip` with the reason. A warning prints under its station and never
 fails it. This is the essay example's draft:
 
@@ -824,6 +828,7 @@ dna: pass
   warn [station-dna-drift] first_person_singular_rate is 22.892 in the draft; the scope's goldens measure 0, band 0 to 5
     fix: Bring first_person_singular_rate back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.
 links: pass
+sequence: skip (the spec declares no writing.form.sequence)
 verdict: one-shot
 ```
 
@@ -832,10 +837,13 @@ marked partial (see [The runs ledger](#the-runs-ledger)). `--json` prints the wh
 finding included; a spec that is not ready prints lint's result with `lintBlocked: true` instead,
 and a usage error prints `{ "spec", "draft", "error" }`. A finding names the draft line it points
 at where there is one, quotes at most 80 characters of the draft, and never prints an absolute
-path. A UTF-8 byte order mark at the start of the draft is ignored.
+path. A UTF-8 byte order mark at the start of the draft is ignored. A spec that lists
+`form.sequence.files` needs no `--draft`: its files, joined in reading order, are the draft, and a
+finding names the file and its own line in it (see [Sequential works](#sequential-works)).
 
 Exit codes: **0** every station that ran passed (a skip or a warning does not fail it); **1** a
-station failed; **2** usage: no spec path, no `--draft`, a draft that cannot be read, a spec
+station failed; **2** usage: no spec path, no `--draft` for a spec that lists no
+`form.sequence.files`, a draft that cannot be read, a spec
 without `profile: writing`, or an `--only` that names no known station; and lint's own **1** or
 **3** when the spec is not ready.
 
@@ -973,6 +981,25 @@ the network, so it cannot tell you a URL is live.
 | `station-links-root-relative` | warn | a link starting with `/`, which cannot be resolved without the site |
 | `station-links-undefined-reference` | fail | a full or collapsed reference link whose label has no definition |
 
+### sequence
+
+Runs when the spec declares `form.sequence`, and holds a work read in order to what its reader
+depends on: every lesson carries its sections, every term is defined once, no lesson uses a term
+before the lesson that defines it, and each lesson defines what the outline promises. How a unit is
+read, and each guard, are under [Sequential works](#sequential-works). With no `form.sequence` the
+station skips. It reads words, never meaning: a term used in another sense still counts as a use.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-sequence-no-units` | fail | the draft has no `<unit> <n>` heading |
+| `station-sequence-numbering` | fail | a unit's number is not greater than the one before it |
+| `station-sequence-missing-section` | fail | a unit lacks one of `sections`; names the unit and the section |
+| `station-sequence-defined-twice` | fail | a term is defined in two units' terms sections; names both |
+| `station-sequence-used-before-defined` | fail | a unit uses a term before the unit that defines it; points at the first use |
+| `station-sequence-outline-unreadable` | fail | `outline` is set and the file cannot be read |
+| `station-sequence-outline-unkept` | fail | the outline promises a term in a unit that does not define it |
+| `station-sequence-forward-pointer` | warn | a unit mentions a later unit by number, once per pair |
+
 ### Any station
 
 | Id | Severity | Meaning |
@@ -985,11 +1012,13 @@ Each `check` appends one line to the spec's `improvement.ledger`, the same file 
 reads:
 
 ```json
-{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass"},"verdict":"one-shot"}
+{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass","sequence":"skip"},"verdict":"one-shot"}
 ```
 
 `draft` is the draft's path relative to the spec's folder, however you spelled it, so one draft
-has one history. `draft_sha256` and `spec_sha256` hash the two files' bytes; the files the spec
+has one history. A work checked from `form.sequence.files` is keyed by that list as the spec writes
+it, joined with ", ", so the work keeps one history as parts are added, and its `draft_sha256`
+covers every file's name and bytes. `draft_sha256` and `spec_sha256` hash the two files' bytes; the files the spec
 names (materials, the claims ledger, a scope folder) are not hashed, so "changed" below means the
 draft or the spec. `stations` holds each station's status.
 
@@ -1009,6 +1038,100 @@ the same draft:
   time; and `stations that failed last time now skip: ...` when a spec change stopped them running.
 
 A ledger path that leads outside the spec's folder is not written, and `check` prints a warning.
+
+## Sequential works
+
+A course, a primer, a textbook, a book of lessons: a work read in order makes a promise no single
+piece can check. Lesson 5 is written for someone who has read Lessons 1 to 4 and nothing else, so
+every word it uses was defined there. That promise lives across pieces, and it breaks one edit at a
+time: a term moves, a lesson is reordered, a sentence borrows a word from a lesson the reader has
+not reached. Declare the work a sequence and the `sequence` station checks the promise on every run.
+
+### Declaring a sequence
+
+Add `sequence:` to `writing.form`. Every key is optional; this is the course example's, with the
+four that have defaults written out:
+
+```yaml
+    sequence:
+      unit: Lesson
+      files:
+        - course/part-*.md
+      sections:
+        - After this lesson you can
+        - New terms
+        - Try this
+      terms_section: New terms
+      outline: course/outline.md
+      teaser: Next,
+```
+
+| Key | Default | What it is |
+|---|---|---|
+| `unit` | `Lesson` | the word each unit's heading starts with: `## Lesson 3: Title` |
+| `files` | none | the work's files in reading order, relative to the spec. A `*` in a file name matches within its folder, sorted by number, so `part-2.md` comes before `part-10.md` and a new part is picked up without editing the spec |
+| `sections` | the three shown | what every unit carries, each as a `**Label:**` line or a heading |
+| `terms_section` | `New terms` | the section whose list defines the unit's terms |
+| `outline` | none | an outline whose numbered items promise each unit's terms as `*Terms: a, b.*` |
+| `knows` | none | words a unit may use before a unit defines them, beside `audience.knows` |
+| `teaser` | `Next,` | a closing line starting `**<teaser>` names what is coming; it and everything after it in the unit are exempt from the order guard and the pointer warning |
+
+### How a unit is read
+
+A unit starts at an ATX heading that begins with `unit` and a number, and runs to the next unit
+heading, the next heading of its own level or above, or the end of its file. So a part's own
+heading and introduction belong to no lesson, and neither does a file's YAML frontmatter, which is
+blanked before anything reads the file. A heading inside fenced code is not a heading.
+
+The terms section is its label line and the list under it, to the first blank line after the list.
+Each item defines every bold term before its first `:**`, so `- **Claude Code**, **Codex** and
+**Claude Cowork:** ...` defines three. A term is compared in lower case, with code and emphasis
+marks and any parenthetical dropped. An item that says `(from Lesson 3)` reminds the reader of an
+earlier term and defines nothing.
+
+A use is a whole-word match, ignoring case, where a hyphen joins a word: "context-aware" does not
+use "context", and "skills" does not use "skill". Code is not prose: fenced blocks and inline code
+never count as a use, so `@supersuit/superskill` does not use "supersuit". A unit's own terms
+section is not a use either. Listing a word in `knows` or `audience.knows` is a decision that the
+reader already has it, and it is the only way a unit may use a word before the unit that defines it.
+
+### Checking a sequence
+
+With `files` listed, `check` needs no `--draft`: the files, joined in reading order, are the draft,
+and every station reads them together. A finding names the file and its own line.
+
+```bash
+npx @supersuit/hyperspec check course.hyperspec.md
+```
+
+```
+form: pass
+terms: skip (writing.audience.terms is empty or not set)
+claims: pass
+quotes: pass
+private: pass
+dna: skip (writing.dna.scope_dir is not set)
+links: pass
+sequence: pass
+  warn [station-sequence-forward-pointer] Lesson 1 points forward to Lesson 4 (course/part-1.md line 25)
+    fix: Keep it a pointer ("more in Lesson 4"): Lesson 1 must make sense to a reader who has not read Lesson 4.
+  warn [station-sequence-forward-pointer] Lesson 3 points forward to Lesson 4 (course/part-2.md line 24)
+    fix: Keep it a pointer ("more in Lesson 4"): Lesson 3 must make sense to a reader who has not read Lesson 4.
+verdict: one-shot
+```
+
+`--draft` still works on a sequence spec: it names one file, which may hold every lesson under
+repeated headings. Checked from `files`, `form.length` and `required_parts` apply to the whole work,
+so write `required_parts` as the part headings. A relative link resolves beside the file that holds
+it.
+
+The outline guard checks only the units the draft holds, so a work is checked while it is being
+written: an outline that promises Lessons 1 to 28 checks a draft of Lessons 1 to 20 without
+complaint. A pointer to a later unit is a warning, never a failure: "more in Lesson 12" is fine as
+long as the lesson makes sense without it.
+
+It cannot tell whether a definition is good, whether a term is used in the sense it was defined in,
+or whether a quiz tests what the lessons taught. The judges still take one `--draft` file.
 
 ## Judging a draft
 
@@ -1583,7 +1706,7 @@ not exist.
 
 ## Worked examples
 
-Two complete specs ship in [`examples/writing/`](examples/writing/), each with every file it
+Three complete specs ship in [`examples/writing/`](examples/writing/), each with every file it
 names:
 
 - `essay.hyperspec.md`: an essay for new managers on running a first one-on-one. Three materials
@@ -1592,8 +1715,11 @@ names:
 - `story.hyperspec.md`: a short story, `fiction: true`, narrated by one of its two characters.
   Each character has speech rules, a knowledge timeline by scene, and golden and rejected lines
   in a voice you can tell apart from the other's.
+- `course.hyperspec.md`: a four-lesson course in two part files, declared a sequence (see
+  [Sequential works](#sequential-works)), with an outline promising each lesson's terms. `check`
+  reads the parts with no `--draft` and passes them, with two forward-pointer warnings.
 
-Every material in both is marked. Between them the two examples use all seven labels, each with
+Every material in all three is marked. Between them the essay and the story use all seven labels, each with
 the field it needs, and every spine claim cites the segments that support it. Each segments file
 keeps the boundaries `segments init` wrote, in paragraph mode for prose and sentence mode for
 bulleted notes, so you can re-run it and compare.
@@ -1602,8 +1728,8 @@ Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. Each
 draft written to it, `essay/draft.md` and `story/draft.md`, with its claims ledger beside it, and
 both drafts pass every station of `check`: the essay with one dna warning, described under
 [dna](#dna), and the story with dna skipped, since it names no scope folder, and quotes skipped,
-since it is fiction. A test lints both
-specs and checks both drafts on every release, so they cannot drift from the tool.
+since it is fiction. The course lints the same way and its parts pass every station. A test
+lints all three specs and checks their drafts on every release, so they cannot drift from the tool.
 
 Each also ships the packets `judge prepare` writes for its draft, in `essay/judge/` and
 `story/judge/`, and one sample verdict per packet in `essay/sample-verdicts/` and
@@ -1615,8 +1741,9 @@ is what `prepare` writes now and records every sample.
 
 ## What later versions add
 
-This release is the schema, its lint, marked materials, scoped DNA, `check` with seven
-deterministic stations, six judgment stations written as packets for an outside judge, and learn.
+This release is the schema, its lint, marked materials, scoped DNA, `check` with eight
+deterministic stations (sequential works among them), six judgment stations written as packets for
+an outside judge, and learn.
 Next: lineups over several passages of one draft, so that one lucky pick carries less weight, and
 a learn step that reads the runs ledger across drafts for the stations that keep failing and the
 changes that made them pass, beside what one pair of drafts shows.

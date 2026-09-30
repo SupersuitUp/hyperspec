@@ -23,6 +23,7 @@ import { basename, dirname, join, sep } from "node:path";
 import { str } from "./placeholder.mjs";
 import { readSegments } from "./segments.mjs";
 import { readScope, isGoldenFileName, measureFeatures, featuresText, DNA_FORMAT } from "./dna.mjs";
+import { expandEntry } from "./sequence-draft.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -446,6 +447,39 @@ function formFields(raw, d, here, idPrefix) {
   if (minOk && maxOk && min > max) out.push(f(1, `${idPrefix}-length-range`, "fail", `writing.form.length.min (${min}) is greater than length.max (${max})`, "Set min to no more than max."));
   if (!str(length.unit)) out.push(f(1, `${idPrefix}-length-unit`, "fail", "writing.form.length has no unit", "Add length.unit:, e.g. words."));
   if (!list(raw.required_parts).some((x) => str(x))) out.push(f(1, `${idPrefix}-required-parts`, "fail", "writing.form has no required_parts", "List at least one required part."));
+  if ("sequence" in raw) out.push(...sequenceFields(raw.sequence, here, `${idPrefix}-sequence`));
+  return out;
+}
+
+// writing.form.sequence, optional: a work read in order (see WRITING.md, Sequential works). Every
+// key is optional, and each one present has to be usable, because the sequence station reads it
+// as given and a hollow value would switch a guard off without saying so.
+function sequenceFields(seq, here, idPrefix) {
+  if (!isObj(seq)) return [f(1, idPrefix, "fail", "writing.form.sequence is not a map", "Write sequence: as a map of the keys WRITING.md lists, one per line.")];
+  const out = [];
+  for (const key of ["unit", "terms_section", "teaser"]) {
+    if (key in seq && !str(seq[key])) out.push(f(1, `${idPrefix}-${key.replace("_", "-")}`, "fail", `writing.form.sequence.${key} is empty or a placeholder`, `Give ${key} a real value, or delete it for the default.`));
+  }
+  const strings = (key, fix) => {
+    if (!(key in seq)) return null;
+    const items = list(seq[key]);
+    if (!Array.isArray(seq[key]) || !items.length || items.some((x) => typeof x !== "string" || !str(x))) {
+      out.push(f(1, `${idPrefix}-${key}`, "fail", `writing.form.sequence.${key} is not a list of real entries`, fix));
+      return null;
+    }
+    return items;
+  };
+  strings("sections", "List every section a unit carries, or delete sections: for the default three.");
+  strings("knows", "List the words a reader already has, one per entry, or delete knows:.");
+  const files = strings("files", "List the work's files in reading order, relative to the spec; a * in a file name matches.");
+  for (const entry of files ?? []) {
+    if (!expandEntry(here("."), entry).length) out.push(f(6, `${idPrefix}-files-missing`, "fail", `writing.form.sequence.files entry "${entry}" matches no file`, "Fix the path (relative to the spec), or remove the entry."));
+  }
+  if ("outline" in seq) {
+    const p = str(seq.outline);
+    if (!p) out.push(f(1, `${idPrefix}-outline`, "fail", "writing.form.sequence.outline is empty or a placeholder", "Name the outline file, or delete outline:."));
+    else out.push(...pathFindings(here, p, `${idPrefix}-outline`, "writing.form.sequence.outline", "Point outline: at the outline file, relative to the spec."));
+  }
   return out;
 }
 

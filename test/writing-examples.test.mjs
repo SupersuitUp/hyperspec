@@ -16,7 +16,7 @@ import { MATERIAL_LABELS } from "../src/labels.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN = join(ROOT, "bin", "hyperspec.mjs");
 const BASE = join(ROOT, "examples", "writing");
-const EXAMPLES = ["essay.hyperspec.md", "story.hyperspec.md"];
+const EXAMPLES = ["essay.hyperspec.md", "story.hyperspec.md", "course.hyperspec.md"];
 
 const lint = (args, cwd) => spawnSync(process.execPath, [BIN, "lint", ...args], { cwd, encoding: "utf8" });
 
@@ -37,12 +37,12 @@ for (const name of EXAMPLES) {
   });
 }
 
-test("both examples lint clean from a copy, the way an adopter would run them", () => {
+test("every example lints clean from a copy, the way an adopter would run them", () => {
   const d = tempDir("hs-writing-examples-");
   cpSync(BASE, d, { recursive: true });
   const r = lint(EXAMPLES, d);
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.equal(r.stdout.match(/writing: 9\/9 blocks complete/g)?.length, 2, r.stdout);
+  assert.equal(r.stdout.match(/writing: 9\/9 blocks complete/g)?.length, EXAMPLES.length, r.stdout);
 });
 
 test("the story example is fiction with two characters whose golden lines never overlap", async () => {
@@ -176,9 +176,9 @@ function markedMaterials() {
   return out;
 }
 
-test("every material in both examples is marked, and every segments file is valid on its own", () => {
+test("every material in every example is marked, and every segments file is valid on its own", () => {
   const all = markedMaterials();
-  assert.equal(all.length, 6);
+  assert.equal(all.length, 7);
   for (const m of all) {
     assert.deepEqual(m.findings, [], `${m.example}: ${m.id}`);
     assert.equal(m.header.material, m.id);
@@ -239,7 +239,7 @@ test("npm pack ships every file under examples/, segments files and the essay's 
   const shipped = readdirSync(join(ROOT, "examples"), { recursive: true })
     .filter((f) => statSync(join(ROOT, "examples", f)).isFile())
     .map((f) => join("examples", f).split("\\").join("/"));
-  assert.ok(shipped.filter((f) => f.endsWith(".segments.jsonl")).length === 6, "six segments files exist");
+  assert.ok(shipped.filter((f) => f.endsWith(".segments.jsonl")).length === 7, "seven segments files exist");
   const scope = "examples/writing/dna/essay-new-managers-teach";
   for (const f of ["scope.md", "features.json", "goldens/README.md", "goldens/opening.md", "goldens/status.md", "goldens/close.md"]) {
     assert.ok(packed.has(`${scope}/${f}`), `${scope}/${f} ships`);

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.0 (2026-09-29)
+
+A work read in order can now be checked as one. Every station so far held ONE piece to its spec; a
+course, a primer or a textbook makes promises ACROSS its pieces (Lesson 5 is written for someone who
+has read Lessons 1 to 4 and nothing else), and nothing checked them. Declare `writing.form.sequence`
+and the new `sequence` station does, deterministically, on every `check`. Promoted from a checker
+written for one book, so every sequential work gets it by construction.
+
+- `writing.form.sequence`, optional, every key optional: `unit` (the heading word, default
+  `Lesson`), `files` (the work's files in reading order; a `*` in a file name matches, sorted by
+  number), `sections` (default "After this lesson you can", "New terms", "Try this"),
+  `terms_section` (default "New terms"), `outline` (numbered items promising `*Terms: a, b.*`),
+  `knows` (words a lesson may use before one defines them, beside `audience.knows`) and `teaser`
+  (default "Next,": a closing line naming what is coming). Lint refuses a key that is present and
+  hollow under test 1, and a `files` entry matching nothing or an `outline` that is not a file under
+  test 6.
+- The `sequence` station, run last: every unit carries its sections; every term is defined in
+  exactly one unit; no unit uses a term before the unit that defines it (code, the unit's own terms
+  section and its closing teaser are not uses, and a `(from Lesson N)` reminder defines nothing);
+  each unit defines what the outline promises, for the units the draft holds; unit numbers increase;
+  a pointer to a later unit is a warning. Findings: `station-sequence-no-units`, `-numbering`,
+  `-missing-section`, `-defined-twice`, `-used-before-defined`, `-outline-unreadable`,
+  `-outline-unkept` (fail) and `-forward-pointer` (warn). A spec with no `sequence` skips it.
+- `hyperspec check <spec>` needs no `--draft` when the spec lists `sequence.files`: the files,
+  joined in order with each one's frontmatter blanked, are the draft, and every station reads them.
+  A finding names the file and its own line (`(course/part-1.md line 25)`; `file` and `line` in
+  `--json`), a relative link resolves beside the file that holds it, and the ledger keys the run by
+  the `files` entry as written, so the work keeps one history as parts are added. `--draft` still
+  names one file, which may hold every lesson.
+- A third worked example, `examples/writing/course.hyperspec.md`: four lessons in two part files
+  with an outline, passing every station with two forward-pointer warnings.
+
+**Behavior change:** `check` runs eight stations, so `--json` and the ledger's `stations` carry
+`sequence` (as `skip` for every spec without a sequence). No other station, finding id or schema
+field changed, and a 0.7 ledger's verdicts read as they did.
+
 ## 0.7.0 (2026-09-29)
 
 A spec can now have its judgments made and recorded. `check` covers what a function of the spec

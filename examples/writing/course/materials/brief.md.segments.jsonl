@@ -1,0 +1,6 @@
+{"material":"brief","path":"course/materials/brief.md","sha256":"7fc69cebae3218131d8e920af1408b42505ebfe2ccb4f72e9eb9c9ac9fb48b24"}
+{"id":"s1","start":0,"end":67,"label":"aside","text":"Course brief, written by the author after teaching the class twice."}
+{"id":"s2","start":69,"end":299,"label":"claim","own":true,"text":"Nobody who has never baked needs a recipe first. They need four words they do not have yet: dough, starter, proof and crumb. Every class that went badly went badly because I used one of those words before I had said what it meant."}
+{"id":"s3","start":301,"end":471,"label":"claim","own":true,"text":"The order matters more than the recipes. Water and flour first, then what makes it rise, then shaping, then the oven. Each lesson should stand only on the ones before it."}
+{"id":"s4","start":473,"end":578,"label":"stance","text":"Each lesson ends with one thing to do in a real kitchen, because nobody learns bread by reading about it."}
+{"id":"s5","start":580,"end":690,"label":"story","teller":"example-author","text":"I once taught shaping before proofing and half the room shaped dough that had not risen. I never did it again."}

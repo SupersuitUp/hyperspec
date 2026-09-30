@@ -30,6 +30,7 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { lineAt, maskCode, maskRanges, truncate } from "./util.mjs";
+import { sourceAt } from "../sequence-draft.mjs";
 
 export const name = "links";
 
@@ -226,6 +227,12 @@ function undefinedReferenceFinding(label, line) {
 
 export function run(spec, draft) {
   const draftDirAbs = dirname(resolve(draft.path));
+  // A draft assembled from a sequence's files (src/sequence-draft.mjs) resolves each relative link
+  // beside the file that holds it.
+  const dirAt = (line) => {
+    const src = sourceAt(draft, line);
+    return src ? dirname(resolve(src.at)) : draftDirAbs;
+  };
 
   // Masking pipeline: code first, then each link form in turn, each pass working on the text the
   // previous pass left behind, so nothing is ever matched twice by a later, looser pattern (a
@@ -253,8 +260,9 @@ export function run(spec, draft) {
   const entries = [];
 
   for (const { start, url } of [...mdLinks, ...bare]) {
-    const reason = checkUrl(url, draftDirAbs);
-    if (reason) entries.push({ start, finding: reasonFinding(reason, url, lineAt(draft.text, start)) });
+    const line = lineAt(draft.text, start);
+    const reason = checkUrl(url, dirAt(line));
+    if (reason) entries.push({ start, finding: reasonFinding(reason, url, line) });
   }
 
   for (const { start, label } of [...fullRefs, ...shortcutRefs]) {
@@ -264,7 +272,7 @@ export function run(spec, draft) {
       entries.push({ start, finding: undefinedReferenceFinding(label, line) });
       continue;
     }
-    const reason = checkUrl(def.url, draftDirAbs);
+    const reason = checkUrl(def.url, dirAt(line));
     if (reason) entries.push({ start, finding: reasonFinding(reason, def.url, line) });
   }
 

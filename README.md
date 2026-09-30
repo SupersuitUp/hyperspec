@@ -28,7 +28,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence]` | Split a material into segments to label. Refuses to overwrite an existing file. |
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
 | `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
-| `hyperspec check <spec> --draft <file> [--only a,b]` | Run a writing spec's deterministic stations against a draft. |
+| `hyperspec check <spec> [--draft <file>] [--only a,b]` | Run a writing spec's deterministic stations against a draft, or, for a sequential work, against its files in reading order. |
 | `hyperspec judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force]` | Write one packet per judgment station, for an outside judge to fill. |
 | `hyperspec judge record <packet> --verdict <file>` | Check a judge's verdict against its packet, derive the station's status, and record it. |
 | `hyperspec learn prepare <spec> --first <draft> --approved <draft> --out <dir> [--force]` | Write the edits between a first draft and the approved one, for a judge to classify by spec block. |
@@ -145,9 +145,10 @@ npx @supersuit/hyperspec init story.hyperspec.md --profile writing --form "short
 
 The skeleton fails until every placeholder is real and its four open questions (whose voice,
 who speaks, who reads, what changes) are answered. The blocks, every field, and which test
-each rule reports under are in [WRITING.md](WRITING.md). Two complete specs that pass with
-nothing to warn ship in `examples/writing/`: an essay for new managers, and a short story with
-two characters whose voices a judge can tell apart. Each comes with a draft written to it.
+each rule reports under are in [WRITING.md](WRITING.md). Three complete specs that pass with
+nothing to warn ship in `examples/writing/`: an essay for new managers, a short story with
+two characters whose voices a judge can tell apart, and a four-lesson course. Each comes with a
+draft written to it.
 
 ### Marking materials
 
@@ -193,22 +194,47 @@ it did in 0.4. The folder shape, every feature, and every finding are in
 
 ### Checking a draft
 
-Once a draft exists, `check` holds it to its spec with seven stations, none of which calls a
+Once a draft exists, `check` holds it to its spec with eight stations, none of which calls a
 model or touches the network: `form` (length and required parts), `terms` (every word in the new
 optional `writing.audience.terms` is defined where it first appears), `claims` (the claims
 ledger still matches the draft, and every claim has a source), `quotes` (in nonfiction, every quotation of four
 words or more is word for word in a marked quote), `private` (no run of eight words from a
-private segment), `dna` (the draft's measured style beside its scope's, as warnings) and `links`
-(well-formed, and relative links resolve).
+private segment), `dna` (the draft's measured style beside its scope's, as warnings), `links`
+(well-formed, and relative links resolve) and `sequence` (for a work read in order; see below).
 
 ```bash
 npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
 ```
 
 It lints the spec first, prints each station's pass, fail or skip, and appends one line to the
-spec's runs ledger with a verdict. Both examples ship a draft that passes. What each station
+spec's runs ledger with a verdict. Every example ships a draft that passes. What each station
 checks and cannot check, and every finding, are in
 [WRITING.md](WRITING.md#checking-a-draft).
+
+### Sequential works
+
+A course, a primer or a textbook promises something no single piece can check: Lesson 5 uses only
+words Lessons 1 to 4 defined. Add `sequence:` to `writing.form` and the `sequence` station checks
+it across the whole work: every lesson carries its sections ("After this lesson you can", "New
+terms", "Try this" by default), every term is defined in exactly one lesson, no lesson uses a term
+before the lesson that defines it (code, the part's closing teaser and words the reader already
+knows are exempt), each lesson defines the terms the outline promises, and a pointer to a later
+lesson is a warning. List the work's files and `check` needs no `--draft`:
+
+```yaml
+    sequence:
+      files:
+        - course/part-*.md
+      outline: course/outline.md
+```
+
+```bash
+npx @supersuit/hyperspec check course.hyperspec.md
+```
+
+The parts are read in order, a finding names the part and its line, and a new part matching the
+pattern is picked up without touching the spec. Every key, how a lesson is read, and every finding
+are in [WRITING.md](WRITING.md#sequential-works).
 
 ### Judging a draft and learning from edits
 

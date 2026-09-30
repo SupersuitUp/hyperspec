@@ -307,6 +307,45 @@ test("the page's sample check output is exactly what check prints for the essay 
   assert.match(checking(), /^npx @supersuit\/hyperspec check essay\.hyperspec\.md --draft essay\/draft\.md$/m);
 });
 
+// ------------------------------------------------------------ Sequential works -----------------
+// The "Sequential works" section declares a sequence, lists its keys and shows a check. These tests
+// hold the declaration to the course example, the keys to what the station reads, and the sample
+// run to what check prints.
+
+const sequential = () => doc.split("\n## Sequential works\n")[1].split("\n## ")[0];
+const seqSub = (heading) => sequential().split(`\n### ${heading}\n`)[1].split("\n### ")[0];
+
+test("the Sequential works declaration is the course example's own sequence block, line for line", () => {
+  const sample = fence(seqSub("Declaring a sequence"), "yaml").trimEnd();
+  const course = readFileSync(join(ROOT, "examples", "writing", "course.hyperspec.md"), "utf8");
+  assert.ok(course.includes(`${sample}\n`), sample);
+});
+
+test("the Sequential works key table lists every key the station reads, with the station's defaults", async () => {
+  const { DEFAULTS } = await import("../src/stations/sequence.mjs");
+  const rows = [...seqSub("Declaring a sequence").matchAll(/^\| `([a-z_]+)` \| ([^|]+) \|/gm)].map((m) => [m[1], m[2].trim()]);
+  assert.deepEqual(rows.map((r) => r[0]), ["unit", "files", "sections", "terms_section", "outline", "knows", "teaser"]);
+  // files is read where the draft is assembled; every other key by the station itself.
+  const src = readFileSync(join(ROOT, "src", "stations", "sequence.mjs"), "utf8");
+  const draftSrc = readFileSync(join(ROOT, "src", "sequence-draft.mjs"), "utf8");
+  for (const [key] of rows) assert.ok(key === "files" ? draftSrc.includes("sequence?.files") : src.includes(`raw.${key}`), `the station reads ${key}`);
+  const byKey = Object.fromEntries(rows);
+  for (const key of ["unit", "terms_section", "teaser"]) assert.equal(byKey[key], `\`${DEFAULTS[key]}\``, key);
+  const yaml = fence(seqSub("Declaring a sequence"), "yaml");
+  for (const s of DEFAULTS.sections) assert.ok(yaml.includes(`        - ${s}\n`), `the declaration shows the default section ${s}`);
+});
+
+test("the Sequential works sample check output is exactly what check prints for the course example", () => {
+  const section = seqSub("Checking a sequence");
+  const sample = [...section.matchAll(/```(\w*)\n([\s\S]*?)```/g)].find((m) => m[1] === "")[2];
+  assert.match(section, /^npx @supersuit\/hyperspec check course\.hyperspec\.md$/m);
+  const d = tempDir("hs-writing-doc-seq-");
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), "check", "course.hyperspec.md"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(sample, r.stdout);
+});
+
 test("the page's sample claims ledger line is a line of the essay's own ledger", () => {
   const sample = fence(checkingSubs().find((s) => s.heading === "claims").body, "jsonl").trim();
   const ledger = readFileSync(join(ROOT, "examples", "writing", "essay", "claims.jsonl"), "utf8").split("\n");

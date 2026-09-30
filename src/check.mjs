@@ -21,6 +21,7 @@ import { readDraft } from "./draft.mjs";
 import { openLedger, priorLines, ledgerDraftKey, ledgerVerdict } from "./ledger.mjs";
 import { STATIONS, STATION_NAMES } from "./stations/index.mjs";
 import { str } from "./placeholder.mjs";
+import { readSequenceDraft, sequenceFilesDecl, sourceAt } from "./sequence-draft.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
 
@@ -95,17 +96,29 @@ export function lintBlock(spec, specPathArg) {
   };
 }
 
+// A finding from a draft assembled out of a sequence's files names the file and its own line in
+// it, rather than a line of the joined text nobody can open.
+function locate(finding, draft) {
+  const src = typeof finding.line === "number" ? sourceAt(draft, finding.line) : null;
+  return src ? { ...finding, file: src.file, line: finding.line - src.startLine + 1 } : finding;
+}
+
 // runCheck(specPathArg, draftPathArg, { only }): specPathArg and draftPathArg are exactly what
 // the CLI (or a caller) was given, never resolved, so every path this returns or writes to the
 // ledger is displayed and recorded the way the operator typed it, not as an absolute path on this
 // machine. only, when given, is an array of station names to run instead of every registered one.
+//
+// With no draftPathArg, a spec that lists writing.form.sequence.files is checked against those
+// files, joined in reading order (src/sequence-draft.mjs); any other spec still needs --draft.
 export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   if (!present(specPathArg)) return { usage: true, error: "check needs a spec path" };
-  if (!present(draftPathArg)) return { usage: true, error: "check needs --draft <file>" };
+  const needsDraft = { usage: true, error: "check needs --draft <file>" };
 
   const loaded = loadWritingSpec(specPathArg, "check");
+  if (!present(draftPathArg) && (loaded.usage || !sequenceFilesDecl(loaded.spec).length)) return needsDraft;
   if (loaded.usage) return loaded;
   const { spec } = loaded;
+  const fromSequence = !present(draftPathArg);
 
   // --only: every name must be one this build's registry knows; unknown names are a usage error
   // (exit 2) rather than a silent no-op, and the run order always follows the registry, never the
@@ -123,12 +136,16 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   const blocked = lintBlock(spec, specPathArg);
   if (blocked) return blocked;
 
-  // BOM stripped, CRLF-clean lines, sha256 over the raw bytes: see src/draft.mjs.
-  const draft = readDraft(draftPathArg);
-  if (!draft) return { usage: true, error: `cannot read draft: ${draftPathArg}` };
+  // BOM stripped, CRLF-clean lines, sha256 over the raw bytes: see src/draft.mjs. A sequence's
+  // draft is its files joined; its ledger key is the files entry as the spec writes it, so the
+  // history of the work stays one history as parts are added.
+  const draft = fromSequence ? readSequenceDraft(spec, specPathArg) : readDraft(draftPathArg);
+  const draftLabel = fromSequence ? sequenceFilesDecl(spec).join(", ") : draftPathArg;
+  if (!draft) return { usage: true, error: fromSequence ? `writing.form.sequence.files matches no file: ${draftLabel}` : `cannot read draft: ${draftPathArg}` };
 
   const ctx = {};
-  const results = stationsToRun.map((s) => runStation(s, spec, draft, ctx));
+  const results = stationsToRun.map((s) => runStation(s, spec, draft, ctx))
+    .map((r) => (draft.sources ? { ...r, findings: r.findings.map((f) => locate(f, draft)) } : r));
   const failing = results.filter((r) => r.status === "fail").map((r) => r.station);
   const code = failing.length ? 1 : 0;
 
@@ -146,7 +163,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   const ledger = openLedger(spec);
   if (ledger?.warning) ledgerWarning = ledger.warning;
   else if (ledger) {
-    const draftKey = ledgerDraftKey(spec.dir, draftPathArg);
+    const draftKey = fromSequence ? draftLabel : ledgerDraftKey(spec.dir, draftPathArg);
     const specSha = sha256(readFileSync(resolve(specPathArg)));
     const statusNow = Object.fromEntries(results.map((r) => [r.station, r.status]));
 
@@ -177,7 +194,8 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   return {
     ok: true,
     specPath: specPathArg,
-    draftPath: draftPathArg,
+    draftPath: draftLabel,
+    ...(fromSequence ? { files: draft.sources.map((x) => x.file) } : {}),
     draftSha256: draft.sha256,
     stations: results,
     failing,

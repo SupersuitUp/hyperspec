@@ -24,8 +24,10 @@ const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
-  check <spec> --draft <file> [--json] [--only a,b]
-                               needs a writing spec (profile: writing); lints it first (a spec
+  check <spec> [--draft <file>] [--json] [--only a,b]
+                               needs a writing spec (profile: writing), and --draft unless the
+                               spec lists writing.form.sequence.files, whose files, joined in
+                               reading order, are then the draft; lints it first (a spec
                                that does not pass lint, or is blocked, exits with lint's own code
                                and runs no station: a draft cannot be checked against a spec that
                                is not ready); then runs every deterministic station (or the
@@ -358,7 +360,6 @@ if (cmd === "check") {
     process.exit(2);
   };
   if (!specPath) usage("check needs a spec path");
-  if (!parsed.values["--draft"]) usage("check needs --draft <file>");
   let only;
   if (parsed.values["--only"] !== undefined) {
     only = parsed.values["--only"].split(",").map((s) => s.trim()).filter(Boolean);
@@ -389,7 +390,7 @@ if (cmd === "check") {
     for (const s of result.stations) {
       if (s.status === "skip") { console.log(`${s.station}: skip (${s.reason})`); continue; }
       console.log(`${s.station}: ${s.status}`);
-      for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (line ${finding.line})` : ""}\n    fix: ${finding.fix}`);
+      for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (${finding.file ? `${finding.file} ` : ""}line ${finding.line})` : ""}\n    fix: ${finding.fix}`);
     }
     if (result.verdict) {
       const detail = result.verdictDetail.change ?? result.verdictDetail.reason;
