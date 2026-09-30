@@ -397,14 +397,15 @@ writing spec cannot pass until every material it draws on is marked.
 npx @supersuit/hyperspec segments init materials/voice-memo.md --id voice-memo
 ```
 
-`hyperspec segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]` writes
-`<material>.segments.jsonl`, or the path `--out` names. `--by paragraph`, the default, makes one
+`hyperspec segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence] [--keep <old>]`
+writes `<material>.segments.jsonl`, or the path `--out` names. `--by paragraph`, the default, makes one
 segment per paragraph. `--by sentence` makes one per sentence, and a new line that opens on a list
 marker (`-`, `*`, `+`, `1.` or `1)`, then a space) also starts a segment, so each bullet in a set
 of notes stands on its own. Every segment starts as `unlabeled`, which lint never accepts. `init`
-refuses to overwrite a file that exists, and exits 2 on a material that does not exist or a
-`--by` it does not know, a material with nothing in it, and an `--out` folder that does not
-exist.
+refuses to overwrite a file that exists, unless `--keep` names that file (see
+[When a material changes](#when-a-material-changes)), and exits 2 on a material that does not
+exist or a `--by` it does not know, a material with nothing in it, and an `--out` folder that does
+not exist.
 
 Then name the file on the material item, as `segments:` beside `path:`, and label every segment.
 You may also move a boundary by hand, splitting one segment in two or joining two, as long as
@@ -482,9 +483,31 @@ fails test 1.
 
 The header's `sha256` pins the material as it was when it was marked. If the material changes,
 lint fails the segments file as stale (test 4), because its offsets and labels describe text that
-is no longer there. Mark it again: run `segments init` with `--out` to a new file, point the
-material item at it, and label every segment, carrying labels over from the old file wherever the
-text did not change.
+is no longer there. Mark it again, keeping the labels of every stretch of text that did not change:
+
+```bash
+npx @supersuit/hyperspec segments init materials/voice-memo.md --id voice-memo --keep materials/voice-memo.md.segments.jsonl
+```
+
+`--keep <old>` splits the material as it reads now, and every segment whose text, trimmed, a
+segment in `<old>` has keeps that segment's `id`, its `label` and every other key it carries
+(`own`, `source`, `teller`, `speaker`, anything added by hand), with its `start` and `end` taken
+from the new split. The `id` is kept because the spine cites segments by id, so a citation keeps
+pointing at the words it pointed at. Old segments with the same text are used in order, each once.
+A segment no old one matches is new or changed text: it starts `unlabeled`, gets the next `s<n>` id
+no old segment used, and is listed with the start of its text, so only those need a label.
+`--keep` may name the file being written, which is how a material is re-marked in place; with no
+`--keep`, or one naming another file, an existing file is still never overwritten. It exits 2 when
+the `--keep` file cannot be read, has a line that is not a JSON object, or marks a material other
+than `--id`.
+
+After the author's framing line, s4, is edited to "and I kept the note in my wallet.", that prints:
+
+```text
+5 segments written to materials/voice-memo.md.segments.jsonl, 4 labels carried from materials/voice-memo.md.segments.jsonl, 1 to label:
+  s6 "My first manager said this to me in my second week, and I ke..."
+Label each one (claim, story, quote, stance, question, aside, private), then run hyperspec lint on the spec.
+```
 
 The hash is over the file's bytes, so a change nobody would call an edit still counts. Converting
 line endings is the common one: a material marked with LF endings reads as stale once an editor
@@ -1146,7 +1169,10 @@ marks and any parenthetical dropped. An item that says `(from Lesson 3)` reminds
 earlier term and defines nothing.
 
 A use is a whole-word match, ignoring case, where a hyphen joins a word: "context-aware" does not
-use "context", and "skills" does not use "skill". Code is not prose: fenced blocks and inline code
+use "context", and "skills" does not use "skill". A word inside a longer defined term is not a
+use of the shorter one: with "level" and "thinking level" both defined, "thinking level" and
+"thinking levels" use only "thinking level", while "level" on its own still uses "level". The quiz
+rules read a question the same way. Code is not prose: fenced blocks and inline code
 never count as a use, so `@supersuit/superskill` does not use "supersuit". A unit's own terms
 section is not a use either. Listing a word in `knows` or `audience.knows` is a decision that the
 reader already has it, and it is the only way a unit may use a word before the unit that defines it.

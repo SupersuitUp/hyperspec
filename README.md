@@ -25,7 +25,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec lint <file...> [--json]` | Score each hyperspec against the nine tests. |
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
 | `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
-| `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence]` | Split a material into segments to label. Refuses to overwrite an existing file. |
+| `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence] [--keep OLD]` | Split a material into segments to label. With `--keep`, re-mark an edited material: every segment whose text is unchanged keeps its id and labels, and only the rest are listed to label. Refuses to overwrite an existing file unless `--keep` names it. |
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
 | `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
 | `hyperspec check <spec> [--draft <file>] [--only a,b]` | Run a writing spec's deterministic stations against a draft, or, for a sequential work, against its files in reading order. |

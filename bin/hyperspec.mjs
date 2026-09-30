@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, statSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { existsSync, statSync, writeFileSync, readFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
@@ -12,7 +12,7 @@ import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
 import { regenerate } from "../src/regenerate.mjs";
 import { compare } from "../src/compare.mjs";
-import { splitSegments } from "../src/segments.mjs";
+import { splitSegments, carrySegments } from "../src/segments.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
 import { str } from "../src/placeholder.mjs";
@@ -125,16 +125,21 @@ const HELP = `hyperspec <command> [options]
                                writing, --kind with it (use --form), or a folder that does not
                                exist
 
-  segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence]
+  segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence] [--keep <old>]
                                split a material into candidate segments, written as JSONL to
                                <material>.segments.jsonl by default; every segment starts label:
                                unlabeled, never valid in lint; label each one by hand (claim,
                                story, quote, stance, question, aside, private), then run hyperspec
                                lint on the spec; --by sentence also starts a segment at each list
-                               item (-, *, +, 1. or 1) then a space); refuses to overwrite an
-                               existing file (exit 2); exit 2 for a missing material, a material
-                               with nothing in it, an --out folder that does not exist, or a --by
-                               outside paragraph/sentence
+                               item (-, *, +, 1. or 1) then a space); --keep re-marks an edited
+                               material: every segment whose text, trimmed, an old segment in
+                               <old> has keeps that segment's id, label and every other key, and
+                               the rest are listed to label; refuses to overwrite an existing
+                               file unless --keep names it (exit 2); exit 2 for a missing
+                               material, a material with nothing in it, an --out folder that does
+                               not exist, a --by outside paragraph/sentence, or a --keep file that
+                               cannot be read, has a line that is not a JSON object, or marks
+                               another material
 
   dna init <scope-dir> --writer W --form F --audience A --purpose P
                                write a new writer-DNA scope: scope.md (writer, form, audience,
@@ -225,7 +230,7 @@ if (cmd === "segments") {
   const sub = argv[1];
 
   if (sub === "init") {
-    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--id", "--out", "--by"] });
+    const parsed = parseArgs(argv.slice(2), { valueFlags: ["--id", "--out", "--by", "--keep"] });
     if (parsed.error) { console.error(parsed.error); process.exit(2); }
     const [material] = parsed.positionals;
     if (!material) { console.error("segments init needs a material path"); process.exit(2); }
@@ -237,18 +242,55 @@ if (cmd === "segments") {
     try { materialStat = statSync(material); } catch { materialStat = null; }
     if (!materialStat || !materialStat.isFile()) { console.error(`material not found: ${material}`); process.exit(2); }
     const out = parsed.values["--out"] ?? `${material}.segments.jsonl`;
-    if (existsSync(out)) { console.error(`refusing to overwrite ${out}`); process.exit(2); }
+    const keep = parsed.values["--keep"];
+    // --keep may name the file being written: re-marking in place is the point. Nothing else is
+    // ever overwritten.
+    const samePath = (a, b) => { try { return realpathSync(a) === realpathSync(b); } catch { return resolve(a) === resolve(b); } };
+    if (existsSync(out) && !(keep && samePath(keep, out))) { console.error(`refusing to overwrite ${out}${keep ? " (--keep names a different file)" : ""}`); process.exit(2); }
     const outFolder = dirname(resolve(out));
     if (!existsSync(outFolder) || !statSync(outFolder).isDirectory()) { console.error(`folder does not exist: ${dirname(out)}; create it first`); process.exit(2); }
+
+    // The old segments to carry labels from: every line after the header, each a JSON object.
+    let old = null;
+    if (keep) {
+      let raw;
+      try { raw = readFileSync(keep, "utf8"); } catch { console.error(`--keep file not found: ${keep}`); process.exit(2); }
+      const rows = raw.split("\n").map((l, i) => ({ n: i + 1, l })).filter((r) => r.l.trim());
+      old = [];
+      for (const { n, l } of rows) {
+        let o;
+        try { o = JSON.parse(l); } catch { o = null; }
+        if (!o || typeof o !== "object" || Array.isArray(o)) { console.error(`--keep file ${keep} line ${n} is not a JSON object; fix it, or mark the material from scratch`); process.exit(2); }
+        if (n === 1) {
+          if (str(o.material) && str(o.material) !== id) { console.error(`--keep file ${keep} marks material "${o.material}", not "${id}"`); process.exit(2); }
+          continue;
+        }
+        old.push(o);
+      }
+    }
 
     const buf = readFileSync(material);
     const text = buf.toString("utf8");
     if (!/\S/.test(text)) { console.error(`nothing to mark: ${material} has no text`); process.exit(2); }
-    const segments = splitSegments(text, { by });
+    const fresh = splitSegments(text, { by });
+    const kept = old ? carrySegments(fresh, old) : null;
+    const segments = kept ? kept.segments : fresh;
     const header = { material: id, path: material, sha256: sha256(buf) };
     const lines = [JSON.stringify(header), ...segments.map((s) => JSON.stringify(s))];
     writeFileSync(out, `${lines.join("\n")}\n`);
-    console.log(`${segments.length} segments written to ${out}. Label every segment (claim, story, quote, stance, question, aside, private), then run hyperspec lint on the spec.`);
+    if (!kept) {
+      console.log(`${segments.length} segments written to ${out}. Label every segment (claim, story, quote, stance, question, aside, private), then run hyperspec lint on the spec.`);
+      process.exit(0);
+    }
+    const todo = kept.unlabeled;
+    console.log(`${segments.length} segments written to ${out}, ${kept.carried} labels carried from ${keep}, ${todo.length} to label${todo.length ? ":" : "."}`);
+    for (const s of todo) {
+      const t = s.text.replace(/\s+/g, " ").trim();
+      console.log(`  ${s.id} ${JSON.stringify(t.length > 60 ? `${t.slice(0, 60)}...` : t)}`);
+    }
+    console.log(todo.length
+      ? "Label each one (claim, story, quote, stance, question, aside, private), then run hyperspec lint on the spec."
+      : "Run hyperspec lint on the spec.");
     process.exit(0);
   }
 

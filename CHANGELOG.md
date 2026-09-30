@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.1 (2026-09-30)
+
+Two fixes, each found by the first book written as a sequence.
+
+- The sequence station no longer reads a word inside a longer defined term as a use of the shorter
+  one. A book that defines "Thinking level" in Lesson 2 and "Level" in Lesson 22 failed
+  `station-sequence-used-before-defined` and `station-sequence-quiz-used-before-defined` at every
+  "thinking level" before Lesson 22. Before it looks for a term, the station now blanks every other
+  defined term that contains it as a whole-word phrase, a trailing plural "s" included, in the order
+  guard, the quiz order guard and quiz coverage. The shorter term on its own still counts, and the
+  longer term no longer tests the shorter one in a quiz. `longerTerms` and `maskLonger` are exported
+  from the station.
+- `hyperspec segments init <material> --id <mid> --keep <old>` re-marks an edited material without
+  relabeling what did not change (issue #2). Every segment whose text, trimmed, a segment in `<old>`
+  has keeps that segment's id, label and every other key (`own`, `source`, `teller`, `speaker`, and
+  anything added by hand), with new offsets; the rest start `unlabeled` with the next unused
+  `s<n>` id, and the command lists them. The id is carried so the spine's citations keep pointing
+  at the same words. `--keep` may name the file being written, so a material is re-marked in place;
+  otherwise an existing file is still never overwritten. It exits 2 for a `--keep` file that cannot
+  be read, has a line that is not a JSON object, or marks another material. `carrySegments` in
+  `src/segments.mjs` is the logic.
+
+**Behavior change:** a sequential work that defines a term inside a longer one may now pass where
+0.9.0 failed it, and a quiz whose only question on a shorter term used it inside the longer term now
+fails `station-sequence-quiz-untested` for that term. No finding id changed.
+
 ## 0.9.0 (2026-09-29)
 
 The pressure test a draft gets before it ships is now part of the run, and so is answering it.

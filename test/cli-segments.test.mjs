@@ -168,3 +168,106 @@ test("HELP lists the new exit-2 cases for segments init", () => {
   assert.match(help, /--out folder that does not exist/);
   assert.match(help, /material with nothing in it/);
 });
+
+// ---------------------------------------------------------------------------------------------
+// --keep (0.9.1, issue #2): an edited material is re-marked without relabeling what did not change.
+// A label is a fact about a stretch of text, so every segment whose trimmed text the old file has
+// keeps its id, label and every other key; only new or changed text is left to label, and listed.
+
+const segsOf = (file) => readFileSync(file, "utf8").trim().split("\n").slice(1).map((l) => JSON.parse(l));
+// Mark `text` as m1 and label its segments from `labels` (an object per segment, merged in).
+function marked(text, labels) {
+  const d = tempDir("hs-cli-seg-keep-");
+  const material = join(d, "outline.md");
+  writeFileSync(material, text);
+  const r = run("segments", "init", material, "--id", "m1");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const file = `${material}.segments.jsonl`;
+  const [header, ...rest] = readFileSync(file, "utf8").trim().split("\n");
+  writeFileSync(file, `${[header, ...rest.map((l, i) => JSON.stringify({ ...JSON.parse(l), ...labels[i] }))].join("\n")}\n`);
+  return { d, material, file };
+}
+const THREE = "First, a stance.\n\nSecond, a claim.\n\nThird, an aside.";
+const LABELS = [{ label: "stance" }, { label: "claim", own: true }, { label: "aside", note: "kept for context" }];
+
+test("GUARD: --keep with the material unchanged carries every label, and lint then passes the file", () => {
+  const { material, file } = marked(THREE, LABELS);
+  writeFileSync(material, `${THREE}\n`); // a byte changed (the sha256 moved); no segment's text did
+  assert.ok(readSegments(file, { materialPath: material, materialId: "m1" }).findings.some((f) => f.id === "writing-materials-stale"));
+
+  const r = run("segments", "init", material, "--id", "m1", "--keep", file);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^3 segments written to .*, 3 labels carried from .*, 0 to label\./);
+  assert.deepEqual(segsOf(file).map((s) => s.label), ["stance", "claim", "aside"]);
+  assert.deepEqual(readSegments(file, { materialPath: material, materialId: "m1" }).findings, []);
+});
+
+test("GUARD: --keep leaves a changed segment unlabeled and lists it; the others keep their ids", () => {
+  const { material, file } = marked(THREE, LABELS);
+  writeFileSync(material, "First, a stance.\n\nSecond, a claim that grew.\n\nThird, an aside.");
+
+  const r = run("segments", "init", material, "--id", "m1", "--keep", file);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /2 labels carried from .*, 1 to label:\n {2}s4 "Second, a claim that grew\."\n/);
+  const segs = segsOf(file);
+  assert.deepEqual(segs.map((s) => [s.id, s.label]), [["s1", "stance"], ["s4", "unlabeled"], ["s3", "aside"]]);
+  assert.equal(segs[1].own, undefined, "a changed segment carries nothing from the old one");
+  const fails = readSegments(file, { materialPath: material, materialId: "m1" }).findings;
+  assert.deepEqual(fails.map((f) => f.message), ["material m1, segment s4: is still unlabeled"]);
+});
+
+test("GUARD: --keep carries every extra key a segment has, own included, with new offsets", () => {
+  const { material, file } = marked(THREE, LABELS);
+  writeFileSync(material, `Zeroth, new text.\n\n${THREE}`);
+
+  const r = run("segments", "init", material, "--id", "m1", "--keep", file);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const segs = segsOf(file);
+  assert.deepEqual(segs[0], { id: "s4", start: 0, end: 17, label: "unlabeled", text: "Zeroth, new text." });
+  assert.deepEqual(segs[2], { id: "s2", start: 37, end: 53, label: "claim", own: true, text: "Second, a claim." });
+  assert.equal(segs[3].note, "kept for context");
+  assert.deepEqual(Object.keys(segs[3]), ["id", "start", "end", "label", "note", "text"]);
+});
+
+test("--keep matches text trimmed, and uses old segments with the same text each once, in order", () => {
+  const { material, file } = marked("Same.\n\nSame.", [{ label: "stance" }, { label: "aside" }]);
+  writeFileSync(material, "  Same.\n\nSame.\n\nSame.");
+  const r = run("segments", "init", material, "--id", "m1", "--keep", file);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(segsOf(file).map((s) => [s.id, s.label]), [["s1", "stance"], ["s2", "aside"], ["s3", "unlabeled"]]);
+});
+
+test("GUARD: without --keep, or with --keep naming another file, an existing segments file is never overwritten", () => {
+  const { d, material, file } = marked(THREE, LABELS);
+  const before = readFileSync(file, "utf8");
+  const other = join(d, "other.segments.jsonl");
+  writeFileSync(other, before);
+  const r = run("segments", "init", material, "--id", "m1", "--keep", other);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /refusing to overwrite .*--keep names a different file/);
+  assert.equal(readFileSync(file, "utf8"), before);
+
+  const fresh = join(d, "fresh.segments.jsonl");
+  const r2 = run("segments", "init", material, "--id", "m1", "--keep", other, "--out", fresh);
+  assert.equal(r2.status, 0, r2.stdout + r2.stderr);
+  assert.deepEqual(segsOf(fresh).map((s) => s.label), ["stance", "claim", "aside"]);
+});
+
+test("--keep exits 2, writing nothing, for a file that is missing, broken, or marks another material", () => {
+  const { d, material, file } = marked(THREE, LABELS);
+  const out = join(d, "new.segments.jsonl");
+  const missing = run("segments", "init", material, "--id", "m1", "--keep", join(d, "nope.jsonl"), "--out", out);
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /--keep file not found/);
+
+  const broken = join(d, "broken.jsonl");
+  writeFileSync(broken, `${readFileSync(file, "utf8")}not json\n`);
+  const r = run("segments", "init", material, "--id", "m1", "--keep", broken, "--out", out);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /line 5 is not a JSON object/);
+
+  const r2 = run("segments", "init", material, "--id", "m2", "--keep", file, "--out", out);
+  assert.equal(r2.status, 2);
+  assert.match(r2.stderr, /marks material "m1", not "m2"/);
+  assert.ok(!existsSync(out));
+});

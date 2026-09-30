@@ -70,6 +70,22 @@ test("the page's sample segments file is exactly what segments init writes for t
   assert.deepEqual(lines(fence(marking(), "jsonl")), lines(readFileSync(join(d, "materials", "voice-memo.md.segments.jsonl"), "utf8")));
 });
 
+test("the page's --keep sample is exactly what the command prints after the sample material's one edit", () => {
+  const changes = marking().split("\n### When a material changes\n")[1].split("\n### ")[0];
+  const cmd = fence(changes, "bash").trim().replace(/^npx @supersuit\/hyperspec /, "").split(/\s+/);
+  const shown = fence(changes, "text");
+  const d = tempDir("hs-writing-doc-keep-");
+  mkdirSync(join(d, "materials"));
+  // The sample material with its framing line (s4) edited, marked by the page's own labeled file.
+  const material = fence(marking(), "text");
+  assert.ok(material.includes("and I wrote it down."));
+  writeFileSync(join(d, "materials", "voice-memo.md"), material.replace("and I wrote it down.", "and I kept the note in my wallet."));
+  writeFileSync(join(d, "materials", "voice-memo.md.segments.jsonl"), fence(marking(), "jsonl"));
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...cmd], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.stdout, shown);
+});
+
 test("the page's sample labels every quote with only the quoted words, and uses every field a label needs", () => {
   const segs = fence(marking(), "jsonl").trim().split("\n").slice(1).map((l) => JSON.parse(l));
   const quotes = segs.filter((x) => x.label === "quote");

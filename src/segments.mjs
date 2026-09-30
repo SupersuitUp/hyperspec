@@ -183,6 +183,50 @@ export function splitSegments(text, { by = "paragraph" } = {}) {
 }
 
 // -------------------------------------------------------------------------------------------
+// carrySegments: re-marking an edited material without relabeling what did not change (0.9.1).
+// A label is a fact about a stretch of text, so while the same text (compared trimmed) is still in
+// the material, its label is still true. `fresh` is what splitSegments returned for the material as
+// it reads now; `old` is the segment objects of the file it was marked in before. Each fresh
+// segment whose trimmed text an old segment has takes that old segment's id, label and every other
+// key it carries (own, source, teller, speaker, anything a person added), with start, end and text
+// from the new split. The id is carried too, because the spine cites segments by id: "m1#s3" keeps
+// pointing at the words it pointed at. Old segments with the same text are used in document order,
+// each once. A fresh segment no old one matches stays "unlabeled" and gets the next id no old
+// segment used, "s<n>" counting up past the highest. Returns { segments, carried, unlabeled }:
+// carried counts the segments that took a label other than "unlabeled"; unlabeled lists every
+// segment still to label, in document order.
+export function carrySegments(fresh, old) {
+  const byText = new Map();
+  for (const o of old) {
+    if (!o || typeof o !== "object" || typeof o.text !== "string") continue;
+    const k = o.text.trim();
+    if (!byText.has(k)) byText.set(k, []);
+    byText.get(k).push(o);
+  }
+  const taken = new Set(old.map((o) => str(o?.id)).filter(Boolean));
+  let n = Math.max(0, ...[...taken].map((id) => Number(/^s(\d+)$/.exec(id)?.[1] ?? 0)));
+  const nextId = () => {
+    do n += 1; while (taken.has(`s${n}`));
+    taken.add(`s${n}`);
+    return `s${n}`;
+  };
+  const segments = [];
+  let carried = 0;
+  for (const seg of fresh) {
+    const match = byText.get(seg.text.trim())?.shift();
+    if (!match) {
+      segments.push({ id: nextId(), start: seg.start, end: seg.end, label: "unlabeled", text: seg.text });
+      continue;
+    }
+    const { id, start, end, label, text, ...extra } = match;
+    const kept = { id: str(id) || nextId(), start: seg.start, end: seg.end, label: typeof label === "string" && label ? label : "unlabeled", ...extra, text: seg.text };
+    if (kept.label !== "unlabeled") carried += 1;
+    segments.push(kept);
+  }
+  return { segments, carried, unlabeled: segments.filter((s) => s.label === "unlabeled") };
+}
+
+// -------------------------------------------------------------------------------------------
 // readSegments: parse + validate a marked-up segments file. Never throws on a bad or missing
 // file; every failure mode becomes a finding in the lint shape (test, id, severity, message, fix),
 // the same shape src/rules.mjs and src/writing-fields.mjs already use. readSegments never reads
