@@ -271,3 +271,61 @@ test("--keep exits 2, writing nothing, for a file that is missing, broken, or ma
   assert.match(r2.stderr, /marks material "m1", not "m2"/);
   assert.ok(!existsSync(out));
 });
+
+// ── segments label (0.10) ────────────────────────────────────────────────────────────────────
+// Labeling by hand meant editing JSONL, and one real piece grew six throwaway labelers
+// (letter BUILD-NOTES item 5). The verb sets labels and fields and touches nothing else.
+function markedForLabel() {
+  const d = tempDir("hs-cli-label-");
+  const material = join(d, "notes.md");
+  writeFileSync(material, "Heading line.\n\nA claim of mine.\n\nShe said this.\n\nA story.");
+  assert.equal(run("segments", "init", material, "--id", "notes").status, 0);
+  return { d, material, out: `${material}.segments.jsonl` };
+}
+const labelRows = (f) => readFileSync(f, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+
+test("segments label sets labels and fields, keeping every offset and text", () => {
+  const { out } = markedForLabel();
+  const before = labelRows(out);
+  const r = run("segments", "label", out, "s1=aside", "s2=claim:own=true", "s3=quote:speaker=Gary Sheng", "s4=story:teller=gary-sheng");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /4 segments labeled/);
+  const after = labelRows(out);
+  assert.deepEqual(after[0], before[0], "the header is untouched");
+  for (let i = 1; i < after.length; i++) {
+    assert.equal(after[i].text, before[i].text);
+    assert.equal(after[i].start, before[i].start);
+    assert.equal(after[i].end, before[i].end);
+  }
+  assert.equal(after[1].label, "aside");
+  assert.equal(after[2].label, "claim");
+  assert.equal(after[2].own, true, "own=true is the boolean the format reads");
+  assert.equal(after[3].speaker, "Gary Sheng");
+  assert.equal(after[4].teller, "gary-sheng");
+});
+
+test("segments label takes a comma list of ids for one label", () => {
+  const { out } = markedForLabel();
+  assert.equal(run("segments", "label", out, "s1,s3,s4=aside").status, 0);
+  assert.deepEqual(labelRows(out).slice(1).map((s) => s.label), ["aside", "unlabeled", "aside", "aside"]);
+});
+
+test("segments label refuses an unknown id or a label outside the closed set, writing nothing", () => {
+  const { out } = markedForLabel();
+  const before = readFileSync(out, "utf8");
+  const a = run("segments", "label", out, "s1=aside", "s9=claim");
+  assert.equal(a.status, 2);
+  assert.match(a.stderr, /s9/);
+  const b = run("segments", "label", out, "s1=opinion");
+  assert.equal(b.status, 2);
+  assert.match(b.stderr, /opinion/);
+  const c = run("segments", "label", out, "s1");
+  assert.equal(c.status, 2);
+  assert.equal(readFileSync(out, "utf8"), before, "a refused call leaves the file byte for byte");
+});
+
+test("segments label lists what is still unlabeled", () => {
+  const { out } = markedForLabel();
+  const r = run("segments", "label", out, "s1=aside");
+  assert.match(r.stdout, /3 still unlabeled: s2, s3, s4/);
+});

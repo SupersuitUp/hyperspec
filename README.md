@@ -26,9 +26,11 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
 | `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
 | `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence] [--keep OLD]` | Split a material into segments to label. With `--keep`, re-mark an edited material: every segment whose text is unchanged keeps its id and labels, and only the rest are listed to label. Refuses to overwrite an existing file unless `--keep` names it. |
+| `hyperspec segments label <segments-file> <ids>=<label>[:key=value]...` | Label segments in place (`s1,s4=aside`, `s3=quote:speaker=gary-sheng`, `s2=claim:own=true`); offsets and text never change. Refuses an unknown id or label with nothing written. |
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
 | `hyperspec dna measure <scope-dir>` | Check every golden in a scope and write its measured features. |
 | `hyperspec check <spec> [--draft <file>] [--only a,b]` | Run a writing spec's deterministic stations against a draft, or, for a sequential work, against its files in reading order. |
+| `hyperspec ready <spec> --draft <file> [--judges a,b]` | Has this draft been through the engine? From the runs ledger only: a passing full check of these exact bytes, every required judge passing on them (each panel reader, the buyer included), and the check after the last judge so triage was held. Exit 0 ready, 1 not ready with each missing step listed. |
 | `hyperspec judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force]` | Write one packet per judgment station, for an outside judge to fill. |
 | `hyperspec judge record <packet> --verdict <file>` | Check a judge's verdict against its packet, derive the station's status, and record it. |
 | `hyperspec triage status <spec> [--draft <file>]` | Count every finding's answer, list the passages two or more readers share, and hold every answer to the draft. |
@@ -43,7 +45,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec regenerate <recipe> --out <path> --clicker <slug> <one change> [--run cmd]` | Make a child recipe from a parent and one named change, rerunning only the stages it reaches. |
 | `hyperspec compare <child-recipe> --doctor cmd` | Grade a child and its parent through one doctor against one spec. |
 
-Every command except `init`, `segments init` and `dna init` takes `--json`. `hyperspec --help` prints every flag.
+Every command except `init`, `segments init`, `segments label` and `dna init` takes `--json`. `hyperspec --help` prints every flag.
 
 ## Exit codes
 

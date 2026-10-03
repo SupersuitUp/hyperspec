@@ -9,3 +9,6 @@
 export { MATERIAL_LABELS } from "./labels.mjs";
 export { readSegments } from "./segments.mjs";
 export { readScope, measureFeatures } from "./dna.mjs";
+// specText writes a spec's text from data and refuses anything the reader would not return
+// unchanged, for a tool that builds specs (0.10).
+export { specText, parseSpecText } from "./spec-text.mjs";

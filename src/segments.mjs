@@ -449,3 +449,43 @@ export function readSegments(segmentsPath, { materialPath, materialId, displayPa
 
   return { header, segments, findings };
 }
+
+// ── labeling (0.10) ──────────────────────────────────────────────────────────────────────────
+// One assignment is "<ids>=<label>[:key=value]...": ids a comma list ("s1,s4"), the label from the
+// closed set, then any per-label fields (speaker=, teller=, source=, own=true). own's "true" is
+// written as the boolean the format reads. Parsed and applied as pure data so a caller (the CLI,
+// a capture stage) can label without hand-editing JSONL, and so a bad assignment is refused
+// before anything is written: { segments } on success, { error } on the first problem.
+export function parseLabelAssignment(raw) {
+  const eq = String(raw).indexOf("=");
+  if (eq < 1) return { error: `"${raw}" is not <ids>=<label>[:key=value]...` };
+  const ids = raw.slice(0, eq).split(",").map((s) => s.trim()).filter(Boolean);
+  const [label, ...pairs] = raw.slice(eq + 1).split(":");
+  if (!MATERIAL_LABELS.includes(label)) return { error: `"${label}" is not a label; use one of ${MATERIAL_LABELS.join(", ")}` };
+  const fields = {};
+  for (const p of pairs) {
+    const k = p.indexOf("=");
+    if (k < 1) return { error: `"${p}" in "${raw}" is not key=value` };
+    const key = p.slice(0, k).trim();
+    if (["id", "start", "end", "text", "label"].includes(key)) return { error: `"${key}" is set by marking, not by a label assignment` };
+    const value = p.slice(k + 1);
+    fields[key] = key === "own" && value === "true" ? true : value;
+  }
+  return { ids, label, fields };
+}
+
+export function labelSegments(segments, assignments) {
+  const out = segments.map((s) => ({ ...s }));
+  const byId = new Map(out.map((s) => [s.id, s]));
+  for (const raw of assignments) {
+    const a = parseLabelAssignment(raw);
+    if (a.error) return { error: a.error };
+    for (const id of a.ids) {
+      const s = byId.get(id);
+      if (!s) return { error: `no segment "${id}" in this file` };
+      s.label = a.label;
+      Object.assign(s, a.fields);
+    }
+  }
+  return { segments: out };
+}

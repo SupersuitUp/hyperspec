@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.10.0 (2026-10-02)
+
+What a drafting loop and a per-audience renderer need to run on the engine without hand work
+(build 7 wiring, from the letter's BUILD-NOTES).
+
+- **A draft's frontmatter and HTML comments are not prose.** `check`, `judge` and `learn` read every
+  draft through `readDraft`, which now blanks a leading YAML frontmatter block and every
+  `<!-- ... -->` comment line for line (their characters go, their line breaks stay, so line
+  numbers are the file's own). A kept document (a title, a status, a note to self about what it
+  was meant to be) grades exactly as its prose does. Sequence drafts already blanked frontmatter;
+  they now blank comments too. `hideUnseen` in `src/draft.mjs` is the rule.
+- **`hyperspec segments label <segments-file> <ids>=<label>[:key=value]...`** labels segments in
+  place: `s1,s4=aside`, `s3=quote:speaker=gary-sheng`, `s2=claim:own=true` (`own=true` is written as
+  the boolean). Offsets and text never change. An unknown id, a label outside the closed set or a
+  malformed assignment exits 2 with nothing written. It prints what is still unlabeled.
+  `labelSegments` and `parseLabelAssignment` in `src/segments.mjs`.
+- **`hyperspec ready <spec> [--draft <file>] [--judges a,b] [--json]`** answers whether this draft
+  has been through the engine under this spec, from the runs ledger alone: the latest full check
+  of these exact draft and spec bytes passed; every required judge (the list given, or every judge
+  that applies) passed on the same bytes, each panel reader including the buyer; and that check
+  came after the last of those judge lines, so the panel's findings were triaged and held. Exit 0
+  ready, 1 not ready with each missing step listed, 2 usage.
+- **`specText(data, body)` and `parseSpecText(text)`**, exported from `@supersuit/hyperspec/writing`, writes a spec's text
+  from data and reads it back with the linter's own reader, throwing (and naming the field) when
+  any value would not come back unchanged. For tools that build specs rather than people typing
+  them.
+
+**Behavior change:** a draft whose frontmatter or comments held words now counts fewer words, and a
+term that first appeared in a comment now first appears in the prose. No finding id changed.
+
 ## 0.9.1 (2026-09-30)
 
 Two fixes, each found by the first book written as a sequence.

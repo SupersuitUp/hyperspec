@@ -21,6 +21,20 @@ export function splitLines(text) {
 export function readDraft(draftPathArg) {
   let buf;
   try { buf = readFileSync(resolve(draftPathArg)); } catch { return null; }
-  const text = buf.toString("utf8").replace(/^﻿/, "");
+  const text = hideUnseen(buf.toString("utf8").replace(/^\uFEFF/, ""));
   return { path: draftPathArg, text, lines: splitLines(text), sha256: sha256(buf) };
+}
+
+// WHAT A READER NEVER SEES IS NOT PROSE (0.10). A leading YAML frontmatter block and every HTML
+// comment are blanked line for line: their characters go and their line breaks stay, so every
+// line number a finding names is still the file's own. A draft that is a kept document (a title,
+// a status, a note to self about what it was meant to be) then grades exactly as its prose does:
+// no hidden word counts toward length, is a term's first use, or needs a claim. Sequence drafts
+// already blanked frontmatter per file (src/sequence-draft.mjs); this is the same rule for every
+// draft. Offsets inside a line can move; evidence is matched by text, never by column.
+export function hideUnseen(text) {
+  const blank = (s) => s.replace(/[^\n]/g, "");
+  return text
+    .replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, blank)
+    .replace(/<!--[\s\S]*?-->/g, blank);
 }

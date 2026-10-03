@@ -12,7 +12,7 @@ import { approve } from "../src/writer.mjs";
 import { reproduce } from "../src/reproduce.mjs";
 import { regenerate } from "../src/regenerate.mjs";
 import { compare } from "../src/compare.mjs";
-import { splitSegments, carrySegments } from "../src/segments.mjs";
+import { splitSegments, carrySegments, labelSegments } from "../src/segments.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
 import { str } from "../src/placeholder.mjs";
@@ -21,6 +21,7 @@ import { prepareJudges, recordJudgment } from "../src/judge.mjs";
 import { prepareLearn, recordLearn, tallyLine } from "../src/learn.mjs";
 import { triageContext, triageState, answerFinding, importReview, replyText } from "../src/triage.mjs";
 import { sourceAt } from "../src/sequence-draft.mjs";
+import { ready } from "../src/ready.mjs";
 
 const HELP = `hyperspec <command> [options]
 
@@ -41,6 +42,14 @@ const HELP = `hyperspec <command> [options]
                                exit 0 every run station passed, 1 a station failed, 2 usage
                                (including a missing draft file, a spec without the writing
                                profile, or an --only that names no known station)
+  ready <spec> [--draft <file>] [--judges a,b] [--json]
+                               has this draft been through the engine under this spec? read from
+                               the runs ledger only: the latest full check of these exact draft
+                               and spec bytes passed, every required judge (the --judges list, or
+                               every judge that applies; each panel reader, the buyer included)
+                               passed on the same bytes, and that check came after the last of
+                               those judge lines, so panel findings were triaged and held
+                               exit 0 ready, 1 not ready (each missing step listed), 2 usage
   judge prepare <spec> --draft <file> --out <dir> [--only a,b] [--force] [--json]
                                needs a writing spec that passes lint (exits with lint's own code
                                otherwise); writes one <station>.packet.json per applicable
@@ -140,6 +149,13 @@ const HELP = `hyperspec <command> [options]
                                not exist, a --by outside paragraph/sentence, or a --keep file that
                                cannot be read, has a line that is not a JSON object, or marks
                                another material
+
+  segments label <segments-file> <ids>=<label>[:key=value]...
+                               label segments in place: ids a comma list (s1,s4), the label from
+                               the closed set, then per-label fields (speaker=, teller=, source=,
+                               own=true); offsets and text are never touched; refuses an unknown
+                               id, a label outside the set or a malformed assignment with nothing
+                               written (exit 2); prints what is still unlabeled
 
   dna init <scope-dir> --writer W --form F --audience A --purpose P
                                write a new writer-DNA scope: scope.md (writer, form, audience,
@@ -294,6 +310,24 @@ if (cmd === "segments") {
     process.exit(0);
   }
 
+  if (sub === "label") {
+    const [file, ...assignments] = argv.slice(2);
+    if (!file || !assignments.length) { console.error("segments label needs a segments file and at least one <ids>=<label>[:key=value] assignment"); process.exit(2); }
+    let raw;
+    try { raw = readFileSync(file, "utf8"); } catch { console.error(`segments file not found: ${file}`); process.exit(2); }
+    const lines = raw.split("\n").filter((l) => l.trim());
+    let parsed;
+    try { parsed = lines.map((l) => JSON.parse(l)); } catch { console.error(`${file} has a line that is not JSON; fix it before labeling`); process.exit(2); }
+    const [header, ...segments] = parsed;
+    const done = labelSegments(segments, assignments);
+    if (done.error) { console.error(`segments label: ${done.error}; nothing written`); process.exit(2); }
+    writeFileSync(file, `${[header, ...done.segments].map((o) => JSON.stringify(o)).join("\n")}\n`);
+    const touched = new Set(assignments.flatMap((a) => a.slice(0, a.indexOf("=")).split(",").map((s) => s.trim())));
+    const todo = done.segments.filter((s) => s.label === "unlabeled").map((s) => s.id);
+    console.log(`${touched.size} segments labeled in ${file}${todo.length ? `; ${todo.length} still unlabeled: ${todo.join(", ")}` : "; every segment is labeled. Run hyperspec lint on the spec."}`);
+    process.exit(0);
+  }
+
   console.error(`unknown segments subcommand: ${sub}\n\n${HELP}`);
   process.exit(2);
 }
@@ -413,6 +447,32 @@ if (cmd === "lint") {
     for (const f of r.findings) console.log(`    ${f.severity === "fail" ? "fail" : "warn"} [${f.test}] ${f.message}\n         fix: ${f.fix}`);
   }
   process.exit(worst);
+}
+
+if (cmd === "ready") {
+  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--draft", "--judges"], boolFlags: ["--json"] });
+  if (parsed.error) { console.error(parsed.error); process.exit(2); }
+  const [specPath] = parsed.positionals;
+  const json = parsed.values["--json"];
+  const usage = (error) => {
+    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error }, null, 2));
+    else console.error(error);
+    process.exit(2);
+  };
+  if (!specPath) usage("ready needs a spec path");
+  let judges;
+  if (parsed.values["--judges"] !== undefined) {
+    judges = parsed.values["--judges"].split(",").map((s) => s.trim()).filter(Boolean);
+    if (!judges.length) usage("--judges names no judge");
+  }
+  const r = ready(specPath, parsed.values["--draft"], { judges });
+  if (r.usage) usage(r.error);
+  if (json) console.log(JSON.stringify({ spec: specPath, draft: r.draft, ready: r.ready, judges: r.judges, missing: r.missing }, null, 2));
+  else {
+    console.log(r.ready ? `ready: checked and judged (${r.judges.join(", ")}) on these exact bytes` : "not ready:");
+    for (const m of r.missing) console.log(`  - ${m}`);
+  }
+  process.exit(r.code);
 }
 
 if (cmd === "check") {

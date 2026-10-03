@@ -51,9 +51,9 @@ test("src/segments.mjs imported first, in a fresh process, loads without error a
   assert.deepEqual(JSON.parse(r.stdout), [`Set label to one of: ${LABELS.join(", ")}.`]);
 });
 
-test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes the marking and DNA readers", async () => {
+test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes the marking and DNA readers and the spec writer", async () => {
   const mod = await import("@supersuit/hyperspec/writing");
-  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "measureFeatures", "readScope", "readSegments"]);
+  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "measureFeatures", "parseSpecText", "readScope", "readSegments", "specText"]);
   assert.equal(mod.MATERIAL_LABELS, (await import("../src/labels.mjs")).MATERIAL_LABELS);
   assert.equal(mod.readSegments, (await import("../src/segments.mjs")).readSegments);
   const dna = await import("../src/dna.mjs");

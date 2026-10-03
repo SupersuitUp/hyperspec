@@ -7,7 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, posix, resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
 import { str } from "./placeholder.mjs";
-import { splitLines } from "./draft.mjs";
+import { splitLines, hideUnseen } from "./draft.mjs";
 
 const list = (v) => (Array.isArray(v) ? v : []);
 const byNumber = (a, b) => a.localeCompare(b, "en", { numeric: true });
@@ -44,8 +44,8 @@ export function sequenceFiles(specDir, entries) {
 // { path, text, lines, sha256, sources }, the same shape src/draft.mjs's readDraft returns plus
 // sources, one per file: { file, at, startLine, lineCount }. file is the path relative to the spec
 // (what a finding names); at resolves from the working directory (what a station opens, such as
-// links resolving a relative link beside the file that holds it). Each file's YAML frontmatter is
-// blanked line for line, so its metadata is not prose and its line numbers stay its own. sha256
+// links resolving a relative link beside the file that holds it). Each file's YAML frontmatter and HTML comments are
+// blanked line for line (src/draft.mjs's hideUnseen), so its metadata is not prose and its line numbers stay its own. sha256
 // covers every file's name and bytes. path is the first file's. null when no file matches.
 export function readSequenceDraft(spec, specPathArg) {
   const files = sequenceFiles(spec.dir, sequenceFilesDecl(spec));
@@ -58,7 +58,7 @@ export function readSequenceDraft(spec, specPathArg) {
     const buf = readFileSync(resolve(spec.dir, file));
     hashed.push(Buffer.from(`${file}\n`), buf);
     let text = buf.toString("utf8").replace(/^\uFEFF/, "");
-    text = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, (fm) => fm.replace(/[^\n]/g, ""));
+    text = hideUnseen(text);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
     sources.push({ file, at: join(dirname(specPathArg), file), startLine, lineCount });

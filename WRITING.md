@@ -408,7 +408,10 @@ exist or a `--by` it does not know, a material with nothing in it, and an `--out
 not exist.
 
 Then name the file on the material item, as `segments:` beside `path:`, and label every segment.
-You may also move a boundary by hand, splitting one segment in two or joining two, as long as
+`hyperspec segments label <segments-file> <ids>=<label>[:key=value]...` does it without editing
+JSON by hand: `s1,s4=aside`, `s3=quote:speaker=gary-sheng`, `s2=claim:own=true`. Offsets and text
+never change, an unknown id or a label outside the set is refused with nothing written, and it
+prints what is still unlabeled. You may also move a boundary by hand, splitting one segment in two or joining two, as long as
 the rules under [Coverage](#coverage) still hold.
 
 ### The segments file
@@ -843,6 +846,10 @@ against the draft:
 ```bash
 npx @supersuit/hyperspec check essay.hyperspec.md --draft essay/draft.md
 ```
+
+A draft is read as a reader sees it: a leading YAML frontmatter block and every HTML comment
+are blanked line for line, so a kept document (a title, a status, a note to self) grades exactly
+as its prose does, and every line number is still the file's own.
 
 It lints the spec first. A spec that fails lint, or is blocked on an open decision, runs no
 station and exits with lint's own code, because a draft cannot be checked against a spec that is
@@ -1866,6 +1873,27 @@ cannot be read. `--json` prints the whole result.
 | `triage-reason-missing` | invalid | a `kept` answer has no `--reason` |
 | `triage-import-quote-not-found` | warn | an imported finding quotes text, and none of it is in the draft |
 | `triage-import-empty` | invalid | the review holds no finding to answer |
+
+## Is it ready
+
+```bash
+npx @supersuit/hyperspec ready essay.hyperspec.md --draft essay/draft.md
+```
+
+`hyperspec ready <spec> [--draft <file>] [--judges a,b] [--json]` answers one question for a
+tool that hands a draft on (to a person, to a send step): has THIS draft been through the engine
+under THIS spec? It reads the runs ledger and runs nothing. Ready means all three:
+
+- the latest full check of these exact draft and spec bytes passed (an `--only` run proves
+  nothing about the stations it skipped);
+- every required judge has a line for the same bytes and the latest passed; required is the
+  `--judges` list, or every judgment station that applies to the spec and draft, and the panel
+  needs a line for every reader, the buyer included;
+- that check comes after the last of those judge lines, so the panel's findings went to triage
+  and a check held every answer.
+
+It exits 0 ready, 1 not ready with each missing step listed, 2 usage. Edit the draft or the spec
+and it is not ready until it is graded again, because every rule is about the bytes.
 
 ## Learning from edits
 
