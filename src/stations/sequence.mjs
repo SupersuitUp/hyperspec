@@ -25,6 +25,11 @@
 //              after the unit it is tagged with; every question is tagged; every answer names one
 //              of its question's options. Promoted from the checker the first book written this
 //              way used, so the rules and the question shape are that checker's.
+//   front      (hyperspec 0.11, only when sequence.front_matter lists headings) each heading the
+//              work opens with (a book on one page, the book in five pages) appears as a heading,
+//              in the order listed, before the first unit. Front matter is not a unit: the order
+//              and pointer guards read units only, so whether a summary page explains a later term
+//              in the sentence that uses it stays a judgment for the doctor.
 //
 // A use is a whole-word, case-insensitive match, where a hyphen is part of a word: "context-aware"
 // does not use "context", and "skills" does not use "skill". A word inside a longer defined term is
@@ -71,6 +76,7 @@ export function sequenceOf(spec) {
     outline: str(raw.outline) || null,
     quiz: str(raw.quiz) || null,
     knows: new Set(knows),
+    frontMatter: list(raw.front_matter).map(str).filter(Boolean),
   };
 }
 
@@ -310,6 +316,9 @@ export function run(spec, draft) {
     return { station: name, status: "fail", findings };
   }
 
+  // front matter: each listed heading, in order, before the first unit.
+  if (seq.frontMatter.length) findings.push(...frontMatterFindings(draft, seq, units[0]));
+
   // numbering: each unit's number is greater than the one before it.
   for (let i = 1; i < units.length; i++) {
     if (units[i].n <= units[i - 1].n) {
@@ -383,6 +392,38 @@ export function run(spec, draft) {
 
   const status = findings.some((f) => f.severity === "fail") ? "fail" : "pass";
   return { station: name, status, findings };
+}
+
+// The 1-based draft line of the first ATX heading whose text is `label`, ignoring case and a closing
+// colon, or 0. Only a heading counts: a bold line that names the page is prose about it (a changelog's
+// "**The book on one page** gives the argument ..."), not the page. Code is masked first.
+function headingLine(masked, label) {
+  const want = label.replace(/:$/, "").trim().toLowerCase();
+  const i = masked.findIndex((l) => {
+    const h = ATX.exec(l.replace(/\r$/, ""));
+    return h && (h[2] ?? "").replace(/(^|[ \t]+)#+[ \t]*$/, "").trim().replace(/:$/, "").trim().toLowerCase() === want;
+  });
+  return i + 1;
+}
+
+// The front-matter guard: every heading in sequence.front_matter is in the draft, before the first
+// unit, in the order listed. One finding per heading out of place.
+function frontMatterFindings(draft, seq, first) {
+  const U = seq.unit;
+  const masked = maskCode(draft.text).split("\n");
+  const out = [];
+  let last = null;
+  for (const label of seq.frontMatter) {
+    const line = headingLine(masked, label);
+    if (!line) {
+      out.push(finding({ id: "station-sequence-front-matter-missing", severity: "fail", message: `the front matter has no "${label}" heading`, fix: `Add a "## ${label}" heading before ${U} ${first.n}, or delete it from writing.form.sequence.front_matter.` }));
+    } else if (line > first.line) {
+      out.push(finding({ id: "station-sequence-front-matter-order", severity: "fail", message: `"${label}" comes after ${U} ${first.n}, and front matter comes before the first ${U.toLowerCase()}`, fix: `Move the "${label}" section before ${U} ${first.n}.`, line }));
+    } else if (last && line < last.line) {
+      out.push(finding({ id: "station-sequence-front-matter-order", severity: "fail", message: `"${label}" comes before "${last.label}", and the front matter's order is: ${seq.frontMatter.join(", ")}`, fix: "Put the front matter in the order writing.form.sequence.front_matter lists it, or reorder the list.", line }));
+    } else last = { label, line };
+  }
+  return out;
 }
 
 // The quiz guards, against the terms the units define (term -> defining unit).

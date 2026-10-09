@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.11.0 (2026-10-09)
+
+Form specs: the decisions every work of a kind shares, written once and checked in every work. The
+second book of a library was specified by hand-copying the first book's spec, and the second copy is
+the moment to abstract.
+
+- **A form is a hyperspec of `kind: form`, and a work builds on it with one top-level key,
+  `form: <path>`**, relative to the work's spec. `loadSpec` merges the two, so `lint`, `check`,
+  `judge`, `ready` and `learn` all read the merged spec and no station needs to know forms exist.
+  The merge, whole: `decisions`, `requirements`, `rejects`, `examples`,
+  `writing.persona.may_assert`, `writing.persona.will_not_say`, `writing.form.sequence.sections`,
+  `writing.form.sequence.knows`, `writing.form.sequence.front_matter` and `writing.form.stations`
+  accumulate, the form's entries first, an exact duplicate collapsing and an entry that reuses one of
+  the form's ids refused; maps merge key by key; any other value is the form's, and the work fills
+  only what the form leaves unset. `hyperspec`, `title`, `kind`, `resume`, `feedback` and
+  `improvement` belong to each file and are never inherited. A path the form writes resolves against
+  the form's folder. One level only. `src/form-spec.mjs` is the merge.
+- **Seven lint findings, all under test 1**: `form-missing` (blank, or no file), `form-unreadable`
+  (not a hyperspec), `form-not-a-form` (not `kind: form`), `form-nested` (a form that names a form),
+  `form-fails` (the form fails its own lint, naming every failing id), `form-contradiction` (the work
+  sets a value the form sets, to a different value, naming the field and both values) and
+  `form-id-collision` (a work entry reuses an id the form uses).
+- **A form lints like any spec, with two differences.** `materials`, `audience`, `goal` and `spine`,
+  which only a work can fill, are not required of it, and a block it writes may leave fields to the
+  work: a finding that a field's absence would produce is not one in a form. A value the form writes
+  is held to its rule, and every block it writes still carries its own `check`, `source` and
+  `author`.
+- **The form's provenance is in every run.** `lint --json` names the form on the spec's report, and
+  every line `check` and `judge record` append carries `form: { path, sha256 }`, so a run says which
+  version of the form it was held to. A changed form is named in the next verdict (`form changed;
+  every station still passes`), and `ready` counts only lines graded under the form as it is now.
+- **`writing.form.sequence.front_matter`**: the headings a work opens with before its first unit, in
+  order (a book on one page, then the book in five pages). The sequence station fails
+  `station-sequence-front-matter-missing` for a heading the draft does not have, and
+  `station-sequence-front-matter-order` for one out of order or after the first unit. Only a heading
+  counts, in any case and at any level. Front matter is not a unit, so the order guard and the
+  pointer warning never read it; whether a summary page explains a later term in the sentence that
+  uses it stays a judgment for the doctor. Lint fails `writing-form-sequence-front-matter` for a
+  `front_matter` that is not a list of real headings.
+- **`hyperspec init <file> --form <form spec.md>`** writes the skeleton of a work on a form: it names
+  the form, relative to the new file, and shows only what the form leaves for the work. A `--form`
+  value that does not end in `.md` still sets the writing skeleton's kind.
+- **A worked example**: `examples/writing/forms/course.form.hyperspec.md`, a form for short courses,
+  and `examples/writing/knots.hyperspec.md`, a two-lesson course built on it, with its material
+  marked and its one file passing every station. WRITING.md gains "Forms: decisions every work of a
+  kind shares".
+
+**Behavior change:** none for a spec with no `form:` key and no `front_matter`. A spec of
+`kind: form` is now linted as a form.
+
 ## 0.10.0 (2026-10-02)
 
 What a drafting loop and a per-audience renderer need to run on the engine without hand work

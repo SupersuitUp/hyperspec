@@ -344,7 +344,7 @@ test("the Sequential works declaration is the course example's own sequence bloc
 test("the Sequential works key table lists every key the station reads, with the station's defaults", async () => {
   const { DEFAULTS } = await import("../src/stations/sequence.mjs");
   const rows = [...seqSub("Declaring a sequence").matchAll(/^\| `([a-z_]+)` \| ([^|]+) \|/gm)].map((m) => [m[1], m[2].trim()]);
-  assert.deepEqual(rows.map((r) => r[0]), ["unit", "files", "sections", "terms_section", "outline", "knows", "teaser", "quiz"]);
+  assert.deepEqual(rows.map((r) => r[0]), ["unit", "files", "sections", "terms_section", "outline", "knows", "teaser", "quiz", "front_matter"]);
   // files is read where the draft is assembled; every other key by the station itself.
   const src = readFileSync(join(ROOT, "src", "stations", "sequence.mjs"), "utf8");
   const draftSrc = readFileSync(join(ROOT, "src", "sequence-draft.mjs"), "utf8");
@@ -606,4 +606,53 @@ test("the Triage findings table lists exactly the ids the triage commands raise,
   const rows = subsOf("Triage").flatMap((s) => tableRows(s.body)).filter((r) => r.id.startsWith("triage-"));
   assert.deepEqual(new Map(rows.map((r) => [r.id, r.severity])), fromSource);
   assert.match(src, /severity: "warn", message: `a finding quotes text/, "the quote warning is raised as a warning");
+});
+
+// ------------------------------------------------------------ Forms ----------------------------
+// The "Forms" section describes form specs (0.11): the merge rules, the findings and two samples.
+// These tests hold the rules table to src/form-spec.mjs, the findings table to the ids lint raises,
+// and each sample to the shipped example form and the work built on it.
+
+const formsSection = () => section("Forms: decisions every work of a kind shares");
+const formsSub = (heading) => formsSection().split(`\n### ${heading}\n`)[1].split("\n### ")[0];
+
+test("the Forms merge table names exactly the lists that accumulate and the keys each file keeps", async () => {
+  const { ACCUMULATE, OWN_KEYS } = await import("../src/form-spec.mjs");
+  const rows = [...formsSub("Building on a form").matchAll(/^\| (.+?) \| (.+) \|$/gm)].map((m) => m[1]).filter((c) => c !== "What" && c !== "---");
+  const ticks = (cell) => [...cell.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  assert.deepEqual(ticks(rows[0]), [...ACCUMULATE]);
+  assert.deepEqual(ticks(rows.at(-1)), OWN_KEYS.filter((k) => k !== "form"), "form: itself is the one own key a form may not hold at all");
+});
+
+test("the Forms findings table lists exactly the form ids lint raises, each under test 1", () => {
+  const fromSource = new Set();
+  for (const f of ["src/load.mjs", "src/form-spec.mjs", "src/rules.mjs"]) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/["'](form-[a-z-]+)["']/g)) if (m[1] !== "form-spec") fromSource.add(m[1]);
+  }
+  const rows = [...formsSub("What lint reports").matchAll(/^\| `(form-[a-z-]+)` \| (\d) \| (.+) \|$/gm)];
+  assert.deepEqual(rows.map((r) => r[1]).sort(), [...fromSource].sort());
+  for (const r of rows) assert.equal(r[2], "1", r[1]);
+});
+
+test("the Forms samples are the shipped example's own lines", () => {
+  const form = readFileSync(join(ROOT, "examples", "writing", "forms", "course.form.hyperspec.md"), "utf8");
+  const work = readFileSync(join(ROOT, "examples", "writing", "knots.hyperspec.md"), "utf8");
+  const [formBlock] = [...formsSub("Writing a form").matchAll(/```yaml\n([\s\S]*?)```/g)].map((m) => m[1]);
+  assert.ok(form.includes(formBlock), formBlock);
+  const [line, workBlock] = [...formsSub("Building on a form").matchAll(/```yaml\n([\s\S]*?)```/g)].map((m) => m[1]);
+  assert.ok(work.includes(`\n${line}`), line);
+  assert.ok(work.includes(workBlock), workBlock);
+});
+
+test("the init --form sample writes a skeleton on the shipped form", () => {
+  const start = section("Starting a writing spec");
+  const cmd = [...start.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1].trim()).find((c) => c.includes("--form forms/"));
+  assert.ok(cmd, "the section shows init --form <form spec>");
+  const d = tempDir("hs-writing-doc-form-init-");
+  cpSync(join(ROOT, "examples", "writing"), d, { recursive: true });
+  const args = cmd.replace(/^npx @supersuit\/hyperspec /, "").match(/"[^"]*"|\S+/g).map((a) => a.replace(/^"|"$/g, ""));
+  const r = spawnSync(process.execPath, [join(ROOT, "bin", "hyperspec.mjs"), ...args], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(readFileSync(join(d, args[1]), "utf8"), /^form: forms\/course\.form\.hyperspec\.md$/m);
 });

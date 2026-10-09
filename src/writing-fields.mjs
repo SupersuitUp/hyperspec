@@ -464,13 +464,14 @@ function sequenceFields(seq, here, idPrefix) {
     if (!(key in seq)) return null;
     const items = list(seq[key]);
     if (!Array.isArray(seq[key]) || !items.length || items.some((x) => typeof x !== "string" || !str(x))) {
-      out.push(f(1, `${idPrefix}-${key}`, "fail", `writing.form.sequence.${key} is not a list of real entries`, fix));
+      out.push(f(1, `${idPrefix}-${key.replace(/_/g, "-")}`, "fail", `writing.form.sequence.${key} is not a list of real entries`, fix));
       return null;
     }
     return items;
   };
   strings("sections", "List every section a unit carries, or delete sections: for the default three.");
   strings("knows", "List the words a reader already has, one per entry, or delete knows:.");
+  strings("front_matter", "List each heading the work opens with before its first unit, in reading order, or delete front_matter:.");
   const files = strings("files", "List the work's files in reading order, relative to the spec; a * in a file name matches.");
   for (const entry of files ?? []) {
     if (!expandEntry(here("."), entry).length) out.push(f(6, `${idPrefix}-files-missing`, "fail", `writing.form.sequence.files entry "${entry}" matches no file`, "Fix the path (relative to the spec), or remove the entry."));

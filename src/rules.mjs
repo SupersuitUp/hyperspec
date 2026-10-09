@@ -52,6 +52,17 @@ export function lintSpec(spec) {
   const version = str(d.hyperspec);
   if (!KNOWN_VERSIONS.includes(version)) out.push(f(7, "hyperspec-version", "warn", `hyperspec version "${version}" is not one this linter knows (${KNOWN_VERSIONS.join(", ")})`, "Set hyperspec: to a version this linter knows, or upgrade @supersuit/hyperspec."));
 
+  // A spec built on a form (form: <path>, src/form-spec.mjs) is linted merged: what loading the
+  // form found (a form that cannot be used, a value set two ways, a reused id), then the form held
+  // to its own lint, since every work under it inherits what it gets wrong. Its failing findings
+  // are named once here, as the form's, rather than fixed in each work. form-nested is left out:
+  // the spec already reports it as its own finding.
+  out.push(...(spec.formFindings ?? []));
+  if (spec.form?.spec) {
+    const failing = [...new Set(lintSpec(spec.form.spec).filter((x) => x.severity === "fail" && x.id !== "form-nested").map((x) => x.id))];
+    if (failing.length) out.push(f(1, "form-fails", "fail", `the form ${spec.form.path} fails its own lint: ${failing.join(", ")}`, `Run hyperspec lint ${spec.form.path} and fix the form; every work built on it is held to it.`));
+  }
+
   // A spec with no profile: runs no profile rules at all, so it lints exactly as it always has.
   // One declared runs that profile's own rules (writing.mjs for profile: writing), every finding
   // still reported under one of the nine tests below; an unknown profile name is a warning here.

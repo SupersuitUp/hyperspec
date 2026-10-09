@@ -1,0 +1,6 @@
+{"material":"brief","path":"knots/materials/brief.md","sha256":"b9349e7886dbccbcded8ae0c0a159d40d0b7e888ef9b72a059a56dcc9026649b"}
+{"id":"s1","start":0,"end":71,"label":"aside","text":"Course brief, written by the author after teaching two friends to sail."}
+{"id":"s2","start":73,"end":270,"label":"claim","text":"Nobody learns a knot from a picture. They learn it from the names of the parts of the rope, because every instruction for a knot is said in those names: the working end goes over the standing part.","own":true}
+{"id":"s3","start":272,"end":441,"label":"claim","text":"Two knots carry a beginner a long way: one that joins two ends, and one that makes a loop that will not slip. Teach the join first, because it is the simpler of the two.","own":true}
+{"id":"s4","start":443,"end":584,"label":"stance","text":"Each lesson ends with the knot tied three times without looking, because a knot you have to look at is a knot you will tie wrong in the dark."}
+{"id":"s5","start":586,"end":708,"label":"story","text":"I once taught the bowline before anyone knew which end was the working end, and the whole afternoon went on that one word.","teller":"example-author"}

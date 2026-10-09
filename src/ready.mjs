@@ -50,7 +50,9 @@ export function ready(specPathArg, draftPathArg, { judges } = {}) {
   }
   const lines = ledger.priorText.split("\n").filter((l) => l.trim())
     .map((l, i) => { try { return { ...JSON.parse(l), _n: i }; } catch { return null; } })
-    .filter((l) => l && l.draft_sha256 === draft.sha256 && l.spec_sha256 === specSha);
+    // A spec built on a form is these bytes AND its form's: a line graded under another version of
+    // the form graded something else.
+    .filter((l) => l && l.draft_sha256 === draft.sha256 && l.spec_sha256 === specSha && (l.form?.sha256 ?? null) === (spec.form?.sha256 ?? null));
 
   const check = lines.filter((l) => l.kind === "check" && l.partial !== true).at(-1);
   if (!check) missing.push("no full check of this draft under this spec; run hyperspec check");

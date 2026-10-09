@@ -14,8 +14,8 @@ import { join, resolve } from "node:path";
 import { sha256 } from "./hash.mjs";
 import { writeFileAtomic } from "./fsutil.mjs";
 import { readDraft } from "./draft.mjs";
-import { loadWritingSpec, lintBlock, withoutAbsolutePaths } from "./check.mjs";
-import { openLedger, priorLines, ledgerDraftKey, ledgerVerdict } from "./ledger.mjs";
+import { loadWritingSpec, lintBlock, withoutAbsolutePaths, formOf } from "./check.mjs";
+import { openLedger, priorLines, ledgerDraftKey, ledgerVerdict, changedFiles } from "./ledger.mjs";
 import { truncate } from "./stations/util.mjs";
 import { JUDGES, JUDGE_NAMES } from "./judges/index.mjs";
 import { MIN_EVIDENCE_WORDS, normalizeForEvidence, evidenceLocator, evidenceWords } from "./evidence.mjs";
@@ -312,17 +312,16 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
     const sameReader = (l) => !judge.variants || l.reader === variant.id;
     const prior = judgeLines.filter((l) => l.station === judge.name && sameReader(l) && l.draft === draftKey).at(-1);
     const last = prior ? { stations: { [prior.station]: prior.status }, draft_sha256: prior.draft_sha256, spec_sha256: prior.spec_sha256 } : undefined;
-    // What changed since that line is judged by what the judge was shown: the packet. The draft
-    // and the spec are named when their bytes changed. A packet that changed with both unchanged
+    // What changed since that line is judged by what the judge was shown: the packet. The draft,
+    // the spec and its form are named when their bytes changed. A packet that changed with both unchanged
     // was changed either in its inputs, by the files the station reads besides them (the DNA
     // scope, the claims ledger), which are named, or in its fixed text (hyperspec's instructions
     // or format), which is said. A line with no packet_sha256 (none is written without one) is
     // compared by the two hashes alone.
     let what = null;
     if (prior) {
-      const draftChanged = prior.draft_sha256 !== draft.sha256;
-      const specChanged = prior.spec_sha256 !== specSha;
-      if (draftChanged || specChanged) what = draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : "draft";
+      const changed = changedFiles(prior, { draftSha: draft.sha256, specSha, formSha: spec.form?.sha256 });
+      if (changed) what = changed;
       else if (typeof prior.packet_sha256 === "string" && prior.packet_sha256 !== packetSha) {
         what = prior.inputs_sha256 === inputsSha ? "the packet's fixed text (hyperspec's instructions or format)" : sources ?? "the packet's inputs";
       }
@@ -346,6 +345,7 @@ export function recordJudgment(packetPathArg, verdictPathArg) {
       draft: draftKey,
       draft_sha256: draft.sha256,
       spec_sha256: specSha,
+      ...formOf(spec),
       packet_sha256: packetSha,
       inputs_sha256: inputsSha,
       status,

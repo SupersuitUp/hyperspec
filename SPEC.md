@@ -109,7 +109,7 @@ improvement:
 
 A person writing for another person leaves most of the specification unsaid, because the other person fills the gaps from shared context. An agent has none of that context, so it fills every gap with the average, and the average is what reads as middling. Hyperspecification is writing down the gaps. It is a level of detail that would feel like overkill between two people and is exactly enough for an agent: every decision the agent would otherwise guess is either decided, delegated with the rule for deciding it, or marked open, so the work stops instead of guessing.
 
-**Version 0.10.0** (2026-10-02)
+**Version 0.11.0** (2026-10-09)
 
 ## What makes a spec a hyperspec
 
@@ -210,7 +210,7 @@ Each row lists every condition under which `hyperspec lint` fails that test. A w
 
 | Test | Fails when |
 |---|---|
-| 1 every decision is accounted for | no `decisions`; a decision with no or duplicate `id`; an `id` used by both a decision and a requirement, or by two requirements, since the two lists share one set of ids; `state` not decided, delegated or open; decided without `value`; delegated without `rule`; open without `question` |
+| 1 every decision is accounted for | no `decisions`; a decision with no or duplicate `id`; an `id` used by both a decision and a requirement, or by two requirements, since the two lists share one set of ids; `state` not decided, delegated or open; decided without `value`; delegated without `rule`; open without `question`; a `form` that is blank, names no file, is not a hyperspec, is not `kind: form`, names a form of its own, or fails its own lint; a value the spec sets differently from its form; an entry reusing an id its form uses |
 | 2 every requirement can fail | no `requirements`; a requirement without `text` or without `fails_when`. A vague word in `fails_when` is a warning |
 | 3 every requirement names its check | a requirement whose `check` has neither `station` nor `rubric` |
 | 4 every field says where it came from and who wrote it | a decision or requirement without `source` or `author`; a decision whose `chosen_by` is not human or agent |
@@ -246,6 +246,17 @@ Silence is not a verdict. A run that learned nothing has to say so and why, and 
 A profile adds the rules for one kind of work on top of the nine tests. A spec opts in with a top-level `profile:` naming it. A profile never adds a tenth test: every finding it raises reports under one of the nine, with an id that starts with the profile's name, and the score stays out of nine. `lint` prints one more line for a profiled spec, how many of the profile's blocks are complete. A `profile` this linter does not know is a warning under test 7, and none of its rules are checked.
 
 One profile ships: `writing`, for essays, chapters, letters, stories and anything else an agent drafts for a person to read. Its blocks, its fields, which test each rule reports under, `hyperspec init --profile writing`, marking materials with `hyperspec segments init`, and scoped writer DNA with `hyperspec dna init` and `hyperspec dna measure` are in [WRITING.md](WRITING.md).
+
+## Forms
+
+A form is a hyperspec of `kind: form`: the decisions true of every work of one kind, written once. A
+spec builds on one with a top-level `form:` naming it, relative to the spec, and every command reads
+the spec merged with its form. Lists such as `decisions`, `requirements`, `rejects` and `examples`
+accumulate, the form's entries first; maps merge key by key; any other value is the form's, and the
+spec fills only what the form leaves unset, since setting it differently fails test 1. Each file
+keeps its own `hyperspec`, `title`, `kind`, `resume`, `feedback` and `improvement`. A form lints like
+any spec, except that a writing form need not hold the blocks only a work can fill. The rules, the
+findings and a worked example are in [WRITING.md](WRITING.md#forms-decisions-every-work-of-a-kind-shares).
 
 ## Recipes
 

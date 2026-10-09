@@ -25,6 +25,7 @@ improvement ledger. Every test is defined in [SPEC.md](SPEC.md).
 | `hyperspec lint <file...> [--json]` | Score each hyperspec against the nine tests. |
 | `hyperspec init <file> [--title T] [--kind K]` | Write a new hyperspec skeleton. Refuses to overwrite an existing file. |
 | `hyperspec init <file> --profile writing [--title T] [--form F] [--fiction]` | Write a writing-spec skeleton, every block shown with placeholders. |
+| `hyperspec init <file> --form <form spec.md> [--title T] [--kind K]` | Write a work skeleton that builds on a form: it names the form and shows only what the form leaves for the work. |
 | `hyperspec segments init <material> --id <mid> [--out F] [--by paragraph\|sentence] [--keep OLD]` | Split a material into segments to label. With `--keep`, re-mark an edited material: every segment whose text is unchanged keeps its id and labels, and only the rest are listed to label. Refuses to overwrite an existing file unless `--keep` names it. |
 | `hyperspec segments label <segments-file> <ids>=<label>[:key=value]...` | Label segments in place (`s1,s4=aside`, `s3=quote:speaker=gary-sheng`, `s2=claim:own=true`); offsets and text never change. Refuses an unknown id or label with nothing written. |
 | `hyperspec dna init <scope-dir> --writer W --form F --audience A --purpose P` | Start a writer-DNA scope folder. Refuses to overwrite an existing `scope.md`. |
@@ -250,8 +251,28 @@ npx @supersuit/hyperspec check course.hyperspec.md
 ```
 
 The parts are read in order, a finding names the part and its line, and a new part matching the
-pattern is picked up without touching the spec. Every key, how a lesson is read, and every finding
-are in [WRITING.md](WRITING.md#sequential-works).
+pattern is picked up without touching the spec. List `front_matter:` and the pages a work opens with
+(a book on one page, then the book in five pages) must appear as headings, in that order, before the
+first lesson. Every key, how a lesson is read, and every finding are in
+[WRITING.md](WRITING.md#sequential-works).
+
+### Forms
+
+Some decisions are true of every work of a kind: every book in a library opens with the same two
+pages, every chapter carries the same sections, the persona and the sourcing rule never change. A
+form holds them once, as a spec of `kind: form`, and a work builds on it with one line:
+
+```yaml
+form: forms/course.form.hyperspec.md
+```
+
+Every command then reads the work merged with its form. The form's decisions, requirements and
+rejects come first and the work's are added after them; a value the form sets is binding, and a work
+that sets it differently fails lint with `form-contradiction`; the work fills what the form leaves
+open. Each run's ledger line names the form and the hash of its bytes, so a run says which version of
+the form it was held to. `init --form forms/course.form.hyperspec.md` starts a work with only what
+the form leaves for it. The merge rules, every finding and the worked example (a course form, and a
+two-lesson course on it) are in [WRITING.md](WRITING.md#forms-decisions-every-work-of-a-kind-shares).
 
 ### Judging a draft and learning from edits
 
@@ -309,7 +330,8 @@ The triage file, every answer's rule, how a review is read, and every finding ar
 ## The format
 
 A hyperspec is a markdown file with a YAML frontmatter block: `decisions`, `requirements`,
-`rejects`, `examples`, `resume`, `feedback`, and `improvement`, plus an optional `profile`.
+`rejects`, `examples`, `resume`, `feedback`, and `improvement`, plus an optional `profile` and an
+optional `form` naming the form spec it builds on.
 The full field-by-field standard, including what makes each of the nine tests fail, is in
 [SPEC.md](SPEC.md).
 

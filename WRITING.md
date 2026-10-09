@@ -350,7 +350,7 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections` or `knows` that is not a list of real entries, or `quiz` empty or a placeholder; `quotes` is present and is not a map, or its `examples` is not `true`, `false` or a list of real phrasings; `panel` is present and is not a list of readers, or a reader has no `id`, `who` or `lens`, an `id` that is not a lower-case slug, an `id` used twice or `buyer`, or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections`, `knows` or `front_matter` that is not a list of real entries, or `quiz` empty or a placeholder; `quotes` is present and is not a map, or its `examples` is not `true`, `false` or a list of real phrasings; `panel` is present and is not a list of readers, or a reader has no `id`, `who` or `lens`, an `id` that is not a lower-case slug, an `id` used twice or `buyer`, or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
@@ -1041,8 +1041,9 @@ the network, so it cannot tell you a URL is live.
 
 Runs when the spec declares `form.sequence`, and holds a work read in order to what its reader
 depends on: every lesson carries its sections, every term is defined once, no lesson uses a term
-before the lesson that defines it, each lesson defines what the outline promises, and, when the
-spec names a quiz heading, the quizzes test every term in order. How a unit and a quiz are read,
+before the lesson that defines it, each lesson defines what the outline promises, when the
+spec names a quiz heading the quizzes test every term in order, and when it lists front matter the
+work opens with those pages, in order, before the first lesson. How a unit and a quiz are read,
 and each guard, are under [Sequential works](#sequential-works). With no `form.sequence` the
 station skips. It reads words, never meaning: a term used in another sense still counts as a use.
 
@@ -1061,6 +1062,8 @@ station skips. It reads words, never meaning: a term used in another sense still
 | `station-sequence-quiz-answer` | fail | a question has no answer on its quiz's answers line, or its answer is not one of its options |
 | `station-sequence-quiz-used-before-defined` | fail | a question uses a term a later unit than its tagged one defines; points at the question |
 | `station-sequence-quiz-untested` | fail | no question uses a defined term, or its simple plural; points at the defining unit |
+| `station-sequence-front-matter-missing` | fail | `front_matter` lists a heading the draft does not have |
+| `station-sequence-front-matter-order` | fail | a `front_matter` heading comes after the first unit, or before one listed ahead of it; points at the heading |
 
 ### triage
 
@@ -1104,7 +1107,11 @@ has one history. A work checked from `form.sequence.files` is keyed by that list
 it, joined with ", ", so the work keeps one history as parts are added, and its `draft_sha256`
 covers every file's name and bytes. `draft_sha256` and `spec_sha256` hash the two files' bytes; the files the spec
 names (materials, the claims ledger, a scope folder) are not hashed, so "changed" below means the
-draft or the spec. `stations` holds each station's status.
+draft or the spec. `stations` holds each station's status. A spec built on a form (see
+[Forms](#forms-decisions-every-work-of-a-kind-shares)) adds `form`, after `spec_sha256`: the form as
+the spec names it and the SHA-256 of its bytes, `"form":{"path":"forms/course.form.hyperspec.md","sha256":"..."}`,
+so a run says which version of the form it was held to, and a changed form is named in a reason the
+way the spec and the draft are (`form changed`, `spec and form changed`).
 
 A run with `--only` is partial: its line carries `partial: true`, its verdict is `not-improved`
 with the reason `partial run: <stations>`, and later verdicts ignore it, so a subset never claims
@@ -1161,6 +1168,7 @@ four that have defaults written out:
 | `knows` | none | words a unit may use before a unit defines them, beside `audience.knows` |
 | `teaser` | `Next,` | a closing line starting `**<teaser>` names what is coming; it and everything after it in the unit are exempt from the order guard and the pointer warning |
 | `quiz` | none | the heading each quiz starts with; set, it turns on the quiz rules (see How a quiz is read) |
+| `front_matter` | none | the headings the work opens with before its first unit, in reading order: a book on one page, then the book in five pages. Each must be a heading, in this order, before the first unit |
 
 ### How a unit is read
 
@@ -1168,6 +1176,12 @@ A unit starts at an ATX heading that begins with `unit` and a number, and runs t
 heading, the next heading of its own level or above, or the end of its file. So a part's own
 heading and introduction belong to no lesson, and neither does a file's YAML frontmatter, which is
 blanked before anything reads the file. A heading inside fenced code is not a heading.
+
+Front matter is not a unit either. A page listed in `front_matter` is found by its heading (any
+level, any case, a closing colon ignored; a bold line naming it is prose about it, not the page),
+and it sits before the first unit, so the order guard and the pointer warning never read it. A
+summary page that names a term a later unit defines is allowed by the station: whether it explains
+the word in the sentence that uses it is a judgment, for the doctor.
 
 The terms section is its label line and the list under it, to the first blank line after the list.
 Each item defines every bold term before its first `:**`, so `- **Claude Code**, **Codex** and
@@ -1884,16 +1898,16 @@ npx @supersuit/hyperspec ready essay.hyperspec.md --draft essay/draft.md
 tool that hands a draft on (to a person, to a send step): has THIS draft been through the engine
 under THIS spec? It reads the runs ledger and runs nothing. Ready means all three:
 
-- the latest full check of these exact draft and spec bytes passed (an `--only` run proves
-  nothing about the stations it skipped);
+- the latest full check of these exact draft and spec bytes, and of the spec's form when it builds
+  on one, passed (an `--only` run proves nothing about the stations it skipped);
 - every required judge has a line for the same bytes and the latest passed; required is the
   `--judges` list, or every judgment station that applies to the spec and draft, and the panel
   needs a line for every reader, the buyer included;
 - that check comes after the last of those judge lines, so the panel's findings went to triage
   and a check held every answer.
 
-It exits 0 ready, 1 not ready with each missing step listed, 2 usage. Edit the draft or the spec
-and it is not ready until it is graded again, because every rule is about the bytes.
+It exits 0 ready, 1 not ready with each missing step listed, 2 usage. Edit the draft, the spec or
+its form and it is not ready until it is graded again, because every rule is about the bytes.
 
 ## Learning from edits
 
@@ -2049,6 +2063,132 @@ decisions:
 
 Either way the deferred block does not count toward `writing: k/9 blocks complete`.
 
+## Forms: decisions every work of a kind shares
+
+A library of books, a series of courses, every letter a team sends: some decisions are true of
+every work of one kind, and copying them from one spec into the next is how the second copy drifts
+from the first. A form holds those decisions once, as a hyperspec of its own, and a work builds on
+it with one line. The first form written this way was a book form: every book in a library opens
+with the book on one page and then the book in five pages, every chapter carries the same sections,
+and the persona and the sourcing rule are the same in every book. Written as prose, each of those
+is advice an agent can skip. Written in a form, each is a field a station checks, in every book at
+once.
+
+### Writing a form
+
+A form is a spec with `kind: form`. It holds what every work of its kind shares and leaves the rest
+open. This is the `writing.form` block of the shipped example,
+`examples/writing/forms/course.form.hyperspec.md`: every course opens with one page before Lesson 1,
+and every lesson carries the same three sections.
+
+```yaml
+  form:
+    name: course
+    stations:
+      - the sequence station
+    sequence:
+      sections:
+        - After this lesson you can
+        - New terms
+        - Try this
+      terms_section: New terms
+      front_matter:
+        - This course on one page
+    check:
+      station: structure and length, then the sequence station
+    source: form decision
+    author: example-author
+```
+
+A form lints like any spec, with two differences:
+
+- `materials`, `audience`, `goal` and `spine` are not required of it, because only a work can fill
+  them: what it is made from, who reads it, what it changes and what it argues. Every other block a
+  form holds or defers, as any spec does, since those are the decisions it exists to make once.
+- A block it writes may leave fields to the work. A field the form leaves unset is not a finding in
+  the form: the work fills it, and the merged spec is held to every field. A value the form does
+  write is held to its rule, and every block it writes carries its own `check`, `source` and
+  `author`, because the form decided what is in it.
+
+The example form leaves each course's length, required parts and files to the course, its claims
+ledger to the course, and the writer, scope and goldens of its voice to the course, while it names
+the style rules every course follows.
+
+### Building on a form
+
+A work names its form with one top-level key, relative to the work's spec:
+
+```yaml
+form: forms/course.form.hyperspec.md
+```
+
+Every command (`lint`, `check`, `judge`, `ready`, `learn`) then reads the work merged with its form,
+so every station holds the work to the form's decisions without knowing forms exist. The rules, whole:
+
+| What | How it merges |
+|---|---|
+| `decisions`, `requirements`, `rejects`, `examples`, `writing.persona.may_assert`, `writing.persona.will_not_say`, `writing.form.sequence.sections`, `writing.form.sequence.knows`, `writing.form.sequence.front_matter`, `writing.form.stations` | accumulate, the form's entries first. A work entry exactly like a form entry collapses into it. A work entry that reuses an id the form uses is refused, since a work cannot redefine a form's decision or requirement; decisions and requirements share one set of ids |
+| a map | merges key by key |
+| any other value, a list not named above included | is the form's. The work fills what the form leaves unset (absent, blank, a placeholder, or empty); a work that sets it to a different value fails `form-contradiction`, naming the field and both values, and the form's value stands |
+| `hyperspec`, `title`, `kind`, `resume`, `feedback`, `improvement` | belong to each file: a form's are never inherited |
+
+The form is binding. A work that needs a different value changes the form, and every work under it,
+on purpose, or does not use the form.
+
+This is the `writing.form` block of the shipped example's work, `examples/writing/knots.hyperspec.md`.
+Merged, the course has the form's name, sections, terms section, front matter and check, and its own
+length, required part and file:
+
+```yaml
+  form:
+    length:
+      min: 300
+      max: 700
+      unit: words
+    required_parts:
+      - Two knots
+    sequence:
+      files:
+        - knots/course.md
+```
+
+The work writes no `profile:` and no `fiction:`, because the form sets both. Its persona is the
+form's with one more `may_assert` line, and its goal's conditions name four of the form's
+requirements and one of its own.
+
+A path the form writes is the form's file, resolved against the form's folder as every path in any
+spec is resolved against its own, so a form can live anywhere: the example's `../style-rules.md`, in
+`forms/`, is `style-rules.md` to the course beside that folder. A file each work keeps for itself
+(its materials, its claims ledger, its parts and its outline) is left for the work to name, since a
+form that names one points every work at the same file.
+
+One level only: a form that names a form is refused.
+
+### What lint reports
+
+Every finding below fails test 1: the form holds the work's decisions, so a form that cannot be
+used leaves them unaccounted for. When the form cannot be used at all, nothing is merged; under
+`form-nested` the form still merges and the form it names is ignored.
+
+| Id | Test | Fails when |
+|---|---|---|
+| `form-missing` | 1 | `form:` is blank or a placeholder, or names no file |
+| `form-unreadable` | 1 | the file's frontmatter cannot be read, or it is not a hyperspec |
+| `form-not-a-form` | 1 | the file is a hyperspec whose `kind` is not `form`; names the kind |
+| `form-nested` | 1 | the form names a form of its own, or a spec of `kind: form` names one |
+| `form-fails` | 1 | the form fails its own lint; names every failing id, so the form is fixed once rather than in each work |
+| `form-contradiction` | 1 | the work sets a value the form sets, to a different value; names the field and both values |
+| `form-id-collision` | 1 | a work entry reuses an id the form uses, with different content |
+
+### Which form a run was held to
+
+`lint --json` names the form on the work's report, `"form": { "path": "forms/course.form.hyperspec.md",
+"sha256": "..." }`: the form as the work names it, and the SHA-256 of its bytes. Every line `check`
+and `judge record` append to the runs ledger carries the same `form`, so a run says which version of
+the form it was held to, and a changed form is named in the next verdict, `form changed; every
+station still passes`, even when the work's own spec did not change. `ready` counts only lines graded
+under the form as it is now.
+
 ## Starting a writing spec
 
 ```bash
@@ -2073,10 +2213,24 @@ decisions are replaced with real content.
 `--profile writing`, `--kind` with it (the form sets the kind), and a file in a folder that does
 not exist.
 
+A `--form` value ending in `.md` names a form spec instead, and starts a work on it:
+
+```bash
+npx @supersuit/hyperspec init pottery.hyperspec.md --form forms/course.form.hyperspec.md --title "Pottery from zero"
+```
+
+The skeleton names the form, relative to the new file, and shows only what the form leaves for the
+work: a block the form neither writes nor defers appears whole, with its `TODO` placeholders; a
+block the form writes appears with only the fields it leaves unset; a block the form writes in full
+does not appear. The open decisions are kept only for a block left whole to the work. `kind`
+defaults to the form's `writing.form.name` (`--kind` sets it), and `profile` and `fiction` come from
+the form. It needs no `--profile`, and refuses one the form does not set, a `.md` value that is not
+a file, a file that is not `kind: form`, and `--fiction`, which the form decides.
+
 ## Worked examples
 
-Three complete specs ship in [`examples/writing/`](examples/writing/), each with every file it
-names:
+Four complete specs and one form ship in [`examples/writing/`](examples/writing/), each with every
+file it names:
 
 - `essay.hyperspec.md`: an essay for new managers on running a first one-on-one. Three materials
   at three trust levels, its voice from the scope folder `dna/essay-new-managers-teach/` with three
@@ -2088,8 +2242,13 @@ names:
   [Sequential works](#sequential-works)), with an outline promising each lesson's terms and a
   quiz closing each part. `check` reads the parts with no `--draft` and passes them, with two
   forward-pointer warnings.
+- `knots.hyperspec.md`: a two-lesson course built on the form
+  `forms/course.form.hyperspec.md` (see [Forms](#forms-decisions-every-work-of-a-kind-shares)). The
+  form sets the persona, the lesson shape and one page of front matter before Lesson 1; the course
+  adds its own material, readers, goal, length, file and argument. Its one file opens with that
+  page, and `check` passes it.
 
-Every material in all three is marked. Between them the essay and the story use all seven labels, each with
+Every material in all four is marked. Between them the essay and the story use all seven labels, each with
 the field it needs, and every spine claim cites the segments that support it. Each segments file
 keeps the boundaries `segments init` wrote, in paragraph mode for prose and sentence mode for
 bulleted notes, so you can re-run it and compare.
@@ -2098,8 +2257,10 @@ Both lint `pass (9/9)` with `writing: 9/9 blocks complete` and no findings. Each
 draft written to it, `essay/draft.md` and `story/draft.md`, with its claims ledger beside it, and
 both drafts pass every station of `check`: the essay with one dna warning, described under
 [dna](#dna), and the story with dna skipped, since it names no scope folder, and quotes skipped,
-since it is fiction. The course lints the same way and its parts pass every station. A test
-lints all three specs and checks their drafts on every release, so they cannot drift from the tool.
+since it is fiction. The course lints the same way and its parts pass every station, and so does
+the knots course, merged with its form, which lints `pass (9/9)` on its own too. A test lints all
+four specs and the form, and checks their drafts, on every release, so they cannot drift from the
+tool.
 
 Each also ships the packets `judge prepare` writes for its draft, in `essay/judge/` and
 `story/judge/`, and one sample verdict per packet in `essay/sample-verdicts/` and
@@ -2112,7 +2273,7 @@ is what `prepare` writes now and records every sample.
 
 ## What later versions add
 
-This release is the schema, its lint, marked materials, scoped DNA, `check` with nine
+This release is the schema, its lint, marked materials, scoped DNA, forms, `check` with nine
 deterministic stations (sequential works and their quizzes among them, and triage last), seven
 judgment stations written as packets for an outside judge (the panel among them), triage, and
 learn.
