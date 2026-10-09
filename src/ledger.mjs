@@ -44,12 +44,25 @@ export function ledgerDraftKey(specDir, draftPathArg) {
   return relative(resolve(specDir), resolve(draftPathArg)).split(sep).join("/");
 }
 
+// What changed since `last`, as a verdict's reason names it: "spec", "form", "draft", or two or three
+// of them ("spec and draft", "spec, form and draft"), or null for nothing. A line written before
+// 0.11, or for a spec with no form, has no form.sha256, and neither does a spec with no form now.
+export function changedFiles(last, { draftSha, specSha, formSha }) {
+  const changed = [
+    last.spec_sha256 !== specSha && "spec",
+    (last.form?.sha256 ?? null) !== (formSha ?? null) && "form",
+    last.draft_sha256 !== draftSha && "draft",
+  ].filter(Boolean);
+  if (!changed.length) return null;
+  return changed.length === 1 ? changed[0] : `${changed.slice(0, -1).join(", ")} and ${changed.at(-1)}`;
+}
+
 // The verdict a new line earns, compared with `last`, the most recent earlier line this one
 // continues (the caller picks it: check uses the last full check of the same draft, judge the last
 // judgment of the same station and draft). `last` is normalized to { stations, draft_sha256,
-// spec_sha256 }, stations mapping each station name to its status then; statusNow maps each
-// station run now to its status. "Changed" means the draft's bytes or the spec's bytes, unless the
-// caller says more (what, below).
+// spec_sha256, form? }, stations mapping each station name to its status then; statusNow maps each
+// station run now to its status. "Changed" means the draft's bytes, the spec's bytes or its form's
+// bytes, unless the caller says more (what, below).
 //
 //   none, and every station passes              -> one-shot
 //   none, and a station fails                   -> not-improved "failing stations: X"
@@ -73,12 +86,17 @@ export function ledgerDraftKey(specDir, draftPathArg) {
 // such as "draft" or "the claims ledger (claims.jsonl)", or null for nothing. Omitted, it is worked
 // out from the two hashes.
 //
+// formSha: the sha256 of the form the spec builds on (form: <path>, src/form-spec.mjs), or nothing
+// for a spec with none. A line records it as form.sha256, so a changed form is named beside the spec
+// and the draft ("form changed; every station still passes"): the spec's own bytes are the same,
+// and what it holds a draft to is not.
+//
 // unchangedImprovedReason: a caller whose station can flip from fail to pass with nothing changed
 // (a judge answering differently; check cannot, being deterministic over the same files) passes the
 // reason to record instead: "improved" then requires something changed since the failing line, an
 // unchanged flip is not-improved with this reason, and an improved line's change names what
 // changed ("draft changed; stations now pass: doctor").
-export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImprovedReason, noun = "check", what: whatGiven }) {
+export function ledgerVerdict({ last, statusNow, draftSha, specSha, formSha, unchangedImprovedReason, noun = "check", what: whatGiven }) {
   const list = (names) => names.join(", ");
   const failing = Object.entries(statusNow).filter(([, st]) => st === "fail").map(([n]) => n);
   const passedNow = failing.length === 0;
@@ -88,10 +106,7 @@ export function ledgerVerdict({ last, statusNow, draftSha, specSha, unchangedImp
       : { verdict: "not-improved", detail: { reason: `failing stations: ${list(failing)}` } };
   }
   const failedThen = Object.entries(last.stations ?? {}).filter(([, st]) => st === "fail").map(([n]) => n);
-  const draftChanged = last.draft_sha256 !== draftSha;
-  const specChanged = last.spec_sha256 !== specSha;
-  const what = whatGiven !== undefined ? whatGiven
-    : draftChanged && specChanged ? "spec and draft" : specChanged ? "spec" : draftChanged ? "draft" : null;
+  const what = whatGiven !== undefined ? whatGiven : changedFiles(last, { draftSha, specSha, formSha });
 
   if (passedNow && failedThen.length) {
     const nowPass = failedThen.filter((n) => statusNow[n] === "pass");

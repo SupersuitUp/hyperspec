@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { existsSync, statSync, writeFileSync, readFileSync, mkdirSync, realpathSync } from "node:fs";
-import { dirname, resolve, join } from "node:path";
+import { dirname, resolve, join, relative, sep } from "node:path";
 import { loadSpec } from "../src/load.mjs";
 import { lintSpec } from "../src/rules.mjs";
 import { score, exitCode } from "../src/score.mjs";
 import { template } from "../src/template.mjs";
 import { writingTemplate } from "../src/writing-template.mjs";
+import { formWorkTemplate } from "../src/form-template.mjs";
+import { isForm } from "../src/form-spec.mjs";
 import { PROFILES, knownProfile } from "../src/profiles.mjs";
 import { readRecipe, checkRecipe } from "../src/recipe.mjs";
 import { approve } from "../src/writer.mjs";
@@ -16,7 +18,7 @@ import { splitSegments, carrySegments, labelSegments } from "../src/segments.mjs
 import { sha256 } from "../src/hash.mjs";
 import { readScope, measureFeatures, writeFeatures, scopeTemplate, GOLDENS_README } from "../src/dna.mjs";
 import { str } from "../src/placeholder.mjs";
-import { runCheck } from "../src/check.mjs";
+import { runCheck, formOf } from "../src/check.mjs";
 import { prepareJudges, recordJudgment } from "../src/judge.mjs";
 import { prepareLearn, recordLearn, tallyLine } from "../src/learn.mjs";
 import { triageContext, triageState, answerFinding, importReview, replyText } from "../src/triage.mjs";
@@ -26,7 +28,8 @@ import { ready } from "../src/ready.mjs";
 const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
-                               exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage
+                               exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage;
+                               a spec with form: <path> is linted merged with that form spec
   check <spec> [--draft <file>] [--json] [--only a,b]
                                needs a writing spec (profile: writing), and --draft unless the
                                spec lists writing.form.sequence.files, whose files, joined in
@@ -133,6 +136,15 @@ const HELP = `hyperspec <command> [options]
                                linter does not know, --fiction or --form without --profile
                                writing, --kind with it (use --form), or a folder that does not
                                exist
+  init <file> --form <form spec.md> [--title T] [--kind K]
+                               write the skeleton of a work that builds on a form (a spec of kind:
+                               form): it names the form, relative to the new file, and shows only
+                               what the form leaves for the work (a block the form neither writes
+                               nor defers whole, a block it writes with only its unset fields);
+                               kind defaults to the form's writing.form.name; profile and fiction
+                               come from the form; exit 2 for a .md --form that is not a file or not
+                               kind: form, a --profile the form does not set, or --fiction. A
+                               --form value not ending in .md is the writing skeleton's kind, as above
 
   segments init <material> --id <mid> [--out <file>] [--by paragraph|sentence] [--keep <old>]
                                split a material into candidate segments, written as JSONL to
@@ -221,6 +233,28 @@ if (cmd === "init") {
   if (given("--profile") && profileName === undefined) usage("--profile needs a value; known profiles: " + Object.keys(PROFILES).join(", "));
   if (profileName !== undefined && !knownProfile(profileName)) {
     usage(`unknown profile: ${profileName}; known profiles: ${Object.keys(PROFILES).join(", ") || "(none)"}`);
+  }
+  // --form <path ending .md> (0.11) names a form spec (kind: form) the new work builds on, where
+  // --form <name> sets the writing skeleton's kind as it always has. The skeleton names the form,
+  // relative to the new file, and shows only what the form leaves for the work
+  // (src/form-template.mjs); the form decides the profile and fiction.
+  const formArg = value("--form");
+  if (formArg !== undefined && /\.md$/i.test(formArg)) {
+    if (given("--fiction")) usage("--fiction does not apply with a form spec: the form decides fiction, or leaves it for you to set in the skeleton");
+    let isFile = false;
+    try { isFile = statSync(formArg).isFile(); } catch { /* reported next */ }
+    if (!isFile) usage(`--form names no file: ${formArg}`);
+    const form = loadSpec(formArg);
+    if (form.error || !isForm(form.data)) usage(`--form ${formArg} is not a form spec (kind: form)${form.error ? `: ${form.error}` : ""}`);
+    if (profileName !== undefined && profileName !== String(form.data.profile ?? "").trim()) usage(`--profile ${profileName} is not the profile the form sets; leave --profile out, the form decides it`);
+    const folder = dirname(resolve(file));
+    if (!existsSync(folder) || !statSync(folder).isDirectory()) usage(`the folder ${dirname(file)} does not exist; create it first`);
+    const formRef = relative(folder, resolve(formArg)).split(sep).join("/");
+    const content = formWorkTemplate({ title: flag("--title"), kind: value("--kind"), formRef, form: form.data });
+    try { writeFileSync(file, content); }
+    catch (e) { usage(`could not write ${file}: ${e.code === "EACCES" ? "permission denied" : e.message}`); }
+    console.log(`wrote ${file} on the form ${formRef}; run: hyperspec lint ${file}`);
+    process.exit(0);
   }
   const writeTemplate = profileName !== undefined && Object.hasOwn(PROFILE_TEMPLATES, profileName) ? PROFILE_TEMPLATES[profileName] : undefined;
   // The writing flags mean nothing to the plain template, and --kind means nothing to the writing
@@ -436,7 +470,7 @@ if (cmd === "lint") {
     catch (e) { worst = 2; return { file, status: "error", error: `lint crashed: ${e.message}` }; }
     const code = exitCode(s.status);
     if (rank[code] > rank[worst]) worst = code;
-    return { file, ...s, findings };
+    return { file, ...s, ...formOf(spec), findings };
   });
   if (json) console.log(JSON.stringify({ files: reports }, null, 2));
   else for (const r of reports) {

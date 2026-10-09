@@ -96,6 +96,10 @@ export function lintBlock(spec, specPathArg) {
   };
 }
 
+// { form: { path, sha256 } } for a spec built on a form (src/form-spec.mjs), else {}: what a ledger
+// line and a result carry about it. Shared with judge record.
+export const formOf = (spec) => (spec?.form ? { form: { path: spec.form.path, sha256: spec.form.sha256 } } : {});
+
 // A finding from a draft assembled out of a sequence's files names the file and its own line in
 // it, rather than a line of the joined text nobody can open.
 function locate(finding, draft) {
@@ -172,7 +176,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
       verdictDetail.reason = `partial run: ${results.map((r) => r.station).join(", ")}`;
     } else {
       const last = priorLines(ledger.priorText, "check").filter((l) => l.draft === draftKey && l.partial !== true).at(-1);
-      ({ verdict, detail: verdictDetail } = ledgerVerdict({ last, statusNow, draftSha: draft.sha256, specSha }));
+      ({ verdict, detail: verdictDetail } = ledgerVerdict({ last, statusNow, draftSha: draft.sha256, specSha, formSha: spec.form?.sha256 }));
     }
 
     const line = {
@@ -181,6 +185,9 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
       draft: draftKey,
       draft_sha256: draft.sha256,
       spec_sha256: specSha,
+      // The form the spec builds on (form: <path>), as the spec names it and by the hash of its
+      // bytes, so a run says which version of the form it was held to.
+      ...formOf(spec),
       stations: statusNow,
       ...(partial ? { partial: true } : {}),
       verdict,
@@ -196,6 +203,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
     specPath: specPathArg,
     draftPath: draftLabel,
     ...(fromSequence ? { files: draft.sources.map((x) => x.file) } : {}),
+    ...formOf(spec),
     draftSha256: draft.sha256,
     stations: results,
     failing,

@@ -13,6 +13,7 @@
 import { resolve } from "node:path";
 import { BLOCK_FIELD_RULES, characterFields, quotesFields, panelFields } from "./writing-fields.mjs";
 import { str } from "./placeholder.mjs";
+import { isForm, WORK_ONLY_BLOCKS } from "./form-spec.mjs";
 
 const f = (test, id, severity, message, fix) => ({ test, id, severity, message, fix });
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -28,7 +29,10 @@ export { MATERIAL_LABELS } from "./labels.mjs";
 // blockStatus below.
 export const BLOCKS = Object.freeze(["materials", "dna", "persona", "audience", "goal", "form", "spine", "sources", "characters"]);
 
-const required = (block, fiction) => block !== "characters" || fiction;
+// A form spec (kind: form, src/form-spec.mjs) is not required to hold the blocks only a work can
+// fill. Every other block it must hold or defer, like any spec, since those are the decisions a
+// form exists to make once.
+const required = (block, fiction, form = false) => (form && WORK_ONLY_BLOCKS.includes(block) ? false : block !== "characters" || fiction);
 
 // Whether a block's raw value under writing: counts as present at all, before any of its own
 // fields are checked. materials is present when it has at least one item; characters is present
@@ -93,6 +97,7 @@ export function lintWriting(spec) {
   // is read back as the string "true", never the boolean; comparing through str() is the same
   // discipline every closed-set field in this file and in rules.mjs already follows.
   const fiction = str(d.fiction) === "true";
+  const form = isForm(d);
 
   // fiction is a closed set: absent means false; present, it must be exactly true or false. A
   // typo here would otherwise drop the whole characters block from a story without a word.
@@ -118,7 +123,7 @@ export function lintWriting(spec) {
       // Missing is only ever a finding for a REQUIRED block; an unrequired, unwritten block (only
       // characters, only with fiction: false) is simply absent, nothing to check and nothing to
       // defer. A required block's absence fails test 1, unless deferred.
-      if (!required(block, fiction)) continue;
+      if (!required(block, fiction, form)) continue;
       if (deferredBy(decisions, block)) continue;
       out.push(f(1, `writing-${block}-missing`, "fail", `writing.${block} is missing`, `Add writing.${block}, or defer it with a decision id "writing-${block}" in state open (a question) or delegated (a rule).`));
       continue;
@@ -153,7 +158,15 @@ export function lintWriting(spec) {
     } else {
       out.push(...checkOwner(`writing-${block}`, `writing.${block}`, raw));
       const fieldRule = BLOCK_FIELD_RULES[block];
-      if (fieldRule) out.push(...fieldRule(raw, d, here, `writing-${block}`));
+      if (fieldRule) {
+        // A form may leave any field of a block it writes to the work (the merge fills it, and the
+        // merged spec is held to every field), so in a form a finding that the field's absence
+        // would produce is not one: exactly those the same rule raises on an empty block, by id and
+        // message. A value the form does write is held to its rule, and the block still owes its
+        // own check, source and author above, since the form decided what is in it.
+        const absent = form ? new Set(fieldRule({}, d, here, `writing-${block}`).map((x) => `${x.id}\n${x.message}`)) : null;
+        out.push(...fieldRule(raw, d, here, `writing-${block}`).filter((x) => !absent?.has(`${x.id}\n${x.message}`)));
+      }
     }
   }
 
@@ -162,20 +175,22 @@ export function lintWriting(spec) {
 
 // Derives the "writing: k/9 blocks complete" count from the same data and findings lintWriting
 // just produced, so the two can never disagree. A block counts complete when it has no
-// fail-severity finding attributed to it AND (it is present, or it is simply not required, only
-// characters with fiction: false). A block that is present but unrequired is still held to the
+// fail-severity finding attributed to it AND (it is present, or it is simply not required:
+// characters with fiction: false, and in a form the work-only blocks). A block that is present but
+// unrequired is still held to the
 // same bar as any other present block: writing it with broken content does not count as complete
 // just because nothing required it to be written at all.
 export function blockStatus(data, findings) {
   const d = data || {};
   const writing = isObj(d.writing) ? d.writing : {};
   const fiction = str(d.fiction) === "true";
+  const form = isForm(d);
   const failedIds = new Set((Array.isArray(findings) ? findings : []).filter((x) => x.severity === "fail").map((x) => x.id));
   let complete = 0;
   for (const block of BLOCKS) {
     const present = blockPresent(block, writing[block]);
     if (!present) {
-      if (!required(block, fiction)) complete += 1;
+      if (!required(block, fiction, form)) complete += 1;
       continue;
     }
     const broken = [...failedIds].some((id) => typeof id === "string" && id.startsWith(`writing-${block}-`));
