@@ -158,7 +158,7 @@ export function runCheck(specPathArg, draftPathArg, { only, inProgress = false }
   }
 
   const blocked = lintBlock(spec, specPathArg);
-  if (blocked) return blocked;
+  if (blocked) return { ...blocked, passed: false };
 
   // BOM stripped, CRLF-clean lines, sha256 over the raw bytes: see src/draft.mjs. A sequence's
   // draft is its files joined; its ledger key is the files entry as the spec writes it, so the
@@ -224,8 +224,11 @@ export function runCheck(specPathArg, draftPathArg, { only, inProgress = false }
     ledgerPath = ledger.decl;
   }
 
+  // ok: the draft was graded (lint let it through). passed (0.12.1): true exactly when the exit
+  // code is 0, the verdict a caller reading the JSON wants.
   return {
     ok: true,
+    passed: code === 0,
     specPath: specPathArg,
     draftPath: draftLabel,
     ...(fromSequence ? { files: draft.sources.map((x) => x.file) } : {}),

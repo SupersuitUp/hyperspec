@@ -92,6 +92,63 @@ test("stale: a kept answer about a passage that has since left the draft warns",
   assert.deepEqual(ids(r), ["warn station-triage-stale"]);
 });
 
+// ---- retired: an unanswered finding about a draft that is gone (0.12.1) --------------------------
+// Every revision adds a round of findings; a finding raised against an earlier draft about a
+// passage the revision removed has nothing left in the draft to answer about, so it warns rather
+// than holding the draft forever. A finding whose passage survived still fails.
+
+const GONE = DRAFT.replace("not a prompt someone wrote once", "not a prompt");
+
+test("retired: an unanswered finding raised against an earlier draft, about a passage no longer in it, warns and does not fail", () => {
+  const r = station(setupWith([finding("a", { draft_sha256: "old" })]), GONE);
+  assert.equal(r.status, "pass", JSON.stringify(r.findings));
+  assert.deepEqual(ids(r), ["warn station-triage-retired"]);
+  assert.match(r.findings[0].message, /^a \(skeptic, improve\) was raised against an earlier draft about a passage no longer in it: "not a prompt someone wrote once"/);
+  assert.equal(r.retired, 1);
+});
+
+test("GUARD: an unanswered finding whose passage survived the revision still fails, whatever draft it was raised against", () => {
+  const r = station(setupWith([finding("a", { draft_sha256: "old" })]));
+  assert.deepEqual(ids(r), ["fail station-triage-untriaged"]);
+  assert.equal(r.retired, 0);
+});
+
+test("GUARD: an unanswered finding raised against the current draft never retires, even when its passage is not found", () => {
+  const r = station(setupWith([finding("a", { draft_sha256: "now", evidence: "a passage that was never there" })]));
+  assert.deepEqual(ids(r), ["fail station-triage-untriaged"]);
+});
+
+test("GUARD: an unanswered finding that quotes no passage never retires", () => {
+  const r = station(setupWith([finding("a", { draft_sha256: "old", evidence: null })]), GONE);
+  assert.deepEqual(ids(r), ["fail station-triage-untriaged"]);
+});
+
+test("GUARD: an answered finding is held as before: a taken answer about a removed passage still fails", () => {
+  const r = station(setupWith([finding("a", { draft_sha256: "old", disposition: "taken", answer: { evidence: "not a prompt someone wrote once", draft_sha256: "old" } })]), GONE);
+  assert.deepEqual(ids(r), ["fail station-triage-evidence-not-found"]);
+  assert.equal(r.retired, 0);
+});
+
+test("check names the retired count in its text and its JSON, and passes on them", () => {
+  const w = setupWith([finding("a", { draft_sha256: "old" }), finding("b", { draft_sha256: "old", evidence: "Read the schema section next." , disposition: "kept", answer: { reason: "on purpose", draft_sha256: "old" } })], { draft: GONE });
+  const t = cli(["check", w.spec, "--draft", w.draft, "--only", "triage"]);
+  assert.equal(t.status, 0, t.stdout + t.stderr);
+  assert.match(t.stdout, /^triage: pass \(1 retired: raised against an earlier draft about a passage no longer in it\)$/m);
+  assert.match(t.stdout, /warn \[station-triage-retired\]/);
+  const j = cli(["check", w.spec, "--draft", w.draft, "--only", "triage", "--json"]);
+  assert.equal(j.status, 0, j.stdout + j.stderr);
+  assert.equal(JSON.parse(j.stdout).stations[0].retired, 1);
+});
+
+test("triage status counts the retired findings apart from the unanswered ones", () => {
+  const w = setupWith([finding("a", { draft_sha256: "old" }), finding("b", { draft_sha256: "old", evidence: "Read the schema section next." })], { draft: GONE });
+  const r = tri(w, "status", "spec.md", "--draft", "draft.md");
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(r.stdout.split("\n")[0], "triage.jsonl: 2 findings; 0 taken, 0 kept, 0 already true, 0 open, 1 not answered, 1 retired");
+  const j = tri(w, "status", "spec.md", "--draft", "draft.md", "--json");
+  assert.deepEqual(JSON.parse(j.stdout).counts, { taken: 0, kept: 0, "already-true": 0, open: 0, unanswered: 1, retired: 1 });
+});
+
 // ---- check ----------------------------------------------------------------------------------------
 
 test("check runs triage last, fails on an unanswered finding, and passes once it is answered", () => {

@@ -56,7 +56,9 @@ error or a file that cannot be read, has broken frontmatter, or is not a hypersp
 
 `hyperspec check` exits 0 when every station it ran passed, 1 when one failed, and 2 on a usage
 error, a draft that cannot be read, or a spec without `profile: writing`. A spec that is not ready to check against exits with lint's
-own code, 1 or 3, and no station runs.
+own code, 1 or 3, and no station runs. Under `--json`, `passed` is `true` exactly when the exit
+code is 0; `ok` only says the draft was graded, so a check that ran and failed is `ok: true,
+passed: false`.
 
 `hyperspec judge record` exits 0 when the station passed and 1 when it failed or the verdict was
 refused (invalid, or its packet stale or edited), and `hyperspec learn record` 0 when it recorded

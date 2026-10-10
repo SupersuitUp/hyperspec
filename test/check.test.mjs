@@ -303,7 +303,34 @@ test("--json usage errors are one JSON document with the spec, the draft and the
   const { spec } = workspace();
   const r = run("check", spec, "--draft", "missing.md", "--json");
   assert.equal(r.status, 2, r.stdout + r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout), { spec, draft: "missing.md", error: "cannot read draft: missing.md" });
+  assert.deepEqual(JSON.parse(r.stdout), { spec, draft: "missing.md", error: "cannot read draft: missing.md", passed: false });
+});
+
+// passed (0.12.1): true exactly when the exit code is 0. ok keeps its meaning, the draft was graded.
+test("--json passed is true exactly when check exits 0, and ok still means the draft was graded", () => {
+  const { spec, draft } = workspace();
+  writeFileSync(draft, PASSING_DRAFT);
+  const good = run("check", spec, "--draft", draft, "--json");
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.equal(JSON.parse(good.stdout).passed, true);
+  assert.equal(JSON.parse(good.stdout).ok, true);
+  writeFileSync(draft, SHORT_DRAFT);
+  const bad = run("check", spec, "--draft", draft, "--json");
+  assert.equal(bad.status, 1, bad.stdout + bad.stderr);
+  const out = JSON.parse(bad.stdout);
+  assert.equal(out.passed, false);
+  assert.equal(out.ok, true, "ok is unchanged: the draft was graded");
+});
+
+test("--json passed is false when lint blocks the check", () => {
+  const { spec, draft } = workspace();
+  writeFileSync(draft, PASSING_DRAFT);
+  writeFileSync(spec, readFileSync(spec, "utf8").replace("rejects:\n  - hype words about AI\n  - a claim with no material behind it\n", ""));
+  const r = run("check", spec, "--draft", draft, "--json");
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.lintBlocked, true);
+  assert.equal(out.passed, false);
 });
 
 test("--only that names no station is a usage error", () => {

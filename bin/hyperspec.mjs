@@ -522,7 +522,7 @@ if (cmd === "check") {
   // A usage error exits 2: a plain message on stderr, or under --json one document on stdout,
   // { spec, draft, error }, the way lint --json reports a file it could not read.
   const usage = (error) => {
-    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error }, null, 2));
+    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error, passed: false }, null, 2));
     else console.error(error);
     process.exit(2);
   };
@@ -556,7 +556,7 @@ if (cmd === "check") {
   } else {
     for (const s of result.stations) {
       if (s.status === "skip") { console.log(`${s.station}: skip (${s.reason})`); continue; }
-      console.log(`${s.station}: ${s.status}`);
+      console.log(`${s.station}: ${s.status}${s.retired ? ` (${s.retired} retired: raised against an earlier draft about a passage no longer in it)` : ""}`);
       for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (${finding.file ? `${finding.file} ` : ""}line ${finding.line})` : ""}${finding.later ? " (later: a finished work clears it)" : ""}\n    fix: ${finding.fix}`);
     }
     if (result.verdict) {
@@ -728,7 +728,7 @@ if (cmd === "triage") {
     if (json) console.log(JSON.stringify({ spec: specPath, path: state.decl, status, counts: state.counts, shared: state.shared, findings: state.findings, items: state.items }, null, 2));
     else {
       const c = state.counts;
-      console.log(`${state.decl}: ${state.items.length} finding${state.items.length === 1 ? "" : "s"}; ${c.taken} taken, ${c.kept} kept, ${c["already-true"]} already true, ${c.open} open, ${c.unanswered} not answered`);
+      console.log(`${state.decl}: ${state.items.length} finding${state.items.length === 1 ? "" : "s"}; ${c.taken} taken, ${c.kept} kept, ${c["already-true"]} already true, ${c.open} open, ${c.unanswered} not answered${c.retired ? `, ${c.retired} retired` : ""}`);
       if (state.shared.length) {
         console.log("shared by two or more readers:");
         for (const g of state.shared) {

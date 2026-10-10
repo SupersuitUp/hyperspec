@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.1 (2026-10-09)
+
+Two fixes a drafting loop found in its first acceptance run, where triage piled up to 143 findings
+over five rounds and a failing check read `ok: true`.
+
+- **An unanswered triage finding about a draft that is gone retires.** A finding raised against an
+  earlier draft whose quoted passage is no longer in the current draft is now a warning,
+  `station-triage-retired`, rather than `station-triage-untriaged`. A finding whose passage is
+  still in the draft, one raised against the current draft, and one that quotes no passage still
+  fail until answered; answered findings are held exactly as before. The station's result carries
+  `retired`, the count; `check` prints it beside the station's status
+  (`triage: pass (2 retired: ...)`), and `triage status` ends its first line `, <n> retired` and
+  counts them in `counts.retired`, apart from `counts.unanswered`.
+- **`check --json` carries `passed`, true exactly when the exit code is 0**, on a graded result, a
+  lint-blocked one and a usage error alike. `ok` keeps its meaning, the draft was graded, so a
+  check that ran and failed reads `ok: true, passed: false`. README and WRITING.md say which is
+  which.
+
 ## 0.12.0 (2026-10-09)
 
 Two things a drafting loop needs from the engine, so the loop never re-implements them.
