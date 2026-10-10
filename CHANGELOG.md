@@ -2,8 +2,9 @@
 
 ## 0.12.1 (2026-10-09)
 
-Two fixes a drafting loop found in its first acceptance run, where triage piled up to 143 findings
-over five rounds and a failing check read `ok: true`.
+Three fixes a drafting loop found in its first acceptance run, where triage piled up to 143
+findings over five rounds, a failing check read `ok: true`, and the piped `--json` of that check
+arrived cut off.
 
 - **An unanswered triage finding about a draft that is gone retires.** A finding raised against an
   earlier draft whose quoted passage is no longer in the current draft is now a warning,
@@ -17,6 +18,11 @@ over five rounds and a failing check read `ok: true`.
   lint-blocked one and a usage error alike. `ok` keeps its meaning, the draft was graded, so a
   check that ran and failed reads `ok: true, passed: false`. README and WRITING.md say which is
   which.
+- **Output through a pipe is no longer cut at 64 KB.** Every command printed and then exited at
+  once, and a pipe is written asynchronously, so a caller that spawned the bin with piped stdout
+  and parsed its `--json` got invalid JSON once the output passed 64 KB (a real book's check
+  does). The bin now makes stdout and stderr blocking before any command runs, so every command's
+  output arrives whole.
 
 ## 0.12.0 (2026-10-09)
 

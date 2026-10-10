@@ -25,6 +25,12 @@ import { triageContext, triageState, answerFinding, importReview, replyText } fr
 import { sourceAt } from "../src/sequence-draft.mjs";
 import { ready } from "../src/ready.mjs";
 
+// Every command prints and then calls process.exit. Writes to a pipe are asynchronous in Node, so
+// an exit right after printing dropped whatever had not drained, cutting a caller's --json at 64 KB
+// (0.12.1). Blocking writes finish before the next line runs, so every exit below leaves its output
+// whole, whatever the command. A terminal and a file are already synchronous; this changes pipes.
+for (const stream of [process.stdout, process.stderr]) stream._handle?.setBlocking?.(true);
+
 const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
