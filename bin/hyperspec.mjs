@@ -25,6 +25,12 @@ import { triageContext, triageState, answerFinding, importReview, replyText } fr
 import { sourceAt } from "../src/sequence-draft.mjs";
 import { ready } from "../src/ready.mjs";
 
+// Every command prints and then calls process.exit. Node writes a pipe asynchronously on macOS and
+// some other platforms (Linux writes pipes synchronously already), so an exit right after printing dropped whatever had not drained, cutting a caller's --json at 64 KB
+// (0.12.1). Blocking writes finish before the next line runs, so every exit below leaves its output
+// whole, whatever the command. A terminal and a file are already synchronous; this changes pipes.
+for (const stream of [process.stdout, process.stderr]) stream._handle?.setBlocking?.(true);
+
 const HELP = `hyperspec <command> [options]
 
   lint <file...> [--json]      score each hyperspec against the nine tests
@@ -522,7 +528,7 @@ if (cmd === "check") {
   // A usage error exits 2: a plain message on stderr, or under --json one document on stdout,
   // { spec, draft, error }, the way lint --json reports a file it could not read.
   const usage = (error) => {
-    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error }, null, 2));
+    if (json) console.log(JSON.stringify({ spec: specPath ?? null, draft: parsed.values["--draft"] ?? null, error, passed: false }, null, 2));
     else console.error(error);
     process.exit(2);
   };
@@ -556,7 +562,7 @@ if (cmd === "check") {
   } else {
     for (const s of result.stations) {
       if (s.status === "skip") { console.log(`${s.station}: skip (${s.reason})`); continue; }
-      console.log(`${s.station}: ${s.status}`);
+      console.log(`${s.station}: ${s.status}${s.retired ? ` (${s.retired} retired: raised against an earlier draft about a passage no longer in it)` : ""}`);
       for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (${finding.file ? `${finding.file} ` : ""}line ${finding.line})` : ""}${finding.later ? " (later: a finished work clears it)" : ""}\n    fix: ${finding.fix}`);
     }
     if (result.verdict) {
@@ -728,7 +734,7 @@ if (cmd === "triage") {
     if (json) console.log(JSON.stringify({ spec: specPath, path: state.decl, status, counts: state.counts, shared: state.shared, findings: state.findings, items: state.items }, null, 2));
     else {
       const c = state.counts;
-      console.log(`${state.decl}: ${state.items.length} finding${state.items.length === 1 ? "" : "s"}; ${c.taken} taken, ${c.kept} kept, ${c["already-true"]} already true, ${c.open} open, ${c.unanswered} not answered`);
+      console.log(`${state.decl}: ${state.items.length} finding${state.items.length === 1 ? "" : "s"}; ${c.taken} taken, ${c.kept} kept, ${c["already-true"]} already true, ${c.open} open, ${c.unanswered} not answered${c.retired ? `, ${c.retired} retired` : ""}`);
       if (state.shared.length) {
         console.log("shared by two or more readers:");
         for (const g of state.shared) {

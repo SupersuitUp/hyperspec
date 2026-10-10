@@ -3,7 +3,9 @@
 // does it (taken) or already did (already-true) fails unless the passage it quotes is in the draft
 // as it is now, and a kept answer fails without its reason. An open finding is a warning: it is a
 // decision for the operator, and the draft can ship while it waits. So is an answer that kept a
-// passage, or left it open, when that passage is no longer in the draft.
+// passage, or left it open, when that passage is no longer in the draft, and (0.12.1) an unanswered
+// finding raised against an earlier draft about a passage no longer in it: that one is retired, and
+// the result's retired field counts them.
 //
 // The rules and the file live in src/triage.mjs, which `hyperspec triage status` reads too, so the
 // station and the command can never disagree. With no triage file yet the station skips.
@@ -16,5 +18,5 @@ export function run(spec, draft) {
   const state = triageState(spec, draft);
   if (state.skip) return { station: name, status: "skip", findings: [], reason: state.skip };
   const status = state.findings.some((f) => f.severity === "fail") ? "fail" : "pass";
-  return { station: name, status, findings: state.findings };
+  return { station: name, status, findings: state.findings, retired: state.counts.retired };
 }

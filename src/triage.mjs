@@ -127,7 +127,8 @@ const who = (item) => (present(item.reader) ? item.reader : present(item.source)
 const label = (item) => `${item.finding_id} (${who(item)}, ${item.kind ?? "note"})`;
 
 // Everything check's triage station and `triage status` report, from the file and the draft:
-// { decl, exists, items, counts, findings, shared }. findings are station findings (station
+// { decl, exists, items, counts, findings, shared }. counts.retired is the unanswered findings
+// that retired (station-triage-retired); counts.unanswered is the ones that still fail. findings are station findings (station
 // "triage"); shared lists the passages two or more readers raised findings about.
 export function triageState(spec, draft) {
   const t = openTriage(spec);
@@ -140,7 +141,7 @@ export function triageState(spec, draft) {
   const findings = [];
   const finding = (id, severity, message, fix, line) => ({ station: "triage", id, severity, ...(line ? { line } : {}), message, fix });
   const items = entries.filter((e) => e.item).map((e) => e.item);
-  const counts = { taken: 0, kept: 0, "already-true": 0, open: 0, unanswered: 0 };
+  const counts = { taken: 0, kept: 0, "already-true": 0, open: 0, unanswered: 0, retired: 0 };
 
   for (const e of entries.filter((x) => !x.item)) {
     findings.push(finding("station-triage-unreadable", "fail", `${t.decl} line ${e.line} is not a finding: not JSON, or no finding_id or text`, "Fix or remove the line; every line is one finding hyperspec wrote."));
@@ -149,6 +150,14 @@ export function triageState(spec, draft) {
     const at = present(item.evidence) ? locate(item.evidence)?.line : undefined;
     const d = item.disposition;
     if (d === null || d === undefined || d === "") {
+      // Retired (0.12.1): raised against an earlier draft about a passage the revision removed, so
+      // nothing in the draft is left to answer it about. A warning, never a failure; a finding
+      // whose passage survived, one raised against this draft, or one quoting no passage still fails.
+      if (present(item.evidence) && !at && present(item.draft_sha256) && item.draft_sha256 !== draft.sha256) {
+        counts.retired++;
+        findings.push(finding("station-triage-retired", "warn", `${label(item)} was raised against an earlier draft about a passage no longer in it: "${truncate(item.evidence, 80)}"`, `Nothing to do unless it still applies; if it does, answer it: hyperspec triage answer <spec> ${item.finding_id} taken|kept|already-true|open.`));
+        continue;
+      }
       counts.unanswered++;
       findings.push(finding("station-triage-untriaged", "fail", `${label(item)} is not answered: "${truncate(item.text, 80)}"`, `Answer it: hyperspec triage answer <spec> ${item.finding_id} taken|kept|already-true|open, with --evidence or --reason.`, at));
       continue;

@@ -875,7 +875,10 @@ verdict: one-shot
 `--only form,terms` runs just those stations, still in the fixed order, and its ledger line is
 marked partial (see [The runs ledger](#the-runs-ledger)). `--json` prints the whole result, every
 finding included; a spec that is not ready prints lint's result with `lintBlocked: true` instead,
-and a usage error prints `{ "spec", "draft", "error" }`. A finding names the draft line it points
+and a usage error prints `{ "spec", "draft", "error", "passed" }`. Two fields are easy to confuse.
+`passed` is the verdict: `true` exactly when the exit code is 0, `false` on every other exit. `ok`
+only says the draft was graded, because lint let the spec through: a check that ran and failed is
+`ok: true, passed: false`, with `code` 1 and the failing stations in `failing`. A finding names the draft line it points
 at where there is one, quotes at most 80 characters of the draft, and never prints an absolute
 path. A UTF-8 byte order mark at the start of the draft is ignored. A spec that lists
 `form.sequence.files` needs no `--draft`: its files, joined in reading order, are the draft, and a
@@ -1072,7 +1075,11 @@ finding in it to its answer: a finding nobody answered fails, a `taken` or `alre
 fails unless the passage it quotes is in the draft as it is now, and a `kept` answer fails without
 its reason. An `open` finding is a warning, since it is a decision for the operator and the draft
 can ship while it waits. So is a `kept` or `open` answer about a passage that has since left the
-draft. How findings arrive and how they are answered are under [Triage](#triage-1). With no triage
+draft. An unanswered finding raised against an earlier draft, about a passage the revision removed,
+is retired: a warning rather than a failure, since nothing in the draft is left to answer it about,
+and the station's result counts them in `retired` (`check` prints the count beside the station's
+status). A finding whose passage is still in the draft, one raised against the draft as it is now,
+and one that quotes no passage are never retired: they fail until answered. How findings arrive and how they are answered are under [Triage](#triage-1). With no triage
 file the station skips. It checks that an answer's evidence is in the draft, never whether the
 passage does what the finding asked.
 
@@ -1080,6 +1087,7 @@ passage does what the finding asked.
 |---|---|---|
 | `station-triage-unreadable` | fail | a line of the triage file is not a finding: not JSON, or no `finding_id` or `text` |
 | `station-triage-untriaged` | fail | a finding has no disposition; names it, at its evidence's line |
+| `station-triage-retired` | warn | a finding has no disposition, was raised against an earlier draft, and its passage is no longer in the draft |
 | `station-triage-disposition` | fail | a finding's disposition is not `taken`, `kept`, `already-true` or `open` |
 | `station-triage-evidence-missing` | fail | a `taken` or `already-true` answer quotes no passage of at least three words |
 | `station-triage-evidence-not-found` | fail | a `taken` or `already-true` answer quotes a passage that is not in the draft |
@@ -1803,6 +1811,10 @@ triage: pass
   warn [station-triage-open] panel-buyer-57810b16 (buyer, improve) is open: "I guessed Friday before the reveal, which took some of the weight out of the ov…" (the same call as the skeptic's) (line 63)
     fix: A decision for the operator; answer it once it is made.
 ```
+
+When findings have retired (an unanswered finding raised against an earlier draft, about a passage
+no longer in it), the first line ends `, <n> retired`, and `--json` counts them in
+`counts.retired`, apart from `counts.unanswered`.
 
 The shared passages are the synthesis of a panel: where two or more readers point at overlapping
 passages of the draft, the passage is worth reading first. It groups by where, never by meaning,

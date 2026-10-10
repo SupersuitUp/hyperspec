@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.12.1 (2026-10-09)
+
+Three fixes a drafting loop found in its first acceptance run, where triage piled up to 143
+findings over five rounds, a failing check read `ok: true`, and the piped `--json` of that check
+arrived cut off.
+
+- **An unanswered triage finding about a draft that is gone retires.** A finding raised against an
+  earlier draft whose quoted passage is no longer in the current draft is now a warning,
+  `station-triage-retired`, rather than `station-triage-untriaged`. A finding whose passage is
+  still in the draft, one raised against the current draft, and one that quotes no passage still
+  fail until answered; answered findings are held exactly as before. The station's result carries
+  `retired`, the count; `check` prints it beside the station's status
+  (`triage: pass (2 retired: ...)`), and `triage status` ends its first line `, <n> retired` and
+  counts them in `counts.retired`, apart from `counts.unanswered`.
+- **`check --json` carries `passed`, true exactly when the exit code is 0**, on a graded result, a
+  lint-blocked one and a usage error alike. `ok` keeps its meaning, the draft was graded, so a
+  check that ran and failed reads `ok: true, passed: false`. README and WRITING.md say which is
+  which.
+- **Output through a pipe is no longer cut at 64 KB.** Every command printed and then exited at
+  once, and Node writes a pipe asynchronously on macOS and some other platforms (Linux writes pipes
+  synchronously already), so a caller that spawned the bin with piped stdout
+  and parsed its `--json` got invalid JSON once the output passed 64 KB (a real book's check
+  does). The bin now makes stdout and stderr blocking before any command runs, so every command's
+  output arrives whole.
+
 ## 0.12.0 (2026-10-09)
 
 Two things a drafting loop needs from the engine, so the loop never re-implements them.
