@@ -19,7 +19,8 @@ arrived cut off.
   check that ran and failed reads `ok: true, passed: false`. README and WRITING.md say which is
   which.
 - **Output through a pipe is no longer cut at 64 KB.** Every command printed and then exited at
-  once, and a pipe is written asynchronously, so a caller that spawned the bin with piped stdout
+  once, and Node writes a pipe asynchronously on macOS and some other platforms (Linux writes pipes
+  synchronously already), so a caller that spawned the bin with piped stdout
   and parsed its `--json` got invalid JSON once the output passed 64 KB (a real book's check
   does). The bin now makes stdout and stderr blocking before any command runs, so every command's
   output arrives whole.

@@ -1,7 +1,9 @@
 // Output that outgrows a pipe (0.12.1). A caller spawns the bin with piped stdout and parses its
-// --json; a pipe is written asynchronously, so a command that printed and then exited at once used
-// to lose everything past the first 64 KB. Every command prints through the same stdout, so these
-// tests drive two of them past that size.
+// --json; Node writes a pipe asynchronously on macOS and some other platforms, so a command that
+// printed and then exited at once used to lose everything past the first 64 KB. Every command
+// prints through the same stdout, so these tests drive two of them past that size. The guard bites
+// on macOS only: Linux writes pipes synchronously already, so there these pass with or without the
+// fix.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

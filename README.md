@@ -66,10 +66,10 @@ and 1 when it refused. `judge prepare` and `learn prepare` exit 0 when they wrot
 with lint's own code when the spec is not ready, and `judge prepare` exits 1 when a station could
 not build its packet. All four exit 2 on a usage error.
 
-`hyperspec triage status` exits 0 when every finding is answered and every answer holds against
-the draft, and 1 when not; `triage answer` 0 when it wrote the answer and 1 when it refused it;
+`hyperspec triage status` exits 0 when the triage station would pass (every finding answered, or
+retired, and every answer holding against the draft), and 1 when not; `triage answer` 0 when it wrote the answer and 1 when it refused it;
 `triage import` 0 when it imported and 1 when the review holds nothing to answer; `triage reply` 0
-when the reply is ready to send and 1 when a finding is still unanswered. All four exit 2 on a
+when the reply is ready to send and 1 when the triage station would fail. All four exit 2 on a
 usage error.
 
 The recipe commands use the same numbers: 0 ok, 1 a check failed or the child regressed, 2
