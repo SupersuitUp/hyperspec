@@ -12,3 +12,8 @@ export { readScope, measureFeatures } from "./dna.mjs";
 // specText writes a spec's text from data and refuses anything the reader would not return
 // unchanged, for a tool that builds specs (0.10).
 export { specText, parseSpecText } from "./spec-text.mjs";
+// loadSpec reads one spec the way every command does: parsed, and merged with its form when it
+// names one (0.11), so a tool that drives the engine (superwrite's books) reads the outline, the
+// front matter and the sequence files a work is really held to, without re-implementing the merge
+// (0.12).
+export { loadSpec } from "./load.mjs";

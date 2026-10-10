@@ -30,7 +30,7 @@ const HELP = `hyperspec <command> [options]
   lint <file...> [--json]      score each hyperspec against the nine tests
                                exit 0 pass, 1 a test fails, 3 blocked on an open decision, 2 usage;
                                a spec with form: <path> is linted merged with that form spec
-  check <spec> [--draft <file>] [--json] [--only a,b]
+  check <spec> [--draft <file>] [--json] [--only a,b] [--in-progress]
                                needs a writing spec (profile: writing), and --draft unless the
                                spec lists writing.form.sequence.files, whose files, joined in
                                reading order, are then the draft; lints it first (a spec
@@ -45,6 +45,11 @@ const HELP = `hyperspec <command> [options]
                                exit 0 every run station passed, 1 a station failed, 2 usage
                                (including a missing draft file, a spec without the writing
                                profile, or an --only that names no known station)
+                               --in-progress: a sequential work still being written; what only a
+                               finished work can clear (front matter missing, a length under its
+                               minimum, a required part missing, a ledger line not in the draft
+                               yet) is a warning marked later, and the run is partial, so ready
+                               never counts it
   ready <spec> [--draft <file>] [--judges a,b] [--json]
                                has this draft been through the engine under this spec? read from
                                the runs ledger only: the latest full check of these exact draft
@@ -510,7 +515,7 @@ if (cmd === "ready") {
 }
 
 if (cmd === "check") {
-  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--draft", "--only"], boolFlags: ["--json"] });
+  const parsed = parseArgs(argv.slice(1), { valueFlags: ["--draft", "--only"], boolFlags: ["--json", "--in-progress"] });
   if (parsed.error) { console.error(parsed.error); process.exit(2); }
   const [specPath] = parsed.positionals;
   const json = parsed.values["--json"];
@@ -528,7 +533,7 @@ if (cmd === "check") {
     if (!only.length) usage("--only names no station");
   }
 
-  const result = runCheck(specPath, parsed.values["--draft"], { only });
+  const result = runCheck(specPath, parsed.values["--draft"], { only, inProgress: Boolean(parsed.values["--in-progress"]) });
 
   // Usage errors (an unreadable spec, a spec without the writing profile, an unknown --only name,
   // a missing draft file): exit 2, as above.
@@ -552,7 +557,7 @@ if (cmd === "check") {
     for (const s of result.stations) {
       if (s.status === "skip") { console.log(`${s.station}: skip (${s.reason})`); continue; }
       console.log(`${s.station}: ${s.status}`);
-      for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (${finding.file ? `${finding.file} ` : ""}line ${finding.line})` : ""}\n    fix: ${finding.fix}`);
+      for (const finding of s.findings) console.log(`  ${finding.severity === "fail" ? "fail" : "warn"} [${finding.id}] ${finding.message}${typeof finding.line === "number" ? ` (${finding.file ? `${finding.file} ` : ""}line ${finding.line})` : ""}${finding.later ? " (later: a finished work clears it)" : ""}\n    fix: ${finding.fix}`);
     }
     if (result.verdict) {
       const detail = result.verdictDetail.change ?? result.verdictDetail.reason;

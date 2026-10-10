@@ -53,8 +53,9 @@ test("src/segments.mjs imported first, in a fresh process, loads without error a
 
 test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes the marking and DNA readers and the spec writer", async () => {
   const mod = await import("@supersuit/hyperspec/writing");
-  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "measureFeatures", "parseSpecText", "readScope", "readSegments", "specText"]);
+  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "loadSpec", "measureFeatures", "parseSpecText", "readScope", "readSegments", "specText"]);
   assert.equal(mod.MATERIAL_LABELS, (await import("../src/labels.mjs")).MATERIAL_LABELS);
+  assert.equal(mod.loadSpec, (await import("../src/load.mjs")).loadSpec);
   assert.equal(mod.readSegments, (await import("../src/segments.mjs")).readSegments);
   const dna = await import("../src/dna.mjs");
   assert.equal(mod.readScope, dna.readScope);
@@ -81,4 +82,13 @@ test("package.json exports ./writing beside ./recipe and ./package.json", () => 
     "./writing": "./src/writing-exports.mjs",
     "./package.json": "./package.json",
   });
+});
+
+test("through the package, loadSpec reads a work merged with its form, as every command does", async () => {
+  const { loadSpec } = await import("@supersuit/hyperspec/writing");
+  const spec = loadSpec(join(ROOT, "examples", "writing", "knots.hyperspec.md"));
+  assert.equal(spec.error, undefined);
+  assert.equal(spec.form.path, "forms/course.form.hyperspec.md");
+  assert.deepEqual(spec.data.writing.form.sequence.front_matter, ["This course on one page"]);
+  assert.deepEqual(spec.data.writing.form.sequence.files, ["knots/course.md"]);
 });

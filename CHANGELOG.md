@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.0 (2026-10-09)
+
+Two things a drafting loop needs from the engine, so the loop never re-implements them.
+
+- **`hyperspec check --in-progress`**: a sequential work still being written. What only the finished
+  work can clear (`station-sequence-front-matter-missing`, a `station-form-required-part-*` for a
+  part not started, `station-form-length` under its minimum, `station-claims-stale` for a ledger
+  line whose unit is not written yet) is a warning marked `later: true`. Front matter out of order,
+  a work over its maximum and every other finding still fail. The ledger line is partial
+  (`partial: true`, `in_progress: true`), so `ready` never counts it.
+- **`loadSpec` is exported from `@supersuit/hyperspec/writing`**: one spec read the way every command
+  reads it, merged with its form when it names one.
+
 ## 0.11.0 (2026-10-09)
 
 Form specs: the decisions every work of a kind shares, written once and checked in every work. The

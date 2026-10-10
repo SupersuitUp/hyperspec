@@ -21,6 +21,7 @@ import { readDraft } from "./draft.mjs";
 import { openLedger, priorLines, ledgerDraftKey, ledgerVerdict } from "./ledger.mjs";
 import { STATIONS, STATION_NAMES } from "./stations/index.mjs";
 import { str } from "./placeholder.mjs";
+import { wordsOf } from "./dna.mjs";
 import { readSequenceDraft, sequenceFilesDecl, sourceAt } from "./sequence-draft.mjs";
 
 const present = (v) => typeof v === "string" && v.trim().length > 0;
@@ -107,14 +108,33 @@ function locate(finding, draft) {
   return src ? { ...finding, file: src.file, line: finding.line - src.startLine + 1 } : finding;
 }
 
-// runCheck(specPathArg, draftPathArg, { only }): specPathArg and draftPathArg are exactly what
+// A SEQUENTIAL WORK CHECKED WHILE IT IS BEING WRITTEN (0.12). A book is drafted part by part and
+// its front matter is written last, from the finished parts, so a check of the parts so far fails
+// on four things only a finished work can clear. Under --in-progress each of those is a warning
+// marked later: true. A length OVER its maximum, front matter out of order, and every other
+// finding still fail, and the run is partial, so `ready` never counts it.
+export const LATER_IDS = Object.freeze(["station-sequence-front-matter-missing", "station-claims-stale"]);
+
+export function isLater(finding, { count, min }) {
+  if (LATER_IDS.includes(finding.id)) return true;
+  if (finding.id.startsWith("station-form-required-part-")) return true;
+  return finding.id === "station-form-length" && Number.isFinite(min) && count < min;
+}
+
+export function holdForLater(result, ctx) {
+  if (result.status === "skip") return result;
+  const findings = result.findings.map((f) => (f.severity === "fail" && isLater(f, ctx) ? { ...f, severity: "warn", later: true } : f));
+  return { ...result, findings, status: findings.some((f) => f.severity === "fail") ? "fail" : "pass" };
+}
+
+// runCheck(specPathArg, draftPathArg, { only, inProgress }): specPathArg and draftPathArg are exactly what
 // the CLI (or a caller) was given, never resolved, so every path this returns or writes to the
 // ledger is displayed and recorded the way the operator typed it, not as an absolute path on this
 // machine. only, when given, is an array of station names to run instead of every registered one.
 //
 // With no draftPathArg, a spec that lists writing.form.sequence.files is checked against those
 // files, joined in reading order (src/sequence-draft.mjs); any other spec still needs --draft.
-export function runCheck(specPathArg, draftPathArg, { only } = {}) {
+export function runCheck(specPathArg, draftPathArg, { only, inProgress = false } = {}) {
   if (!present(specPathArg)) return { usage: true, error: "check needs a spec path" };
   const needsDraft = { usage: true, error: "check needs --draft <file>" };
 
@@ -148,8 +168,13 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   if (!draft) return { usage: true, error: fromSequence ? `writing.form.sequence.files matches no file: ${draftLabel}` : `cannot read draft: ${draftPathArg}` };
 
   const ctx = {};
-  const results = stationsToRun.map((s) => runStation(s, spec, draft, ctx))
+  let results = stationsToRun.map((s) => runStation(s, spec, draft, ctx))
     .map((r) => (draft.sources ? { ...r, findings: r.findings.map((f) => locate(f, draft)) } : r));
+  if (inProgress) {
+    const length = spec.data?.writing?.form?.length ?? {};
+    const ctx = { count: wordsOf(draft.text).length, min: Number(length.min) };
+    results = results.map((r) => holdForLater(r, ctx));
+  }
   const failing = results.filter((r) => r.status === "fail").map((r) => r.station);
   const code = failing.length ? 1 : 0;
 
@@ -163,7 +188,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
   let ledgerWarning = null;
   let verdict = null;
   let verdictDetail = {};
-  const partial = Boolean(only && only.length);
+  const partial = Boolean(only && only.length) || inProgress;
   const ledger = openLedger(spec);
   if (ledger?.warning) ledgerWarning = ledger.warning;
   else if (ledger) {
@@ -173,7 +198,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
 
     if (partial) {
       verdict = "not-improved";
-      verdictDetail.reason = `partial run: ${results.map((r) => r.station).join(", ")}`;
+      verdictDetail.reason = inProgress ? "in progress: what only a finished work can clear is a warning" : `partial run: ${results.map((r) => r.station).join(", ")}`;
     } else {
       const last = priorLines(ledger.priorText, "check").filter((l) => l.draft === draftKey && l.partial !== true).at(-1);
       ({ verdict, detail: verdictDetail } = ledgerVerdict({ last, statusNow, draftSha: draft.sha256, specSha, formSha: spec.form?.sha256 }));
@@ -190,6 +215,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
       ...formOf(spec),
       stations: statusNow,
       ...(partial ? { partial: true } : {}),
+      ...(inProgress ? { in_progress: true } : {}),
       verdict,
       ...verdictDetail,
     };
@@ -208,6 +234,7 @@ export function runCheck(specPathArg, draftPathArg, { only } = {}) {
     stations: results,
     failing,
     partial,
+    inProgress,
     verdict,
     verdictDetail,
     ledgerPath,
