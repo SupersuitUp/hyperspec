@@ -1265,6 +1265,17 @@ It cannot tell whether a definition is good, whether a term is used in the sense
 or whether a question that uses a term tests understanding of it rather than only naming it. The
 judges still take one `--draft` file.
 
+### Checking a work while it is being written
+
+A book is drafted a part at a time and its front matter is written last, so a check of the parts so
+far fails on four things only the finished book can clear. `hyperspec check <spec> --in-progress`
+reports each of them as a warning marked `later`: `station-sequence-front-matter-missing`, a
+`station-form-required-part-*` for a part not started, `station-form-length` while the work is
+under its minimum, and `station-claims-stale` for a ledger line whose unit is not written yet.
+Front matter out of order, a work over its maximum, and every other finding still fail. The ledger
+line is partial (`partial: true`, `in_progress: true`), so `ready` never counts it: the finished
+work still needs a full check.
+
 ## Judging a draft
 
 `check` runs the stations that are plain functions of the spec and the draft. The rest of a
