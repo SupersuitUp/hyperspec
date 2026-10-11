@@ -205,7 +205,10 @@ pronouns and signature words, measured and never judged. Name the folder in a sp
 from another scope, and that the measurements are current. Without `scope_dir`, a spec lints as
 it did in 0.4. The folder shape, every feature, and every finding are in
 [WRITING.md](WRITING.md#scoped-dna); `readScope` and `measureFeatures` are exported from
-`@supersuit/hyperspec/writing`.
+`@supersuit/hyperspec/writing`. So are the evidence rule every judge is held to
+(`evidenceLocator`, `evidenceProblem`, `MIN_EVIDENCE_WORDS`) and the editor judge's eleven faults
+(`EDITOR_FAULTS`, `FAULT_IDS`), for a tool that takes a person's marks on a draft and holds them to
+the same rule.
 
 ### Checking a draft
 

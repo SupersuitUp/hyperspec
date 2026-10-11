@@ -53,7 +53,20 @@ test("src/segments.mjs imported first, in a fresh process, loads without error a
 
 test("@supersuit/hyperspec/writing resolves through the package's self-reference and exposes the marking and DNA readers and the spec writer", async () => {
   const mod = await import("@supersuit/hyperspec/writing");
-  assert.deepEqual(Object.keys(mod).sort(), ["MATERIAL_LABELS", "loadSpec", "measureFeatures", "parseSpecText", "readScope", "readSegments", "specText"]);
+  assert.deepEqual(Object.keys(mod).sort(), ["EDITOR_FAULTS", "FAULT_IDS", "MATERIAL_LABELS", "MIN_EVIDENCE_WORDS", "evidenceLocator", "evidenceProblem", "loadSpec", "measureFeatures", "parseSpecText", "readScope", "readSegments", "specText"]);
+  const ev = await import("../src/evidence.mjs");
+  assert.equal(mod.evidenceLocator, ev.evidenceLocator);
+  assert.equal(mod.evidenceProblem, ev.evidenceProblem);
+  assert.equal(mod.MIN_EVIDENCE_WORDS, 3);
+  const editor = await import("../src/judges/editor.mjs");
+  assert.equal(mod.FAULT_IDS, editor.FAULT_IDS);
+  assert.equal(mod.EDITOR_FAULTS, editor.EDITOR_FAULTS);
+  // The rule as an outside tool uses it: a verbatim span of three words or more is found, at its line.
+  const locate = mod.evidenceLocator("First line.\nThe meeting starts on their topic.\n");
+  assert.equal(mod.evidenceProblem(locate, "starts on their topic"), null);
+  assert.equal(locate("starts on their topic").line, 2);
+  assert.equal(mod.evidenceProblem(locate, "on their"), "too-short");
+  assert.equal(mod.evidenceProblem(locate, "starts on our topic"), "not-found");
   assert.equal(mod.MATERIAL_LABELS, (await import("../src/labels.mjs")).MATERIAL_LABELS);
   assert.equal(mod.loadSpec, (await import("../src/load.mjs")).loadSpec);
   assert.equal(mod.readSegments, (await import("../src/segments.mjs")).readSegments);

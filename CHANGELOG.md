@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.14.0 (2026-10-11)
+
+- **`@supersuit/hyperspec/writing` exports the evidence rule and the editor's faults**:
+  `evidenceLocator`, `evidenceProblem` and `MIN_EVIDENCE_WORDS` (src/evidence.mjs), and
+  `EDITOR_FAULTS` and `FAULT_IDS` (src/judges/editor.mjs). superwrite's human slop review holds a
+  person's mark to the same rule a judge's quote is held to (three words or more, verbatim, whole
+  words) and the same eleven faults, and appends each mark to `writing.editor.examples`, so it needs
+  both without copying either.
+
+DETECTOR: the mandatory human review in superwrite needed to refuse a mark whose passage is not in
+the draft, and the only implementation of that rule lived behind hyperspec's internal paths.
+
+REMEDY: export it, with the fault set, from the package's public writing entry point.
+
+Tests: `test/writing-exports.test.mjs` asserts the export list, that each export is the module's own
+function or constant, and the rule as an outside tool uses it (found, too short, not found).
+
 ## 0.13.0 (2026-10-11)
 
 An eighth judge, the editor, and a tells station that runs before it. Every judge so far asked

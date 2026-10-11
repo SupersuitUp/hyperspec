@@ -17,3 +17,10 @@ export { specText, parseSpecText } from "./spec-text.mjs";
 // front matter and the sequence files a work is really held to, without re-implementing the merge
 // (0.12).
 export { loadSpec } from "./load.mjs";
+// The evidence rule every judge and every triage answer is held to (src/evidence.mjs), and the
+// editor judge's closed fault set (src/judges/editor.mjs), for a tool that takes a person's marks on
+// a draft (superwrite's human slop review) and holds them to the same rule and the same faults, so a
+// passage a person marks counts exactly when a judge's quote would, and every mark can be fed back
+// to the editor as a calibration example (0.14).
+export { evidenceLocator, evidenceProblem, MIN_EVIDENCE_WORDS } from "./evidence.mjs";
+export { EDITOR_FAULTS, FAULT_IDS } from "./judges/editor.mjs";
