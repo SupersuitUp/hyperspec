@@ -289,6 +289,14 @@ writing:
       knows:                         # optional
         - one-on-one
       lens: what the essay asserts without showing
+  editor:                            # optional; tunes the editor judge, which runs unless off: true
+    examples: essay/editor-examples.jsonl   # optional; human line edits, one { passage, fault, why, edited? } per line
+  tells:                             # optional; tunes the tells station
+    allow:                           # optional; words or phrases never flagged
+      - robust
+    fail_on:                         # optional; categories that fail instead of warn
+      - overclaim
+    lists_of_three_per_1000: 3       # optional; the default is 3
   characters:                        # required when fiction: true; ids unique
     - id: ines
       entity: world/ines.json        # optional; if given, the file must exist
@@ -350,12 +358,12 @@ Each row lists what the writing profile adds to that test. The core conditions i
 
 | Test | A writing spec fails it when |
 |---|---|
-| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections`, `knows` or `front_matter` that is not a list of real entries, or `quiz` empty or a placeholder; `quotes` is present and is not a map, or its `examples` is not `true`, `false` or a list of real phrasings; `panel` is present and is not a list of readers, or a reader has no `id`, `who` or `lens`, an `id` that is not a lower-case slug, an `id` used twice or `buyer`, or `knows` that is not a list of real entries. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
+| 1 every decision is accounted for | a required block is missing and not deferred; a required field is missing; a closed-set value is outside its set (`trust`, `reader`, `change.kind`, the shape of `identity`, `unsourced_claim`); `identity: character:<id>` names a character that is not in `writing.characters`; `fiction` is present and is anything other than `true` or `false`; two materials, two spine claims or two characters share an id; `form.length.min` or `max` is not a whole number of at least 1, or `min` is greater than `max`; `spine.claims` has fewer than three or more than seven distinct claims; a character has no knowledge entry, or an entry lacks `by` or `knows`; a material has no text, or no `segments` field, or its segments file is missing, malformed, labels a segment outside the seven (`unlabeled` included), repeats a segment id, or has segments that overlap or leave text uncovered; `dna.scope_dir` is present and is a placeholder; with `dna.scope_dir`, its `scope.md` is missing, unreadable or lacks a field, its writer, form, audience or purpose differs from the spec's, or its `goldens/` folder is missing or empty, or holds a golden that cannot be read, whose frontmatter never closes, or that has no passage; `audience.terms`, when present, holds a non-string entry or has no real entries at all; `form.sequence` is present and is not a map, or has `unit`, `terms_section`, `teaser` or `outline` empty or a placeholder, or has `files`, `sections`, `knows` or `front_matter` that is not a list of real entries, or `quiz` empty or a placeholder; `quotes` is present and is not a map, or its `examples` is not `true`, `false` or a list of real phrasings; `panel` is present and is not a list of readers, or a reader has no `id`, `who` or `lens`, an `id` that is not a lower-case slug, an `id` used twice or `buyer`, or `knows` that is not a list of real entries; `editor` is present and is not a map, or its `off` is not `true` or `false`, its `check` has no `rubric`, or its `examples` is empty; `tells` is present and is not a map, or its `off` is not `true` or `false`, its `allow` is not a list of real entries, its `fail_on` names anything but the four categories, or its `lists_of_three_per_1000` is not a number of at least 0. A `stance` outside the four is a warning, and so is `unsourced_claim: warn` |
 | 2 every requirement can fail | `goal.conditions` lists fewer than five or more than ten distinct ids, lists an id twice, or names an id that is not a top-level requirement |
 | 3 every requirement names its check | a block or a character has no `check` with a `station` or a `rubric` |
 | 4 every field says where it came from and who wrote it | a block or a character has no `source` or no `author`; a spine claim names no materials, or names a material id that is not in `materials.items`, or a segment that is not in that material's segments file; a segment's text does not match its material word for word; a material changed after it was marked; a claim segment has no `source` and no `own`, a story no `teller`, a quote no `speaker`; with `dna.scope_dir`, a golden in the scope has no `approved_by`, an approver that starts `agent:`, or no `source` |
 | 5 negative space is specified | `persona.will_not_say` is empty; `persona.facts_from` is anything other than `sources`; a spine claim cites a `private` or a `question` segment; with `dna.scope_dir`, a golden the spec lists is not one of the scope's goldens (it lives outside the scope's `goldens/` folder, is a symlink that resolves outside it, or sits in a subfolder, is `README.md` or is not a `.md` file), or the scope's `goldens/` folder resolves outside the scope |
-| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden, character `entity` or `form.sequence.outline` path does not exist or is not a file; a `form.sequence.files` entry matches no file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
+| 6 examples outrank adjectives | a golden has no `why`; a material, `dna.rules`, golden, character `entity` or `form.sequence.outline` or `editor.examples` path does not exist or is not a file; a line of the `editor.examples` file is not a JSON object with a `passage`, a `fault` from the editor's eleven and a `why`; a `form.sequence.files` entry matches no file; a character has no golden lines or no rejected lines, or has the same line in both (compared trimmed and case-folded); with `dna.scope_dir`, a golden in the scope has no `why`, or the scope's `features.json` is missing or is not what `dna measure` would write now |
 | 7 a stranger can resume it | `writing.progress` exists. An unknown `profile:` is a warning |
 | 8 its adopters can push back on it | nothing further; the core rule applies |
 | 9 it improves itself | nothing further; the core rule applies |
@@ -853,7 +861,7 @@ as its prose does, and every line number is still the file's own.
 
 It lints the spec first. A spec that fails lint, or is blocked on an open decision, runs no
 station and exits with lint's own code, because a draft cannot be checked against a spec that is
-not ready. Then it runs nine stations in a fixed order and prints one line for each: `pass`,
+not ready. Then it runs ten stations in a fixed order and prints one line for each: `pass`,
 `fail` with its findings, or `skip` with the reason. A warning prints under its station and never
 fails it. This is the essay example's draft:
 
@@ -866,6 +874,7 @@ private: pass
 dna: pass
   warn [station-dna-drift] first_person_singular_rate is 22.892 in the draft; the scope's goldens measure 0, band 0 to 5
     fix: Bring first_person_singular_rate back inside the band, or, if the scope no longer describes this writer, re-measure it with better goldens.
+tells: pass
 links: pass
 sequence: skip (the spec declares no writing.form.sequence)
 triage: skip (no triage file at essay/triage.jsonl yet; a recorded panel verdict or a triage import starts one)
@@ -1020,6 +1029,41 @@ or a `features.json` that is missing or stale, the station skips and says which.
 | `station-dna-drift` | warn | a feature is outside its band; gives the draft's value, the scope's and the band |
 | `station-dna-em-dash` | warn | the draft uses em dashes and the scope's goldens use none |
 
+### tells
+
+The mechanical tells of machine prose, found by a word list before any judge reads the draft, so
+the [editor](#editor) spends its attention on what only judgment can see. Expert readers spot AI
+text from a short list of tells; the ones a list can find without reading for meaning are here, in
+four categories, every list in one exported constant (`TELLS` in `src/stations/tells.mjs`) so a
+new tell is one line:
+
+| Category | What is flagged |
+|---|---|
+| `ai-vocabulary` | a word or phrase from the list, whole word, ignoring case: delve, tapestry, "a testament to", seamless, robust, realm, unlock, elevate, empower, embark, foster, pivotal, synergy, cutting-edge, game-changer, ever-evolving, multifaceted, "in today's fast-paced world", "it's worth noting", and their inflections |
+| `contrast-pair` | "not X, but Y", "not a X but a Y", "not only X but also Y", "isn't just X, it's Y", "it's not about X, it's about Y", within one sentence |
+| `overclaim` | miracle, miraculous, magic, magical, revolutionary, unprecedented, groundbreaking, game-changing, mind-blowing, alien, alien-level |
+| `lists-of-three` | "A, B, and C" (items up to three words) or "A, B and C" (up to two), not the tail of a longer list |
+
+The lists keep to words that are tells in nearly any context: "landscape" and "navigate" are left
+out because their literal sense is common, and "testament" counts only as "a testament to", so the
+Old Testament is never flagged. A list of three is ordinary in human prose, so it is flagged only
+by density: when the draft has at least two, and more than `lists_of_three_per_1000` per 1,000
+words (default 3, about one per printed page; machine prose tends to put one in most paragraphs),
+every one is reported with the count and the rate. Code blocks and inline code are ignored.
+
+Every hit is a **warning** with its line and the matched text: a tell is a reason to look, not
+proof, and a human writer uses each of them sometimes. `writing.tells` tunes it: `allow` lists
+words or phrases never flagged (compared with the matched text, ignoring case), `fail_on` lists
+categories whose hits fail the station instead of warning, `lists_of_three_per_1000` sets the
+threshold, and `off: true` skips the station.
+
+| Id | Severity | Meaning |
+|---|---|---|
+| `station-tells-ai-vocabulary` | warn, or fail when `fail_on` lists `ai-vocabulary` | a word or phrase from the AI vocabulary list |
+| `station-tells-contrast-pair` | warn, or fail when `fail_on` lists `contrast-pair` | a contrast-pair construction |
+| `station-tells-overclaim` | warn, or fail when `fail_on` lists `overclaim` | an overclaiming word |
+| `station-tells-lists-of-three` | warn, or fail when `fail_on` lists `lists-of-three` | a list of three, in a draft over the density threshold |
+
 ### links
 
 Every Markdown link (inline, reference, collapsed and shortcut) and every bare URL. An `http` or
@@ -1107,7 +1151,7 @@ Each `check` appends one line to the spec's `improvement.ledger`, the same file 
 reads:
 
 ```json
-{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","links":"pass","sequence":"skip","triage":"skip"},"verdict":"one-shot"}
+{"at":"2026-09-29T13:21:37.330Z","kind":"check","draft":"essay/draft.md","draft_sha256":"<sha256 of the draft>","spec_sha256":"<sha256 of the spec>","stations":{"form":"pass","terms":"pass","claims":"pass","quotes":"pass","private":"pass","dna":"pass","tells":"pass","links":"pass","sequence":"skip","triage":"skip"},"verdict":"one-shot"}
 ```
 
 `draft` is the draft's path relative to the spec's folder, however you spelled it, so one draft
@@ -1249,6 +1293,7 @@ claims: pass
 quotes: pass
 private: pass
 dna: skip (writing.dna.scope_dir is not set)
+tells: pass
 links: pass
 sequence: pass
   warn [station-sequence-forward-pointer] Lesson 1 points forward to Lesson 4 (course/part-1.md line 25)
@@ -1311,6 +1356,7 @@ essay/judge/panel-skeptic.packet.json
 essay/judge/panel-novice.packet.json
 essay/judge/panel-expert.packet.json
 essay/judge/panel-buyer.packet.json
+essay/judge/editor.packet.json
 attribution: skip (the spec is not fiction; attribution applies only with fiction: true)
 knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)
 ```
@@ -1318,7 +1364,7 @@ knowledge: skip (the spec is not fiction; knowledge applies only with fiction: t
 Like `check`, it lints the spec first: a spec that fails lint, or is blocked on an open
 decision, gets no packet, and `prepare` exits with lint's own code. Then it writes one
 `<station>.packet.json` for each station that applies, in a fixed order (`doctor, lineup,
-reader, persona, attribution, knowledge, panel`), and prints a `skip` line with the reason for each
+reader, persona, attribution, knowledge, panel, editor`), and prints a `skip` line with the reason for each
 that does not. The panel writes one packet per reader, `panel-<reader>.packet.json`. `--only
 doctor,reader` prepares just those. The `--out` folder must already
 exist. `prepare` refuses to overwrite any file it would write, naming every one, and then writes
@@ -1342,7 +1388,7 @@ attribution answer. Both stations' instructions tell the judge to decide from th
 alone and open no file the packet names, and a judge with file access can still ignore that, so
 the instruction is not a guarantee. Paste the packet into a new conversation, or hand it to a
 person who has not read the draft, rather than to an agent working in the folder the draft is in.
-The other four packets carry the draft in their inputs and hide nothing, which is why each blind
+The other packets carry the draft in their inputs and hide nothing, which is why each blind
 packet goes to its own context, apart from the other packets as well as from the folder: a judge
 that has read the doctor, reader or persona packet has read the draft.
 
@@ -1366,6 +1412,7 @@ Every packet is JSON with these fields, in this order:
 | `instructions` | fixed text for the station, the same for every spec |
 | `inputs` | what the judge reads; each station below lists its own |
 | `verdict_schema` | the verdict's exact shape, as a small JSON Schema |
+| `judge_model` | the editor's only: which model should judge it, a different model family from the drafter's |
 
 A station that needs a rubric skips when its block has none, and a station whose block is
 deferred to a decision skips too. The paths are kept as given so the packet is the same on every
@@ -1375,7 +1422,8 @@ it cannot find the spec and exits 2.
 ### The evidence rule
 
 Every verdict field that cites the draft (the doctor's `evidence`, the reader's `lost_at` and
-`stopped_at`, the persona's `breaks`, the knowledge `leaks`, every panel item) is a span copied
+`stopped_at`, the persona's `breaks`, the knowledge `leaks`, every panel item, every editor
+finding) is a span copied
 from the draft. A
 span counts only when:
 
@@ -1662,6 +1710,59 @@ adds nothing to triage, since a finding's id is a hash of what it says.
 | `judge-panel-missing` | warn | the reader needs something the draft does not give, near this passage |
 | `judge-panel-remove` | warn | the reader would cut this passage, and why |
 
+### editor
+
+Whether the draft is well written, sentence by sentence: the question none of the other judges
+asks. A draft can be understood, in voice, persuasive and sourced, pass every station above, and
+still read like a machine wrote it. The editor reads it as a senior editor at a top book publisher
+and business magazine would, and marks every passage such an editor would mark. Applies to every
+writing spec with a draft, unless `writing.editor.off` is `true`.
+
+Three rules come from research on AI editing. In a study of 1,057 AI-written paragraphs edited by
+professional writers (CHI 2025), the same seven faults kept coming back, AI found the flawed
+passages nearly as well as two experts agreed with each other, and its rewrites were weak. So
+**the editor flags and never rewrites**: the verdict has no field for replacement text, and the
+instructions forbid suggesting any. Untrained AI judges of prose are near chance, and trained on
+human edits they pick the better text about three times in four; so **the spec can name a file of
+human line edits**, `writing.editor.examples`, a JSONL file of `{ passage, fault, why, edited? }`,
+one per line, and every one goes in the packet as calibration for what this house marks. And AI
+judges favor AI writing, their own most of all; so **the packet carries `judge_model`**, saying it
+is to be judged on a different model family from the one that drafted the piece. hyperspec calls
+no model and cannot enforce that; the caller reads it there.
+
+The faults are a closed set of eleven: the seven the writers found, `cliche`,
+`unnecessary-exposition`, `purple-prose`, `sentence-structure`, `lack-of-specificity`,
+`awkward-word-choice` and `tense-inconsistency`, and four more: `wrong-register` (amateur to this
+reader, or a phrase no one in the reader's seat says), `overclaim` (words that invite a skeptic),
+`machine-cadence` (an aphorism or punchline ending doing an argument's work, a tidy triplet, a "not
+X but Y" turn) and `order` (a list or argument in an order this reader would not choose). The
+mechanical tells are the [tells](#tells) station's, found by `check` before any judge reads the
+draft.
+
+Inputs: the `draft`, the `audience` (its `who` and `reader`, or `null` when the audience block is
+not written) and the `examples` (the usable lines of the examples file, `[]` with none). The
+rubric is `writing.editor.check.rubric`, or by default: would a senior editor at a top book
+publisher and business magazine send this draft to print without a line edit? The verdict is
+`{ findings: [{ evidence, fault, why }], would_publish }`, and it passes when `would_publish` is
+`true`. Every finding is a warning at its evidence's line and goes to the spec's triage file as a
+finding to answer, its kind the fault, as the panel's do (see [Triage](#triage-1)). The examples
+file is neither the spec nor the draft, so a packet prepared before it changed is stale, as a
+lineup packet is when its goldens change:
+
+```
+editor: fail
+  3 marked (machine-cadence 2, cliche 1); would publish: no; 3 added to triage (essay/triage.jsonl)
+  warn [judge-editor-mark] the editor marks machine-cadence: Two clipped sentences built as a punchline; the paragraph's first sentence already made the point, and the echo reads as a slogan. (line 6)
+    fix: Answer it in the triage file: take it, keep the passage with a reason, show it is already true, or leave it open for a decision.
+```
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-editor-mark` | warn | the editor marks this passage: the fault, and why |
+| `judge-editor-would-not-publish` | fail | the editor would not send the draft to print without a line edit |
+| `judge-editor-fault-unknown` | invalid | a finding's fault is not one of the eleven |
+| `judge-editor-unmarked` | invalid | `would_publish` is false and no passage is marked |
+
 ### Any judgment station
 
 | Id | Kind | Meaning |
@@ -1740,6 +1841,8 @@ copy on every release.
 | story | panel-novice | pass | the deck oven is shown where it is named; the proving cabinet is not |
 | story | panel-expert | pass | the flour is weighed, as in a real bakery; the starter is never shown being fed |
 | story | panel-buyer | pass | the first line of Ines's speech holds the reader; the red ring again, and a radio that goes nowhere |
+| essay | editor | fail | two punchline turns (the opening's echo and the close) and a stock "was a disaster"; three line edits before print |
+| story | editor | pass | one reach for the mixer's inner life in the opening; the editor would print it as it stands |
 
 Both examples pass every station of `check`. Each failure here is something no deterministic
 station can see.
@@ -2257,7 +2360,8 @@ file it names:
 
 - `essay.hyperspec.md`: an essay for new managers on running a first one-on-one. Three materials
   at three trust levels, its voice from the scope folder `dna/essay-new-managers-teach/` with three
-  annotated goldens and their measured features, a four-claim spine.
+  annotated goldens and their measured features, a four-claim spine, and three human line edits in
+  `essay/editor-examples.jsonl` that calibrate the editor.
 - `story.hyperspec.md`: a short story, `fiction: true`, narrated by one of its two characters.
   Each character has speech rules, a knowledge timeline by scene, and golden and rejected lines
   in a voice you can tell apart from the other's.
@@ -2287,8 +2391,8 @@ tool.
 
 Each also ships the packets `judge prepare` writes for its draft, in `essay/judge/` and
 `story/judge/`, and one sample verdict per packet in `essay/sample-verdicts/` and
-`story/sample-verdicts/`, filled in by hand and marked as samples, four panel readers' among
-them; what each found is under [The worked examples](#the-worked-examples), and the story's panel
+`story/sample-verdicts/`, filled in by hand and marked as samples, four panel readers' and the
+editor's among them; what each found is under [The worked examples](#the-worked-examples), and the story's panel
 findings are triaged under [Triage](#triage-1). The essay adds a learn pair in `essay/learn/`: a
 first draft, the packet `learn prepare` writes comparing it with `essay/draft.md`, and a sample
 learn verdict (see [Learning from edits](#learning-from-edits)). A test checks that every packet
@@ -2296,10 +2400,10 @@ is what `prepare` writes now and records every sample.
 
 ## What later versions add
 
-This release is the schema, its lint, marked materials, scoped DNA, forms, `check` with nine
-deterministic stations (sequential works and their quizzes among them, and triage last), seven
-judgment stations written as packets for an outside judge (the panel among them), triage, and
-learn.
+This release is the schema, its lint, marked materials, scoped DNA, forms, `check` with ten
+deterministic stations (the tells, sequential works and their quizzes among them, and triage
+last), eight judgment stations written as packets for an outside judge (the panel and the editor
+among them), triage, and learn.
 Next: lineups over several passages of one draft, so that one lucky pick carries less weight, and
 a learn step that reads the runs ledger across drafts for the stations that keep failing and the
 changes that made them pass, beside what one pair of drafts shows.

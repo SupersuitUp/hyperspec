@@ -85,7 +85,7 @@ test("with no --judges, every judge that applies to this spec and draft is requi
   const w = ws();
   run("check", w.spec, "--draft", w.draft);
   const o = JSON.parse(ready(w).stdout);
-  assert.deepEqual(o.judges, ["doctor", "lineup", "reader", "persona", "panel"], "lineup applies: the fixture has goldens and this draft has prose");
+  assert.deepEqual(o.judges, ["doctor", "lineup", "reader", "persona", "panel", "editor"], "lineup applies: the fixture has goldens and this draft has prose");
 });
 
 test("usage: a missing draft or an unknown judge is exit 2", () => {

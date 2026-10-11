@@ -95,6 +95,10 @@ export function buildPacket(judge, specPathArg, spec, draft, specSha, variant) {
     instructions: judge.instructions,
     inputs: parts.inputs,
     verdict_schema: parts.verdict_schema,
+    // judge_model: a note on which model should judge this packet, carried only by a station that
+    // sets one (the editor: a different model family from the drafter's). hyperspec calls no model,
+    // so it says this where the caller reads it rather than enforcing it.
+    ...(parts.judge_model ? { judge_model: parts.judge_model } : {}),
   };
   return { packet, packetBytes: packetJson(packet), key: parts.key ?? null };
 }

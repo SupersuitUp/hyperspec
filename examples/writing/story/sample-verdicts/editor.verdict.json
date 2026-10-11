@@ -1,0 +1,11 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "findings": [
+    {
+      "evidence": "like it was trying to remember something",
+      "fault": "purple-prose",
+      "why": "The one figure in an otherwise plain opening reaches for the mixer's inner life; a knock that is slow does the work alone."
+    }
+  ],
+  "would_publish": true
+}

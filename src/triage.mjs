@@ -10,7 +10,8 @@
 //   { finding_id, source, reader, kind, text, evidence, draft_sha256, disposition, answer }
 //
 // source is "panel" or where an imported review came from; reader is the panel reader's id or the
-// review's heading (null when it has none); kind is improve, missing, remove, or note for an
+// review's heading (null when it has none; the editor's findings have none); kind is improve, missing,
+// remove, one of the editor's eleven fault ids (src/judges/editor.mjs), or note for an
 // imported item under no such label; evidence is the passage of the draft the finding is about (null
 // when an imported item quotes none that is in the draft); draft_sha256 is the draft it was raised
 // against. disposition is null until answered, then one of:

@@ -29,7 +29,7 @@ test("the course example checks with no --draft: its parts, joined in order, pas
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const out = JSON.parse(r.stdout);
   assert.deepEqual(out.stations.map((s) => s.station), [...STATION_NAMES]);
-  assert.deepEqual(Object.fromEntries(out.stations.map((s) => [s.station, s.status])), { form: "pass", terms: "skip", claims: "pass", quotes: "pass", private: "pass", dna: "skip", links: "pass", sequence: "pass", triage: "skip" });
+  assert.deepEqual(Object.fromEntries(out.stations.map((s) => [s.station, s.status])), { form: "pass", terms: "skip", claims: "pass", quotes: "pass", private: "pass", dna: "skip", tells: "pass", links: "pass", sequence: "pass", triage: "skip" });
   assert.deepEqual(out.files, ["course/part-1.md", "course/part-2.md"]);
   assert.equal(out.draftPath, "course/part-*.md");
   assert.deepEqual(seqOf(out).findings.map((f) => [f.id, f.severity, f.file, f.line]), [

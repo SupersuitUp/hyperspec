@@ -1,0 +1,21 @@
+{
+  "sample": "A sample judgment for the worked example, filled in by hand to show what a verdict looks like and what judge record does with it. It is one reading of the packet, not a model run, and another judge may answer differently. hyperspec ignores this field.",
+  "findings": [
+    {
+      "evidence": "Everything else you run. This one you hand over.",
+      "fault": "machine-cadence",
+      "why": "Two clipped sentences built as a punchline; the paragraph's first sentence already made the point, and the echo reads as a slogan."
+    },
+    {
+      "evidence": "My first one-on-one as a manager was a disaster",
+      "fault": "cliche",
+      "why": "\"Was a disaster\" is the stock way into a confession; the paragraph shows what went wrong, so the label adds nothing."
+    },
+    {
+      "evidence": "because the first answer is the one they rehearsed and the second one is the one you came for",
+      "fault": "machine-cadence",
+      "why": "The close repeats the Dana passage as a tidy balanced line, the shape a reader learns to skim at the end of a piece."
+    }
+  ],
+  "would_publish": false
+}

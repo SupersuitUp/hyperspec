@@ -11,7 +11,9 @@
 // same nine tests; they do not change the shape here.
 
 import { resolve } from "node:path";
-import { BLOCK_FIELD_RULES, characterFields, quotesFields, panelFields } from "./writing-fields.mjs";
+import { BLOCK_FIELD_RULES, characterFields, quotesFields, panelFields, editorFields, tellsFields } from "./writing-fields.mjs";
+import { readEditorExamples } from "./judges/editor.mjs";
+import { CATEGORIES as TELL_CATEGORIES } from "./stations/tells.mjs";
 import { str } from "./placeholder.mjs";
 import { isForm, WORK_ONLY_BLOCKS } from "./form-spec.mjs";
 
@@ -113,9 +115,12 @@ export function lintWriting(spec) {
     out.push(f(7, "writing-progress", "fail", "writing.progress is stored state; progress is derived from disk, never saved", "Remove writing.progress; derive progress by reading the drafted work itself, not by saving a record of it."));
   }
 
-  // Two optional keys that are not blocks: the quotes station's example phrasings, and the panel.
+  // Four optional keys that are not blocks: the quotes station's example phrasings, the panel, the
+  // editor judge's settings and the tells station's.
   if ("quotes" in writing) out.push(...quotesFields(writing.quotes));
   if ("panel" in writing) out.push(...panelFields(writing.panel));
+  if ("editor" in writing) out.push(...editorFields(writing.editor, here, () => readEditorExamples(spec)));
+  if ("tells" in writing) out.push(...tellsFields(writing.tells, TELL_CATEGORIES));
 
   for (const block of BLOCKS) {
     const raw = writing[block];

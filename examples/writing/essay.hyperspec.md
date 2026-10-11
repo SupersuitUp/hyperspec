@@ -216,6 +216,8 @@ writing:
       station: every factual claim in the ledger points at a source span; every quote matches its source verbatim
     source: sourcing pass
     author: agent:claude
+  editor:
+    examples: essay/editor-examples.jsonl
 fiction: false
 ---
 

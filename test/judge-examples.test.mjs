@@ -25,8 +25,8 @@ const cli = (args, cwd) => spawnSync(process.execPath, [BIN, ...args], { cwd, en
 // never fails a draft, it hands its findings to triage.
 const PANEL = { "panel-skeptic": "pass", "panel-novice": "pass", "panel-expert": "pass", "panel-buyer": "pass" };
 const EXAMPLES = {
-  essay: { spec: "essay.hyperspec.md", draft: "essay/draft.md", status: { doctor: "pass", lineup: "fail", reader: "pass", persona: "pass", ...PANEL } },
-  story: { spec: "story.hyperspec.md", draft: "story/draft.md", status: { doctor: "pass", reader: "pass", persona: "fail", attribution: "pass", knowledge: "pass", ...PANEL } },
+  essay: { spec: "essay.hyperspec.md", draft: "essay/draft.md", status: { doctor: "pass", lineup: "fail", reader: "pass", persona: "pass", ...PANEL, editor: "fail" } },
+  story: { spec: "story.hyperspec.md", draft: "story/draft.md", status: { doctor: "pass", reader: "pass", persona: "fail", attribution: "pass", knowledge: "pass", ...PANEL, editor: "pass" } },
 };
 // The station (and reader) a packet name stands for, as the ledger writes them.
 const ledgerName = (l) => (l.reader ? `${l.station}-${l.reader}` : l.station);

@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.13.0 (2026-10-11)
+
+An eighth judge, the editor, and a tells station that runs before it. Every judge so far asked
+whether a draft is understood, in voice, persuasive or sourced; none asked whether a sentence is
+well written, so a draft could pass all seven and still read like a machine wrote it, which is
+what a book's fourth draft did.
+
+- **The `editor` judge** (`src/judges/editor.mjs`, after `panel` in run order). It reads the draft
+  as a senior editor at a top book publisher and business magazine would and marks every passage
+  such an editor would mark. The verdict is `{ findings: [{ evidence, fault, why }], would_publish
+  }`: evidence verbatim from the draft (the evidence rule every judge shares), the fault one of a
+  closed set of eleven (`cliche`, `unnecessary-exposition`, `purple-prose`,
+  `sentence-structure`, `lack-of-specificity`, `awkward-word-choice`, `tense-inconsistency`,
+  `wrong-register`, `overclaim`, `machine-cadence`, `order`), and why. It flags and never rewrites:
+  the verdict has no field for replacement text and the instructions forbid it. It passes when
+  `would_publish` is true. Every finding is a warning (`judge-editor-mark`) and goes to the triage
+  file with the fault as its kind, so `hyperspec triage` must answer it and `check` holds the
+  answer; `judge-editor-would-not-publish` fails the station; a fault outside the eleven
+  (`judge-editor-fault-unknown`) or a refusal to publish with nothing marked
+  (`judge-editor-unmarked`) is an invalid verdict. It applies to every writing spec with a draft,
+  unless `writing.editor.off: true`.
+- **`writing.editor.examples`**: a JSONL file of human line edits, one `{ passage, fault, why,
+  edited? }` per line, relative to the spec. Every usable line goes in the packet as calibration
+  for what this house marks. The file is named in the station's `inputSources`, so a packet
+  prepared before it changed is stale, and one prepared before it was deleted is stale too.
+  `writing.editor.check.rubric` replaces the default rubric.
+- **`judge_model`**, a new packet field carried only by a station that sets one: the editor's says
+  to judge it on a different model family from the drafter's, since AI judges favor AI writing,
+  their own most of all. hyperspec calls no model and cannot enforce it; it is written where the
+  caller reads.
+- **The `tells` station** (`src/stations/tells.mjs`, after `dna` in `check`'s order). A word list,
+  no model: AI vocabulary (delve, tapestry, "a testament to", seamless, unlock, foster, pivotal,
+  "in today's fast-paced world" and more), contrast pairs ("not X, but Y", "not only X but also
+  Y", "isn't just X, it's Y", "it's not about X, it's about Y"), overclaiming words (miracle,
+  magical, revolutionary, unprecedented, alien-level and more), and lists of three, flagged only
+  when a draft has at least two and more than 3 per 1,000 words (about one a printed page; machine
+  prose tends to put one in most paragraphs). Every hit is a warning with its line and the matched
+  text. `writing.tells` sets `allow` (words or phrases never flagged), `fail_on` (categories that
+  fail instead), `lists_of_three_per_1000` and `off`. Every list is one exported constant, `TELLS`.
+- **Lint holds both keys**: `writing-editor`, `-off`, `-rubric`, `-examples` (test 1),
+  `-examples-missing`, `-not-file` and `-examples-line` (test 6); `writing-tells`, `-off`,
+  `-allow`, `-fail-on`, `-lists-of-three` (test 1).
+- The essay example names three human line edits in `essay/editor-examples.jsonl`; both examples
+  ship an editor packet and a sample verdict (the essay fails, three marks; the story passes).
+  `ready` now requires the editor wherever it applies.
+
+DETECTOR: Wilson's read of a book draft that passed every station and every judge and still read
+flat; the four lines he marked were an aphorism, a list in no order a CEO would use, an accusation
+of the reader, and an overclaim, and no judge had a field for any of them.
+
+REMEDY: a judge whose only question is the editor's, with a closed fault set drawn from what
+professional writers find in AI prose, plus a deterministic station for the tells a list can find,
+so a model's attention is spent on judgment.
+
+Tests: `test/judge-editor.test.mjs` (packet shape and default rubric, the rubric override, the
+off switch, pass, fail with marks to triage, an unknown fault and non-verbatim evidence refused,
+every shape rule, examples feeding the packet, a changed or deleted examples file stale, lint) and
+`test/station-tells.test.mjs` (each category at its line, code ignored, the density threshold and
+its override, allow, fail_on, off, the check output, lint). Each was mutation-checked: removing
+the fault check, the fail_on switch, the density gate or the examples file's `inputSources` fails
+a test.
+
 ## 0.12.1 (2026-10-09)
 
 Three fixes a drafting loop found in its first acceptance run, where triage piled up to 143

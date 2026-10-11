@@ -2,7 +2,7 @@
   "hyperspec_judge": "0.1",
   "station": "lineup",
   "spec": "essay.hyperspec.md",
-  "spec_sha256": "e03dfac6b445ae779000f7fc109a9d713df2e5cf8967faf8e808fe87d63e40e9",
+  "spec_sha256": "63daffbc7c3baa1886ae6c1e6ce1d7a01b8821646f8eb9ef119b2de91698f3ef",
   "draft": "essay/draft.md",
   "draft_sha256": "aa4a1d99604f7b2b398b67305b368abbb72651356c38bfffad1452db6be62f65",
   "rubric": "blind lineup within this scope; a judge shown a generated passage beside the scope's three goldens cannot pick it out",

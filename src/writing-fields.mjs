@@ -680,6 +680,55 @@ export function panelFields(raw) {
   return out;
 }
 
+// ---------------------------------------------------------------- editor and tells -------------
+// Two more optional keys under writing: that are not blocks. writing.editor tunes the editor judge
+// (src/judges/editor.mjs): off, a rubric of its own, and a file of human line edits it reads as
+// calibration. writing.tells tunes the tells station (src/stations/tells.mjs): words to allow,
+// categories that fail, the lists-of-three threshold. As with quotes and panel, a present key has
+// to be usable, because a hollow value would switch something off without a word.
+
+const TRUE_FALSE = (v) => str(v) === "true" || str(v) === "false";
+
+export function editorFields(raw, here, readExamples) {
+  if (!isObj(raw)) return [f(1, "writing-editor", "fail", "writing.editor is not a map", "Write editor: as a map (off, check.rubric, examples), or delete it for the defaults.")];
+  const out = [];
+  if ("off" in raw && !TRUE_FALSE(raw.off)) out.push(f(1, "writing-editor-off", "fail", `writing.editor.off is "${str(raw.off) || "(none)"}", not true or false`, "Set off: true to skip the editor judge, or off: false (the default)."));
+  if ("check" in raw && (!isObj(raw.check) || !str(raw.check.rubric))) out.push(f(1, "writing-editor-rubric", "fail", "writing.editor.check has no rubric", "Give check: a rubric:, the question the editor answers, or delete check: for the default."));
+  if ("examples" in raw) {
+    const path = str(raw.examples);
+    if (!path) out.push(f(1, "writing-editor-examples", "fail", "writing.editor.examples is empty or a placeholder", "Name a JSONL file of human line edits, one { passage, fault, why, edited? } per line, or delete examples:."));
+    else {
+      const found = pathFindings(here, path, "writing-editor-examples", "writing.editor.examples", "Fix the path, or delete examples:.");
+      out.push(...found);
+      if (!found.length) {
+        for (const l of readExamples().lines.filter((x) => x.problem)) {
+          out.push(f(6, "writing-editor-examples-line", "fail", `writing.editor.examples "${path}" line ${l.n} ${l.problem}`, "Write each line as one JSON object: { \"passage\", \"fault\", \"why\" }, plus \"edited\" when the editor's version is known."));
+        }
+      }
+    }
+  }
+  return out;
+}
+
+export function tellsFields(raw, categories) {
+  if (!isObj(raw)) return [f(1, "writing-tells", "fail", "writing.tells is not a map", "Write tells: as a map (allow, fail_on, lists_of_three_per_1000, off), or delete it for the defaults.")];
+  const out = [];
+  const realList = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && str(x));
+  if ("off" in raw && !TRUE_FALSE(raw.off)) out.push(f(1, "writing-tells-off", "fail", `writing.tells.off is "${str(raw.off) || "(none)"}", not true or false`, "Set off: true to skip the tells station, or off: false (the default)."));
+  if ("allow" in raw && !realList(raw.allow)) out.push(f(1, "writing-tells-allow", "fail", "writing.tells.allow is not a list of real words or phrases", "List each word or phrase never to flag, one per line, or delete allow:."));
+  if ("fail_on" in raw) {
+    if (!realList(raw.fail_on)) out.push(f(1, "writing-tells-fail-on", "fail", "writing.tells.fail_on is not a list of categories", `List categories from ${categories.join(", ")}, or delete fail_on:.`));
+    else for (const c of raw.fail_on.map(str).filter((x) => !categories.includes(x))) {
+      out.push(f(1, "writing-tells-fail-on", "fail", `writing.tells.fail_on names "${c}", not one of ${categories.join(", ")}`, `Use categories from ${categories.join(", ")}.`));
+    }
+  }
+  if ("lists_of_three_per_1000" in raw) {
+    const v = str(String(raw.lists_of_three_per_1000 ?? ""));
+    if (!v || !Number.isFinite(Number(v)) || Number(v) < 0) out.push(f(1, "writing-tells-lists-of-three", "fail", `writing.tells.lists_of_three_per_1000 is "${v || "(none)"}", not a number of at least 0`, "Set a number, such as 3, or delete it for the default."));
+  }
+  return out;
+}
+
 // The eight object blocks' field rules, keyed by block name. characters is a list and is called
 // per-entry (characterFields) directly from writing.mjs, not through this map.
 export const BLOCK_FIELD_RULES = Object.freeze({

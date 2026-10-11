@@ -13,7 +13,9 @@
 // station that writes one packet per variant (the panel: one per reader) also carries variants(spec),
 // the list of { id, ... } it writes packets for, and variantOf(packet), the id a packet names;
 // packet() then receives the variant as a third argument, the file is <station>-<id>.packet.json,
-// and derive may return triage, the findings `hyperspec triage` answers. See
+// and derive may return triage, the findings `hyperspec triage` answers (the editor, which has no
+// variants, returns them too). packet() may also return judge_model, a note on which model should
+// judge it, which the framework copies into the packet. See
 // src/judge.mjs for the framework that calls them. Adding a judge is one file plus one line here.
 
 import * as doctor from "./doctor.mjs";
@@ -23,6 +25,7 @@ import * as persona from "./persona.mjs";
 import * as attribution from "./attribution.mjs";
 import * as knowledge from "./knowledge.mjs";
 import * as panel from "./panel.mjs";
+import * as editor from "./editor.mjs";
 
 export const JUDGES = Object.freeze([
   { name: doctor.name, instructions: doctor.DOCTOR_INSTRUCTIONS, skipReason: doctor.skipReason, packet: doctor.packet, validate: doctor.validate, derive: doctor.derive },
@@ -32,6 +35,7 @@ export const JUDGES = Object.freeze([
   { name: attribution.name, instructions: attribution.ATTRIBUTION_INSTRUCTIONS, skipReason: attribution.skipReason, packet: attribution.packet, validate: attribution.validate, derive: attribution.derive },
   { name: knowledge.name, instructions: knowledge.KNOWLEDGE_INSTRUCTIONS, skipReason: knowledge.skipReason, packet: knowledge.packet, validate: knowledge.validate, derive: knowledge.derive },
   { name: panel.name, instructions: panel.PANEL_INSTRUCTIONS, skipReason: panel.skipReason, packet: panel.packet, validate: panel.validate, derive: panel.derive, variants: panel.variants, variantOf: panel.variantOf },
+  { name: editor.name, instructions: editor.EDITOR_INSTRUCTIONS, skipReason: editor.skipReason, packet: editor.packet, validate: editor.validate, derive: editor.derive, inputSources: editor.inputSources, sourceSkip: editor.sourceSkip },
 ]);
 
 export const JUDGE_NAMES = Object.freeze(JUDGES.map((j) => j.name));

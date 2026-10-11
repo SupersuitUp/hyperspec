@@ -209,13 +209,16 @@ it did in 0.4. The folder shape, every feature, and every finding are in
 
 ### Checking a draft
 
-Once a draft exists, `check` holds it to its spec with nine stations, none of which calls a
+Once a draft exists, `check` holds it to its spec with ten stations, none of which calls a
 model or touches the network: `form` (length and required parts), `terms` (every word in the new
 optional `writing.audience.terms` is defined where it first appears), `claims` (the claims
 ledger still matches the draft, and every claim has a source), `quotes` (in nonfiction, every quotation of four
 words or more is word for word in a marked quote; `writing.quotes.examples` marks example
 phrasings such as "write the update for Dana" as examples rather than quotations), `private` (no run of eight words from a
-private segment), `dna` (the draft's measured style beside its scope's, as warnings), `links`
+private segment), `dna` (the draft's measured style beside its scope's, as warnings), `tells`
+(the mechanical tells of machine prose by word list: AI vocabulary, contrast pairs such as "not X,
+but Y", overclaiming words, and lists of three past a density threshold, as warnings that
+`writing.tells` can allow or turn into failures), `links`
 (well-formed, and relative links resolve), `sequence` (for a work read in order; see below) and
 `triage` (every reader's finding answered, and every answer held to the draft; see below).
 
@@ -279,9 +282,9 @@ two-lesson course on it) are in [WRITING.md](WRITING.md#forms-decisions-every-wo
 ### Judging a draft and learning from edits
 
 The rest of a spec's checks are judgments: whether each goal condition holds, where a reader gets
-lost, whether a passage can be told from the writer's goldens, whether the persona holds, and in
+lost, whether a passage can be told from the writer's goldens, whether the persona holds, in
 fiction whether the characters' voices can be told apart and whether anyone knows something too
-early. hyperspec never calls a model. `judge prepare` writes a packet per station for an outside
+early, and whether a senior editor would print it (see [An editor](#an-editor)). hyperspec never calls a model. `judge prepare` writes a packet per station for an outside
 judge, your agent, any model or a person, and `judge record` checks the verdict (every quoted
 passage must be in the draft, and the blind tests are scored against keys the judge never
 sees), derives the station's status, and records it in the runs ledger.
@@ -328,6 +331,24 @@ npx @supersuit/hyperspec triage reply story.hyperspec.md --draft story/draft.md
 
 The triage file, every answer's rule, how a review is read, and every finding are in
 [WRITING.md](WRITING.md#triage-1).
+
+### An editor
+
+None of the judges above asks whether a sentence is well written, so a draft can pass all of them
+and still read like a machine wrote it. The `editor` judge asks. It reads the draft as a senior
+editor at a top book publisher and business magazine would and marks every passage such an editor
+would mark: the passage, quoted word for word, one of eleven faults (the seven professional
+writers keep finding in AI prose, cliche, unnecessary exposition, purple prose, poor sentence
+structure, lack of specificity, awkward word choice and tense inconsistency, plus wrong register,
+overclaim, machine cadence and order), and why. It flags and never rewrites, since AI spots bad
+prose far better than it fixes it. It passes when the editor would send the draft to print without
+a line edit, and every passage it marks goes to triage to be answered, as the panel's do. Name a
+file of human line edits as `writing.editor.examples` and each one goes in the packet as
+calibration, since a judge of prose is only as good as the human edits it learns from; the packet
+also says to judge it on a different model family from the drafter's, since AI judges favor their
+own writing. It runs on every writing spec unless `writing.editor.off` is `true`. The mechanical
+tells are the `tells` station's, found by `check` first, so the editor's attention goes to what
+only judgment can see.
 
 ## The format
 

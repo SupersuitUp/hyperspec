@@ -474,11 +474,14 @@ test("the page's judge prepare sample is exactly what prepare prints for the ess
 });
 
 test("the page's packet field table names every field of a real packet, and no other", () => {
+  assert.ok(readdirSync(join(ROOT, "examples", "writing", "story", "judge")).includes("editor.packet.json"), "the story ships an editor packet, the one that carries judge_model");
   const body = subsOf("Judging a draft").find((s) => s.heading === "The packet").body;
   const fields = [...body.matchAll(/^\| (`[^|]+) \|/gm)].flatMap((m) => [...m[1].matchAll(/`([a-z_0-9]+)`/g)].map((x) => x[1]));
   for (const f of readdirSync(join(ROOT, "examples", "writing", "story", "judge"))) {
     const packet = JSON.parse(readFileSync(join(ROOT, "examples", "writing", "story", "judge", f), "utf8"));
-    assert.deepEqual([...fields].sort(), Object.keys(packet).sort(), f);
+    // judge_model is carried only by a station that sets one (the editor), and the table says so.
+    const expected = fields.filter((x) => x !== "judge_model" || packet.station === "editor");
+    assert.deepEqual([...expected].sort(), Object.keys(packet).sort(), f);
   }
 });
 
