@@ -28,6 +28,7 @@ test("prepare writes one packet per applicable station, plus lineup's key, and p
     "<out>/panel-expert.packet.json",
     "<out>/panel-buyer.packet.json",
     "<out>/editor.packet.json",
+    "author: skip (writing.persona.author_file is not set)",
     "attribution: skip (the spec is not fiction; attribution applies only with fiction: true)",
     "knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)",
   ]);
@@ -51,6 +52,7 @@ test("a story gets the fiction stations too: attribution with its key, and knowl
     "<out>/panel-buyer.packet.json",
     "<out>/editor.packet.json",
     "lineup: skip (writing.dna.scope_dir is not set)",
+    "author: skip (writing.persona.author_file is not set)",
   ]);
 });
 

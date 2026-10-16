@@ -285,7 +285,9 @@ two-lesson course on it) are in [WRITING.md](WRITING.md#forms-decisions-every-wo
 ### Judging a draft and learning from edits
 
 The rest of a spec's checks are judgments: whether each goal condition holds, where a reader gets
-lost, whether a passage can be told from the writer's goldens, whether the persona holds, in
+lost (reading the reader's whole folder when the spec names one), whether a passage can be told
+from the writer's goldens, whether the persona holds, whether a reader who loves the author would
+recognize them (given only their `AUTHOR.md`), in
 fiction whether the characters' voices can be told apart and whether anyone knows something too
 early, and whether a senior editor would print it (see [An editor](#an-editor)). hyperspec never calls a model. `judge prepare` writes a packet per station for an outside
 judge, your agent, any model or a person, and `judge record` checks the verdict (every quoted

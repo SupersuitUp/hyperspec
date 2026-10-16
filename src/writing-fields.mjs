@@ -353,6 +353,13 @@ function personaFields(raw, d, here, idPrefix) {
   if (!list(raw.will_not_say).some((x) => str(x))) out.push(f(5, `${idPrefix}-will-not-say`, "fail", "writing.persona.will_not_say is empty", "List at least one thing the persona will not say."));
   const factsFrom = str(raw.facts_from);
   if (factsFrom !== "sources") out.push(f(5, `${idPrefix}-facts-from`, "fail", `writing.persona.facts_from is "${factsFrom || "(none)"}", not "sources"`, "Set facts_from: sources."));
+  // author_file (0.15, optional; author: is the block's provenance): the AUTHOR.md the author judge reads, relative to the spec. Absent
+  // means no author judge, as before 0.15.
+  if ("author_file" in raw && raw.author_file !== undefined && raw.author_file !== null) {
+    const p = str(raw.author_file);
+    if (!p) out.push(f(6, `${idPrefix}-author-file-missing`, "fail", "writing.persona.author_file is empty", "Point author_file: at the author's AUTHOR.md, relative to this spec, or delete it."));
+    else out.push(...pathFindings(here, p, `${idPrefix}-author-file`, "persona.author_file", "Point author_file: at the author's AUTHOR.md, relative to this spec, or delete it."));
+  }
   return out;
 }
 
@@ -368,6 +375,17 @@ function audienceFields(raw, d, here, idPrefix) {
   if (!list(raw.knows).some((x) => str(x))) out.push(f(1, `${idPrefix}-knows`, "fail", "writing.audience has no knows", "List at least one term the reader already has."));
   const reader = str(raw.reader);
   if (!READER_VALUES.includes(reader)) out.push(f(1, `${idPrefix}-reader`, "fail", `writing.audience.reader is "${reader || "(none)"}"`, "Set reader to person or agent."));
+
+  // reader_folder (0.15, optional): a folder of reader material the reader judge reads in full, READER.md
+  // first, relative to the spec. Absent means the judge reads the audience fields alone.
+  if ("reader_folder" in raw && raw.reader_folder !== undefined && raw.reader_folder !== null) {
+    const p = str(raw.reader_folder);
+    const fix = "Point reader_folder: at a folder holding the reader's READER.md, relative to this spec, or delete it.";
+    if (!p) out.push(f(6, `${idPrefix}-reader-folder-missing`, "fail", "writing.audience.reader_folder is empty", fix));
+    else if (pathKind(here, p) === null) out.push(f(6, `${idPrefix}-reader-folder-missing`, "fail", `audience.reader_folder "${p}" does not exist`, fix));
+    else if (pathKind(here, p) === "file") out.push(f(6, `${idPrefix}-reader-folder-not-dir`, "fail", `audience.reader_folder "${p}" is a file, not a folder`, fix));
+    else if (pathKind(here, join(p, "READER.md")) !== "file") out.push(f(6, `${idPrefix}-reader-folder-no-reader`, "fail", `audience.reader_folder "${p}" has no READER.md`, fix));
+  }
 
   // terms (0.6, optional): the reader-may-not-know terms the check command's `terms` station
   // checks are defined at first use. The KEY being absent is fine and does not change the

@@ -22,6 +22,7 @@ import * as doctor from "./doctor.mjs";
 import * as lineup from "./lineup.mjs";
 import * as reader from "./reader.mjs";
 import * as persona from "./persona.mjs";
+import * as author from "./author.mjs";
 import * as attribution from "./attribution.mjs";
 import * as knowledge from "./knowledge.mjs";
 import * as panel from "./panel.mjs";
@@ -30,8 +31,9 @@ import * as editor from "./editor.mjs";
 export const JUDGES = Object.freeze([
   { name: doctor.name, instructions: doctor.DOCTOR_INSTRUCTIONS, skipReason: doctor.skipReason, packet: doctor.packet, validate: doctor.validate, derive: doctor.derive },
   { name: lineup.name, instructions: lineup.LINEUP_INSTRUCTIONS, skipReason: lineup.skipReason, packet: lineup.packet, validate: lineup.validate, derive: lineup.derive, inputSources: lineup.inputSources, sourceSkip: lineup.sourceSkip },
-  { name: reader.name, instructions: reader.READER_INSTRUCTIONS, skipReason: reader.skipReason, packet: reader.packet, validate: reader.validate, derive: reader.derive },
+  { name: reader.name, instructions: reader.READER_INSTRUCTIONS, skipReason: reader.skipReason, packet: reader.packet, validate: reader.validate, derive: reader.derive, inputSources: reader.inputSources, sourceSkip: reader.sourceSkip },
   { name: persona.name, instructions: persona.PERSONA_INSTRUCTIONS, skipReason: persona.skipReason, packet: persona.packet, validate: persona.validate, derive: persona.derive, inputSources: persona.inputSources, sourceSkip: persona.sourceSkip },
+  { name: author.name, instructions: author.AUTHOR_INSTRUCTIONS, skipReason: author.skipReason, packet: author.packet, validate: author.validate, derive: author.derive, inputSources: author.inputSources, sourceSkip: author.sourceSkip },
   { name: attribution.name, instructions: attribution.ATTRIBUTION_INSTRUCTIONS, skipReason: attribution.skipReason, packet: attribution.packet, validate: attribution.validate, derive: attribution.derive },
   { name: knowledge.name, instructions: knowledge.KNOWLEDGE_INSTRUCTIONS, skipReason: knowledge.skipReason, packet: knowledge.packet, validate: knowledge.validate, derive: knowledge.derive },
   { name: panel.name, instructions: panel.PANEL_INSTRUCTIONS, skipReason: panel.skipReason, packet: panel.packet, validate: panel.validate, derive: panel.derive, variants: panel.variants, variantOf: panel.variantOf },

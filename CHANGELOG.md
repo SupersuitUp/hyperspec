@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.15.0 (2026-10-16)
+
+The author judge, and the reader judge reading a whole reader folder.
+
+- **`author` judge** (`src/judges/author.mjs`): applies when `writing.persona.author_file` names an
+  `AUTHOR.md` relative to the spec (`persona.author` stays the block's provenance). Its packet holds
+  only that file and the draft, so the judge is blind to the rules, the persona fields and every
+  other judge. The verdict is `{ recognizable, why, not_them: [{ evidence, why }] }`: fail when a
+  reader who loves this author would not recognize them, each passage that is not them a warning.
+  The file is an input source: changed after prepare is stale, never altered.
+- **`writing.audience.reader_folder`**: a folder relative to the spec holding the reader's
+  `READER.md`. The reader packet gains `inputs.reader_folder`, every `.md` in it as `{ path, text }`,
+  `READER.md` first, and the instructions tell the judge to play that person. An input source, the
+  same way. Which files go in it (the points of view a piece touches, the passages they cite) is the
+  caller's choice.
+- **Lint** refuses an `author_file` that is missing or not a file, and a `reader_folder` that is
+  missing, a file, or has no `READER.md`. Both keys are optional; a spec without them judges exactly
+  as in 0.14.
+
+DETECTOR: Gary approved the author and reader folder design on 2026-10-15 as the one voice and
+audience standard, and on 2026-10-16 asked whether superwrite should conform to it by default. The
+design asks for a blind author judge (AUTHOR.md and the draft only) and a reader judge that plays
+READER.md with the reader's points of view and their own words; hyperspec had neither, and since
+`judge record` rebuilds every packet from the spec, no host could add them.
+
+REMEDY: both as optional spec keys, so every host gets them by naming two paths.
+
+Tests: `test/judge-author.test.mjs` (7): the blind packet, skip with no author_file, lint, pass,
+warn and fail, verdict shape and evidence, stale on a changed or deleted AUTHOR.md.
+`test/judge-reader.test.mjs` (+3): the folder in the packet in order, lint, stale on a changed pov.
+Each seen red on 0.14.0. `judge.test.mjs`, the WRITING.md samples and the shipped reader packets
+updated for the new skip line and instruction.
+
 ## 0.14.0 (2026-10-11)
 
 - **`@supersuit/hyperspec/writing` exports the evidence rule and the editor's faults**:

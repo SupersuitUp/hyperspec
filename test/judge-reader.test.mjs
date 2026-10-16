@@ -4,7 +4,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { cli, workspace, forStation, readerVerdict, doctorVerdict, writeVerdict, ledgerLines, prepare, record, DRAFT } from "./judge-fixture.mjs";
 import { READER_INSTRUCTIONS } from "../src/judges/reader.mjs";
 
@@ -174,4 +175,50 @@ test("reader and doctor keep separate histories for the same draft; the spec sti
   assert.deepEqual(lines.slice(0, 3).map((l) => [l.station, l.status, l.verdict]), [["doctor", "pass", "one-shot"], ["reader", "fail", "not-improved"], ["reader", "pass", "improved"]]);
   assert.equal(lines.length, 11);
   assert.match(cli(["lint", w.spec]).stdout, /pass \(9\/9\)/);
+});
+
+// ---- the reader folder (0.15): READER.md first, then every other .md, as an input source ------------
+
+const READER = "---\nname: Sam Rivera\nkind: person\n---\n\n## 1. Who he is\n\nAn operator who reads on his phone.\n";
+function withFolder(w = workspace(), { files = { "READER.md": READER, "povs/pricing.md": "He pushes back on any price.\n", "primary-cited.md": "### C01\n> ... too expensive ...\n" } } = {}) {
+  const spec = readFileSync(w.spec, "utf8");
+  const edited = spec.replace("    reader: person\n", "    reader: person\n    reader_folder: reader\n");
+  assert.notEqual(edited, spec);
+  writeFileSync(w.spec, edited);
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(w.dir, "reader", rel)), { recursive: true });
+    writeFileSync(join(w.dir, "reader", rel), text);
+  }
+  return forStation(w, "reader");
+}
+
+test("with audience.reader_folder the packet carries the folder, READER.md first, then the rest in path order", () => {
+  const w = withFolder();
+  const r = prepare(w, "--only", "reader");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const p = json(w.packet);
+  assert.deepEqual(Object.keys(p.inputs), ["audience", "reader_folder", "draft"]);
+  assert.deepEqual(p.inputs.reader_folder.map((f) => f.path), ["READER.md", "povs/pricing.md", "primary-cited.md"]);
+  assert.equal(p.inputs.reader_folder[0].text, READER);
+  assert.ok(p.instructions.includes("inputs.reader_folder"));
+});
+
+test("lint refuses an audience.reader_folder with no READER.md, and one that does not exist", () => {
+  const w = withFolder(workspace(), { files: { "povs/pricing.md": "x\n" } });
+  const r = cli(["lint", w.spec]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /audience\.reader_folder "reader" has no READER\.md/);
+  const w2 = withFolder(workspace(), { files: {} });
+  assert.match(cli(["lint", w2.spec]).stdout, /audience\.reader_folder "reader" does not exist/);
+  assert.equal(cli(["lint", withFolder().spec]).status, 0);
+});
+
+test("a reader folder changed after prepare makes the packet stale, naming the folder", () => {
+  const w = withFolder();
+  assert.equal(prepare(w, "--only", "reader").status, 0);
+  writeFileSync(join(w.dir, "reader", "povs", "pricing.md"), "He has come round on price.\n");
+  const { r, j } = recordJson(w, readerVerdict());
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(j.stale, true);
+  assert.match(j.findings[0].message, /the reader folder \(reader\) changed since the packet was prepared/);
 });

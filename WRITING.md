@@ -1357,6 +1357,7 @@ essay/judge/panel-novice.packet.json
 essay/judge/panel-expert.packet.json
 essay/judge/panel-buyer.packet.json
 essay/judge/editor.packet.json
+author: skip (writing.persona.author_file is not set)
 attribution: skip (the spec is not fiction; attribution applies only with fiction: true)
 knowledge: skip (the spec is not fiction; knowledge applies only with fiction: true)
 ```
@@ -1553,6 +1554,15 @@ says the reader would not take the spec's next step can both be right. In the es
 agree: both name the card. It passes when the reader read to the end and would take its next step
 now.
 
+With `writing.audience.reader_folder` (0.15, optional: a folder relative to the spec holding the
+reader's `READER.md`), the inputs also carry `reader_folder`: every `.md` in that folder as
+`{ path, text }`, `READER.md` first and the rest in path order, between `audience` and `draft`.
+It is the reader in full (who they are, their points of view, their own words those cite), and the
+judge plays that person. Which files go in the folder is the caller's choice: a host copies in only
+the points of view a piece touches and the passages they cite. The folder is an input source, so a
+file in it changed after prepare makes the packet stale; a folder that cannot be read, or has no
+`READER.md`, skips the station, and lint refuses it.
+
 | Id | Kind | Meaning |
 |---|---|---|
 | `judge-reader-lost` | warn | the reader got lost here, and why |
@@ -1576,6 +1586,25 @@ of that kind is invalid. The verdict is `{ breaks: [{ evidence, kind, why }] }`,
 | `judge-persona-break` | fail | the voice breaks here; the message names the kind and gives the judge's why |
 | `judge-persona-kind-unknown` | invalid | a break's kind is not one of the four |
 | `judge-persona-no-ledger` | invalid | a break is `unsourced_fact`, and the spec declares no claims ledger |
+
+### author
+
+Asks the question the rules cannot: does this sound like the author? A judge who knows the author
+only from their `AUTHOR.md` (who they are, what they believe, why they write, how they sound)
+decides whether a reader who loves this author would recognize them in the draft. Applies when
+`writing.persona` is written and `writing.persona.author_file` (0.15, optional: the `AUTHOR.md`,
+relative to the spec) names a file that can be read; `persona.author` stays the block's
+provenance. The rubric is fixed ("a reader who loves this author would recognize them in the
+draft"), since only the author changes. Inputs: `author` (the file's text) and the `draft`, and
+nothing else: no rules, no persona fields, no claims, so the judge is blind to everything but the
+author. The file is an input source, so an `AUTHOR.md` changed after prepare makes the packet stale.
+The verdict is `{ recognizable, why, not_them: [{ evidence, why }] }`. It passes when the author is
+recognizable; each passage that is not them is a warning.
+
+| Id | Kind | Meaning |
+|---|---|---|
+| `judge-author-not-them` | warn | this passage is not the author, and why |
+| `judge-author-unrecognized` | fail | a reader who loves this author would not recognize them, and why |
 
 ### attribution
 
