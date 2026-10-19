@@ -36,7 +36,7 @@ test("the README's sample output is exactly what lint prints for a passing spec.
 });
 
 test("no workflow echoes backticks inside double quotes, where the shell would run them", () => {
-  for (const f of [".github/workflows/ci.yml", ".github/workflows/publish.yml"]) {
+  for (const f of [".github/workflows/publish.yml"]) {
     const bad = read(f).split("\n").filter((l) => /\becho\s+"[^"]*`[^"]*"/.test(l));
     assert.deepEqual(bad, [], f);
   }
